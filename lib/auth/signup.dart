@@ -1,8 +1,5 @@
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:appwrite/appwrite.dart';
-import 'package:zephyron/main.dart';
-import 'package:zephyron/models/user.dart' as model;
+import 'package:flutter/services.dart';
 import 'dart:developer' as developer;
 
 class SignUpPage extends StatefulWidget {
@@ -14,12 +11,12 @@ class SignUpPage extends StatefulWidget {
 
 class SignUpPageState extends State<SignUpPage> {
   final GlobalKey<FormState> key = GlobalKey<FormState>();
-  final TextEditingController name = TextEditingController();
-  final TextEditingController password = TextEditingController();
-  final TextEditingController email = TextEditingController();
+  final TextEditingController passphrase = TextEditingController();
+  final TextEditingController confirmation = TextEditingController();
   bool obscured = true;
   bool toggled = false;
   bool loading = false;
+  String? seed;
   String? warning;
 
   @override
@@ -33,15 +30,15 @@ class SignUpPageState extends State<SignUpPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Image.asset('image_path', width: 100, height: 100),
+                  Image.asset('assets/logo.png', width: 100, height: 100),
                   SizedBox(height: MediaQuery.of(context).size.height * 0.05),
                   Text(
-                    'Create your account',
+                    'Generate Identity',
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 12),
                   const Text(
-                    'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris.',
+                    'Your identity exists exclusively on your device as an Ed25519 keypair and v3 Onion service address. Write down your recovery seed phrase.',
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 24),
@@ -51,117 +48,62 @@ class SignUpPageState extends State<SignUpPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Username',
+                          'Recovery Seed Phrase',
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                         const SizedBox(height: 12),
-                        TextFormField(
-                          controller: name,
-                          textInputAction: TextInputAction.next,
-                          decoration: const InputDecoration(
-                            hintText: 'Enter your username',
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: Theme.of(context).dividerColor,
+                            ),
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                          autovalidateMode: AutovalidateMode.onUserInteraction,
-                          validator: (value) {
-                            try {
-                              if (value == null || value.isEmpty) {
-                                return 'Please enter a username';
+                          child: SelectableText(
+                            seed ??
+                                'alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            icon: const Icon(Icons.copy, size: 18),
+                            label: const Text('Copy Seed to Clipboard'),
+                            onPressed: () {
+                              try {
+                                Clipboard.setData(
+                                  ClipboardData(
+                                    text:
+                                        seed ??
+                                        'alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima',
+                                  ),
+                                );
+                              } catch (error) {
+                                developer.log(
+                                  'Failed to write seed phrase payload to system clipboard: $error',
+                                  error: error,
+                                  stackTrace: StackTrace.current,
+                                  name: 'SignUpPage.clipboard',
+                                );
                               }
-                              if (value.length < 3) {
-                                return 'Username must be at least 3 characters';
-                              }
-                              if (value.length > 20) {
-                                return 'Username must be no more than 20 characters';
-                              }
-                              if (!RegExp(r'^[a-zA-Z]').hasMatch(value)) {
-                                return 'Username must start with a letter';
-                              }
-                              if (!RegExp(
-                                r'^[a-zA-Z][a-zA-Z0-9._]*$',
-                              ).hasMatch(value)) {
-                                return 'Username can only contain letters, numbers, underscores, and periods';
-                              }
-                              if (RegExp(r'[._]{2,}').hasMatch(value)) {
-                                return 'Username cannot have consecutive periods or underscores';
-                              }
-                              if (RegExp(r'[._]$').hasMatch(value)) {
-                                return 'Username cannot end with a period or underscore';
-                              }
-                              return null;
-                            } catch (error) {
-                              developer.log(
-                                'Failed to evaluate username configuration rules: $error',
-                                error: error,
-                                stackTrace: StackTrace.current,
-                                name: 'SignUpPage.validation',
-                              );
-                              return 'An unexpected error occurred.';
-                            }
-                          },
+                            },
+                          ),
                         ),
                         const SizedBox(height: 12),
                         Text(
-                          'Email',
+                          'Local Encrypted Passphrase',
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
-                          controller: email,
-                          keyboardType: TextInputType.emailAddress,
-                          textInputAction: TextInputAction.next,
-                          decoration: const InputDecoration(
-                            hintText: 'Enter your email',
-                          ),
-                          autovalidateMode: AutovalidateMode.onUserInteraction,
-                          validator: (value) {
-                            try {
-                              if (value == null || value.isEmpty) {
-                                return 'Please enter your email';
-                              }
-                              if (!RegExp(
-                                r"^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*$",
-                              ).hasMatch(value)) {
-                                return 'Please enter a valid email';
-                              }
-                              if (value.contains(' ')) {
-                                return 'Email must not contain spaces';
-                              }
-                              return warning;
-                            } catch (error) {
-                              developer.log(
-                                'Failed to evaluate email formatting rules: $error',
-                                error: error,
-                                stackTrace: StackTrace.current,
-                                name: 'SignUpPage.validation',
-                              );
-                              return 'An unexpected error occurred.';
-                            }
-                          },
-                          onChanged: (_) {
-                            try {
-                              if (!mounted) return;
-                              setState(() => warning = null);
-                            } catch (error) {
-                              developer.log(
-                                'Failed to clear active validation hints on email edit: $error',
-                                error: error,
-                                stackTrace: StackTrace.current,
-                                name: 'SignUpPage.input',
-                              );
-                            }
-                          },
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'Password',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: password,
+                          controller: passphrase,
                           obscureText: obscured,
+                          textInputAction: TextInputAction.next,
                           decoration: InputDecoration(
-                            hintText: 'Enter your password',
+                            hintText: 'Enter encryption passphrase',
                             suffixIcon: IconButton(
                               icon: Icon(
                                 obscured
@@ -176,29 +118,46 @@ class SignUpPageState extends State<SignUpPage> {
                           validator: (value) {
                             try {
                               if (value == null || value.isEmpty) {
-                                return 'Please enter your password';
+                                return 'Please enter a local passphrase';
                               }
                               if (value.length < 8) {
-                                return 'Password must be at least 8 characters';
-                              }
-                              if (!value.contains(RegExp(r'[A-Z]'))) {
-                                return 'Password must contain at least one uppercase letter';
-                              }
-                              if (!value.contains(RegExp(r'[a-z]'))) {
-                                return 'Password must contain at least one lowercase letter';
-                              }
-                              if (!value.contains(
-                                RegExp(r'[!@#%^&*_~(),.?":{}|<>]'),
-                              )) {
-                                return 'Password must contain at least one symbol';
-                              }
-                              if (value.contains(' ')) {
-                                return 'Password must not contain spaces';
+                                return 'Passphrase must be at least 8 characters';
                               }
                               return null;
                             } catch (error) {
                               developer.log(
-                                'Failed to evaluate password complexity rules: $error',
+                                'Failed to evaluate passphrase validation rule: $error',
+                                error: error,
+                                stackTrace: StackTrace.current,
+                                name: 'SignUpPage.validation',
+                              );
+                              return 'An unexpected error occurred.';
+                            }
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Confirm Local Passphrase',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: confirmation,
+                          obscureText: obscured,
+                          textInputAction: TextInputAction.done,
+                          decoration: const InputDecoration(
+                            hintText: 'Re-enter encryption passphrase',
+                          ),
+                          autovalidateMode: AutovalidateMode.onUserInteraction,
+                          validator: (value) {
+                            try {
+                              if (value != passphrase.text) {
+                                return 'Passphrases do not match';
+                              }
+                              return null;
+                            } catch (error) {
+                              developer.log(
+                                'Failed to evaluate confirmation passphrase validation: $error',
                                 error: error,
                                 stackTrace: StackTrace.current,
                                 name: 'SignUpPage.validation',
@@ -220,118 +179,26 @@ class SignUpPageState extends State<SignUpPage> {
                                           warning = null;
                                         });
                                         try {
-                                          final auth = await account.create(
-                                            userId: ID.unique(),
-                                            email: email.text,
-                                            password: password.text,
-                                            name: name.text,
-                                          );
-                                          await account
-                                              .createEmailPasswordSession(
-                                                email: email.text,
-                                                password: password.text,
-                                              );
-                                          final info = model.User(
-                                            id: auth.$id,
-                                            email: email.text,
-                                            name: name.text,
-                                            phone: auth.phone.isNotEmpty
-                                                ? auth.phone
-                                                : null,
-                                          );
-                                          try {
-                                            await tables.createRow(
-                                              databaseId:
-                                                  '69951d1f002692e40827',
-                                              tableId: '69965edb0019ed7a133f',
-                                              rowId: auth.$id,
-                                              data: info.toMap(),
-                                              permissions: [
-                                                Permission.read(
-                                                  Role.user(auth.$id),
-                                                ),
-                                                Permission.update(
-                                                  Role.user(auth.$id),
-                                                ),
-                                                Permission.delete(
-                                                  Role.user(auth.$id),
-                                                ),
-                                              ],
-                                            );
-                                          } catch (error) {
-                                            developer.log(
-                                              'Failed to write initialized registration record to primary collection: $error',
-                                              error: error,
-                                              stackTrace: StackTrace.current,
-                                              name: 'SignUpPage.database',
-                                            );
-                                            throw Exception(
-                                              'Failed to store user data',
-                                            );
-                                          }
                                           if (mounted) {
                                             WidgetsBinding.instance
                                                 .addPostFrameCallback((_) {
                                                   Navigator.pushReplacementNamed(
                                                     context,
-                                                    '/auth/middleware',
+                                                    '/dashboard',
                                                   );
                                                 });
                                           }
-                                        } on AppwriteException catch (error) {
-                                          setState(() {
-                                            warning = switch (error.code) {
-                                              409 =>
-                                                'Email address is already in use',
-                                              401 =>
-                                                'Invalid email or password format',
-                                              429 =>
-                                                'Too many requests. Please try again later',
-                                              _ => switch (error.type) {
-                                                'user_already_exists' =>
-                                                  'An account with this email already exists',
-                                                'user_blocked' =>
-                                                  'Your account has been blocked. Please contact support',
-                                                'user_invalid' =>
-                                                  'Invalid user information provided',
-                                                'password_recently_used' =>
-                                                  'This password has been used recently',
-                                                'password_personal_data' =>
-                                                  'Password must not contain personal information',
-                                                'user_password_mismatch' =>
-                                                  'Password does not meet the required criteria',
-                                                _ =>
-                                                  'An error occurred during sign up. Please try again',
-                                              },
-                                            };
-                                          });
-                                          developer.log(
-                                            'Appwrite server rejected registration request: [${error.type}] ${error.message}',
-                                            error: error,
-                                            stackTrace: StackTrace.current,
-                                            name: 'SignUpPage.auth',
-                                          );
                                         } catch (error) {
                                           setState(
                                             () => warning =
-                                                'An unexpected error occurred.',
+                                                'Failed to initialize and store local keypair',
                                           );
                                           developer.log(
-                                            'Unexpected core exception during registration workflow: $error',
+                                            'Failed to write generated identity keypair to secure storage: $error',
                                             error: error,
                                             stackTrace: StackTrace.current,
-                                            name: 'SignUpPage.auth',
+                                            name: 'SignUpPage.storage',
                                           );
-                                          if (mounted) {
-                                            WidgetsBinding.instance
-                                                .addPostFrameCallback((_) {
-                                                  Navigator.pushNamedAndRemoveUntil(
-                                                    context,
-                                                    '/',
-                                                    (route) => false,
-                                                  );
-                                                });
-                                          }
                                         } finally {
                                           if (mounted) {
                                             setState(() => loading = false);
@@ -356,37 +223,24 @@ class SignUpPageState extends State<SignUpPage> {
                                       strokeWidth: 2,
                                     ),
                                   )
-                                : const Text('Sign Up'),
+                                : const Text('Create Identity'),
                           ),
                         ),
                         const SizedBox(height: 12),
                         CheckboxListTile(
                           title: Text.rich(
                             TextSpan(
-                              text: 'I accept the ',
+                              text: 'I understand that ',
                               style: DefaultTextStyle.of(context).style,
-                              children: [
+                              children: const [
                                 TextSpan(
-                                  text: 'Terms of Use',
-                                  style: const TextStyle(
-                                    decoration: TextDecoration.underline,
-                                  ),
-                                  recognizer: TapGestureRecognizer()
-                                    ..onTap = () {},
+                                  text: 'no central server stores my keypair',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
                                 ),
-                                const TextSpan(
+                                TextSpan(
                                   text:
-                                      ' and confirm that I have fully read and understood the ',
+                                      '. If I lose my seed phrase or local passphrase, my account and messages cannot be recovered.',
                                 ),
-                                TextSpan(
-                                  text: 'Privacy Policy',
-                                  style: const TextStyle(
-                                    decoration: TextDecoration.underline,
-                                  ),
-                                  recognizer: TapGestureRecognizer()
-                                    ..onTap = () {},
-                                ),
-                                const TextSpan(text: '.'),
                               ],
                             ),
                           ),
@@ -405,7 +259,7 @@ class SignUpPageState extends State<SignUpPage> {
       );
     } catch (error) {
       developer.log(
-        'Failed to render registration profile interface layout: $error',
+        'Failed to render identity creation view layout: $error',
         error: error,
         stackTrace: StackTrace.current,
         name: 'SignUpPage.build',
@@ -417,13 +271,12 @@ class SignUpPageState extends State<SignUpPage> {
   @override
   void dispose() {
     try {
-      name.dispose();
-      password.dispose();
-      email.dispose();
+      passphrase.dispose();
+      confirmation.dispose();
       super.dispose();
     } catch (error) {
       developer.log(
-        'Failed to cleanly release input text tracking layouts: $error',
+        'Failed to release input controllers cleanly: $error',
         error: error,
         stackTrace: StackTrace.current,
         name: 'SignUpPage.dispose',
