@@ -1,0 +1,6 @@
+- `[ ]` Update `Menu` enum in `lib/enums.dart`
+- `[ ]` Create `Chat` model in `lib/models/chat.dart`
+- `[ ]` Create `ChatsPage` in `lib/dashboard/chats/index.dart`
+- `[ ]` Create placeholders for Peers and Vault tabs
+- `[ ]` Integrate `ChatsPage` into `DashboardScreen` in `lib/dashboard/index.dart`
+- `[ ]` Verify UI in both light and dark modes
