@@ -37,6 +37,7 @@ dependencies:
   path_provider: ^2.1.5
   pmtiles: ^2.2.0
   maplibre_gl: ^0.27.0
+  country_iso: ^1.0.0
 
 
 
