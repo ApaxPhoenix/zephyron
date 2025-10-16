@@ -27,8 +27,16 @@ android {
         }
     }
 
+    // Ensures Gradle picks up libtor.so binaries from src/main/jniLibs/<abi>/
+    sourceSets {
+        getByName("main") {
+            jniLibs.srcDirs("src/main/jniLibs")
+        }
+    }
+
     packaging {
         jniLibs {
+            // Extracts .so binaries to disk on install so dlopen/Dart FFI can access them
             useLegacyPackaging = true
         }
     }
