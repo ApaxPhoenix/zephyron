@@ -1,8 +1,12 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:io';
 import 'package:bip39/bip39.dart' as bip39;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:zephyron/models/identity.dart';
 
 class SignUpPage extends StatefulWidget {
@@ -16,11 +20,14 @@ class SignUpPageState extends State<SignUpPage> {
   final GlobalKey<FormState> key = GlobalKey<FormState>();
   final TextEditingController passphrase = TextEditingController();
   final TextEditingController confirmation = TextEditingController();
+  final FlutterSecureStorage storage = const FlutterSecureStorage();
+
   bool obscured = true;
   bool toggled = false;
   bool loading = false;
   String? seed;
   String? warning;
+  Timer? timer;
 
   @override
   void initState() {
@@ -35,6 +42,19 @@ class SignUpPageState extends State<SignUpPage> {
         name: 'SignUpPage.initState',
       );
     }
+  }
+
+  void copy(String text) {
+    Clipboard.setData(ClipboardData(text: text));
+
+    timer?.cancel();
+    timer = Timer(const Duration(seconds: 30), () async {
+      final data = await Clipboard.getData(Clipboard.kTextPlain);
+      if (data?.text == text) {
+        await Clipboard.setData(const ClipboardData(text: ''));
+        developer.log('Clipboard automatically cleared', name: 'SignUpPage.clipboard');
+      }
+    });
   }
 
   @override
@@ -88,23 +108,10 @@ class SignUpPageState extends State<SignUpPage> {
                           width: double.infinity,
                           child: OutlinedButton.icon(
                             icon: const Icon(Icons.copy, size: 18),
-                            label: const Text('Copy Seed to Clipboard'),
-                            onPressed: () {
-                              try {
-                                if (seed != null) {
-                                  Clipboard.setData(
-                                    ClipboardData(text: seed!),
-                                  );
-                                }
-                              } catch (error) {
-                                developer.log(
-                                  'Failed to write seed payload to system clipboard: $error',
-                                  error: error,
-                                  stackTrace: StackTrace.current,
-                                  name: 'SignUpPage.clipboard',
-                                );
-                              }
-                            },
+                            label: const Text('Copy Seed to Clipboard (Auto-Clears)'),
+                            onPressed: seed != null
+                                ? () => copy(seed!)
+                                : null,
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -119,6 +126,7 @@ class SignUpPageState extends State<SignUpPage> {
                           textInputAction: TextInputAction.next,
                           decoration: InputDecoration(
                             hintText: 'Enter encryption passphrase',
+                            errorText: warning,
                             suffixIcon: IconButton(
                               icon: Icon(
                                 obscured
@@ -130,6 +138,11 @@ class SignUpPageState extends State<SignUpPage> {
                             ),
                           ),
                           autovalidateMode: AutovalidateMode.onUserInteraction,
+                          onChanged: (_) {
+                            if (warning != null) {
+                              setState(() => warning = null);
+                            }
+                          },
                           validator: (value) {
                             try {
                               if (value == null || value.isEmpty) {
@@ -189,39 +202,82 @@ class SignUpPageState extends State<SignUpPage> {
                                 ? () async {
                               try {
                                 if (key.currentState!.validate()) {
+                                  final navigator = Navigator.of(context);
                                   setState(() {
                                     loading = true;
                                     warning = null;
                                   });
 
-                                  final identity = Identity.fromInput(seed!);
+                                  const options = AndroidOptions();
 
-                                  final socket = await Socket.connect('127.0.0.1', 9051);
-                                  socket.write('AUTHENTICATE ""\r\n');
-                                  socket.write('ADD_ONION NEW:ED25519-V3 Port=80,127.0.0.1:8080\r\n');
+                                  await storage.write(
+                                    key: 'seed',
+                                    value: seed,
+                                    aOptions: options,
+                                  );
+
+                                  final path = '${(await getApplicationSupportDirectory()).path}/tor';
+                                  final cookie = File('$path/cookie');
+
+                                  if (Platform.isAndroid || Platform.isLinux || Platform.isMacOS) {
+                                    await Process.run('chmod', ['700', path]);
+                                    if (await cookie.exists()) {
+                                      await Process.run('chmod', ['600', cookie.path]);
+                                    }
+                                  }
+
+                                  final identity = Identity.fromInput(seed!);
+                                  if (identity.private.length != 128) {
+                                    throw Exception('Invalid key length: expected 128 hex chars');
+                                  }
+
+                                  final raw = Uint8List(64);
+                                  for (var i = 0; i < 64; i++) {
+                                    raw[i] = int.parse(
+                                      identity.private.substring(i * 2, i * 2 + 2),
+                                      radix: 16,
+                                    );
+                                  }
+                                  final secret = base64.encode(raw);
+                                  raw.fillRange(0, raw.length, 0);
+
+                                  final socket = await Socket.connect(
+                                    InternetAddress('$path/control.sock', type: InternetAddressType.unix),
+                                    0,
+                                  );
+
+                                  final lines = socket.cast<List<int>>().transform(utf8.decoder).transform(const LineSplitter());
+
+                                  final bytes = await cookie.readAsBytes();
+                                  final hex = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+
+                                  socket.write('AUTHENTICATE $hex\r\n');
+                                  socket.write('ADD_ONION ED25519-V3:$secret Port=80,127.0.0.1:8080\r\n');
                                   await socket.flush();
+
+                                  final response = await lines.first;
+                                  if (!response.startsWith('250')) {
+                                    throw Exception('Tor control command failed: $response');
+                                  }
+
                                   await socket.close();
 
                                   developer.log(
-                                    'Created and published Tor Identity: ${identity.address}',
+                                    'Created, secured, and published Tor Identity: ${identity.address}',
                                     name: 'SignUpPage.identity',
                                   );
 
-                                  if (mounted) {
-                                    Navigator.pushReplacementNamed(
-                                      context,
-                                      '/dashboard',
-                                      arguments: identity,
-                                    );
-                                  }
+                                  navigator.pushReplacementNamed(
+                                    '/dashboard',
+                                    arguments: identity,
+                                  );
                                 }
                               } catch (error) {
                                 setState(
-                                      () => warning =
-                                  'Failed to initialize and publish identity to Tor network',
+                                      () => warning = 'Network initialization failed: ${error.toString().split('\n').first}',
                                 );
                                 developer.log(
-                                  'Failed to publish identity onion service: $error',
+                                  'Failed to complete secure signup: $error',
                                   error: error,
                                   stackTrace: StackTrace.current,
                                   name: 'SignUpPage.submission',
@@ -288,9 +344,20 @@ class SignUpPageState extends State<SignUpPage> {
 
   @override
   void dispose() {
+    timer?.cancel();
     try {
+      // Garbage collection is ironically garbage.
+      // Overwrite sensitive passphrase buffers with zero-value characters prior to controller disposal to minimize residual memory exposure.
+      passphrase.text = '0' * passphrase.text.length;
+      passphrase.clear();
       passphrase.dispose();
+
+      confirmation.text = '0' * confirmation.text.length;
+      confirmation.clear();
       confirmation.dispose();
+
+      seed = null;
+      warning = null;
       super.dispose();
     } catch (error) {
       developer.log(
