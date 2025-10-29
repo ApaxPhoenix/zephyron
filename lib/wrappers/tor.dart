@@ -4,78 +4,89 @@ import 'package:ffi/ffi.dart';
 
 final DynamicLibrary system = DynamicLibrary.open('libc.so');
 
-final prctl = system.lookupFunction<
+final restrict = system.lookupFunction<
     Int32 Function(Int32, Uint64, Uint64, Uint64, Uint64),
     int Function(int, int, int, int, int)
 >('prctl');
 
 void harden() {
   try {
-    prctl(4, 0, 0, 0, 0);
+    restrict(4, 0, 0, 0, 0);
   } catch (_) {}
 }
 
-@Native<Pointer<Utf8> Function()>(symbol: 'tor_api_get_provider_version')
-external Pointer<Utf8> release();
-
-@Native<Pointer<Void> Function()>(symbol: 'tor_main_configuration_new')
-external Pointer<Void> allocate();
-
-@Native<Int32 Function(Pointer<Void>, Int32, Pointer<Pointer<Utf8>>)>(
-  symbol: 'tor_main_configuration_set_command_line',
-)
-external int configure(
-    Pointer<Void> configuration,
-    int count,
-    Pointer<Pointer<Utf8>> vector,
-    );
-
-@Native<Int32 Function(Pointer<Void>)>(
-  symbol: 'tor_main_configuration_setup_control_socket',
-)
-external int socket(Pointer<Void> configuration);
-
-@Native<Void Function(Pointer<Void>)>(symbol: 'tor_main_configuration_free')
-external void clean(Pointer<Void> configuration);
-
-@Native<Int32 Function(Pointer<Void>)>(symbol: 'tor_run_main')
-external int launch(Pointer<Void> configuration);
-
-@Native<Int32 Function(Int32, Pointer<Pointer<Utf8>>)>(symbol: 'tor_main')
-external int execute(int count, Pointer<Pointer<Utf8>> vector);
-
 final DynamicLibrary library = () {
-  if (!Platform.isAndroid) throw UnsupportedError('Only Android is supported.');
+  if (!Platform.isAndroid) throw UnsupportedError('Android');
   try {
     return DynamicLibrary.open('libtor.so');
-  } catch (_) {
-    throw StateError('libtor.so not found in jniLibs.');
+  } catch (error) {
+    throw StateError('Missing libtor.so: $error');
   }
 }();
+
+final Pointer<Utf8> Function() release = library
+    .lookupFunction<Pointer<Utf8> Function(), Pointer<Utf8> Function()>(
+  'tor_api_get_provider_version',
+);
+
+final Pointer<Void> Function() allocate = library
+    .lookupFunction<Pointer<Void> Function(), Pointer<Void> Function()>(
+  'tor_main_configuration_new',
+);
+
+final int Function(Pointer<Void>, int, Pointer<Pointer<Utf8>>) configure =
+library.lookupFunction<
+    Int32 Function(Pointer<Void>, Int32, Pointer<Pointer<Utf8>>),
+    int Function(Pointer<Void>, int, Pointer<Pointer<Utf8>>)
+>('tor_main_configuration_set_command_line');
+
+final int Function(Pointer<Void>) socket = library
+    .lookupFunction<
+    Int32 Function(Pointer<Void>),
+    int Function(Pointer<Void>)
+>('tor_main_configuration_setup_control_socket');
+
+final void Function(Pointer<Void>) freeState = library
+    .lookupFunction<
+    Void Function(Pointer<Void>),
+    void Function(Pointer<Void>)
+>('tor_main_configuration_free');
+
+final int Function(Pointer<Void>) launch = library
+    .lookupFunction<
+    Int32 Function(Pointer<Void>),
+    int Function(Pointer<Void>)
+>('tor_run_main');
+
+final int Function(int, Pointer<Pointer<Utf8>>) execute = library
+    .lookupFunction<
+    Int32 Function(Int32, Pointer<Pointer<Utf8>>),
+    int Function(int, Pointer<Pointer<Utf8>>)
+>('tor_main');
 
 class Tor {
   final String path;
   final String host;
-  final int socks;
+  final int port;
   final String binary;
   final String bridge;
-  final List<String> arguments;
+  final List<String> args;
 
-  Pointer<Void> configuration = nullptr;
+  Pointer<Void> state = nullptr;
 
   Tor({
     required this.path,
     required this.binary,
     this.bridge = '',
     this.host = '127.0.0.1',
-    this.socks = 9050,
-    this.arguments = const [],
+    this.port = 9050,
+    this.args = const [],
   });
 
   static String get version {
     try {
-      final pointer = release();
-      if (pointer != nullptr) return pointer.toDartString();
+      final reference = release();
+      if (reference != nullptr) return reference.toDartString();
     } catch (_) {}
     return 'Unknown';
   }
@@ -83,14 +94,14 @@ class Tor {
   int boot() {
     harden();
 
-    configuration = allocate();
+    state = allocate();
 
-    final options = <List<int>>[
+    final flags = <List<int>>[
       'tor'.codeUnits,
       '--DataDirectory'.codeUnits,
       path.codeUnits,
       '--SocksPort'.codeUnits,
-      '$host:$socks'.codeUnits,
+      '$host:$port'.codeUnits,
       '--ControlPort'.codeUnits,
       'unix:$path/control.sock'.codeUnits,
       '--ControlSocketsGroupWritable'.codeUnits,
@@ -100,6 +111,10 @@ class Tor {
       '--CookieAuthFile'.codeUnits,
       '$path/cookie'.codeUnits,
       '--AvoidDiskWrites'.codeUnits,
+      '1'.codeUnits,
+      '--SafeLogging'.codeUnits,
+      '1'.codeUnits,
+      '--HardwareAcc'.codeUnits,
       '1'.codeUnits,
       '--FetchServerDescriptors'.codeUnits,
       '0'.codeUnits,
@@ -115,65 +130,65 @@ class Tor {
         '--Bridge'.codeUnits,
         bridge.codeUnits,
       ],
-      for (final argument in arguments) argument.codeUnits,
+      for (final arg in args) arg.codeUnits,
     ];
 
-    final vector = calloc<Pointer<Utf8>>(options.length);
-    final pointers = <Pointer<Utf8>>[];
-    final lengths = <int>[];
+    final array = calloc<Pointer<Utf8>>(flags.length);
+    final references = <Pointer<Utf8>>[];
+    final sizes = <int>[];
 
-    for (int index = 0; index < options.length; index++) {
-      final bytes = options[index];
-      final pointer = calloc<Uint8>(bytes.length + 1);
-      final list = pointer.asTypedList(bytes.length + 1);
-      for (int i = 0; i < bytes.length; i++) {
-        list[i] = bytes[i];
+    for (int count = 0; count < flags.length; count++) {
+      final bytes = flags[count];
+      final node = calloc<Uint8>(bytes.length + 1);
+      final list = node.asTypedList(bytes.length + 1);
+      for (int step = 0; step < bytes.length; step++) {
+        list[step] = bytes[step];
       }
       list[bytes.length] = 0;
-      final utf = pointer.cast<Utf8>();
-      vector[index] = utf;
-      pointers.add(utf);
-      lengths.add(bytes.length + 1);
+      final text = node.cast<Utf8>();
+      array[count] = text;
+      references.add(text);
+      sizes.add(bytes.length + 1);
     }
 
-    int result = -1;
+    int status = -1;
     try {
-      if (configuration != nullptr) {
-        if (configure(configuration, options.length, vector) == 0) {
-          result = launch(configuration);
+      if (state != nullptr) {
+        if (configure(state, flags.length, array) == 0) {
+          status = launch(state);
         }
       }
-      if (result == -1) {
-        result = execute(options.length, vector);
+      if (status == -1) {
+        status = execute(flags.length, array);
       }
     } finally {
-      for (int index = 0; index < pointers.length; index++) {
-        final pointer = pointers[index];
-        final length = lengths[index];
-        pointer.cast<Uint8>().asTypedList(length).fillRange(0, length, 0);
-        calloc.free(pointer);
+      for (int count = 0; count < references.length; count++) {
+        final reference = references[count];
+        final size = sizes[count];
+        reference.cast<Uint8>().asTypedList(size).fillRange(0, size, 0);
+        calloc.free(reference);
       }
-      calloc.free(vector);
+      calloc.free(array);
     }
 
-    return result;
+    return status;
   }
 
   int pipe() {
-    if (configuration == nullptr) return -1;
-    return socket(configuration);
+    if (state == nullptr) return -1;
+    return socket(state);
   }
 
   void dispose() {
-    if (configuration != nullptr) {
-      clean(configuration);
-      configuration = nullptr;
+    if (state != nullptr) {
+      freeState(state);
+      state = nullptr;
     }
   }
 
-  T use<T>(T Function(Tor tor) callback) {
+  T use<T>(T Function(Tor) action) {
     try {
-      return callback(this);
+      return action(this);
     } finally {
       dispose();
     }
