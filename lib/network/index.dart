@@ -38,123 +38,123 @@ class NetworkScreenState extends State<NetworkScreen> {
     () async {
       try {
         if (await Geolocator.isLocationServiceEnabled()) {
-    var status = await Geolocator.checkPermission();
-    if (status == LocationPermission.denied) {
-    status = await Geolocator.requestPermission();
-    }
-    if (status != LocationPermission.denied &&
-    status != LocationPermission.deniedForever) {
-    final loc = await Geolocator.getCurrentPosition(
-    locationSettings: const LocationSettings(
-    accuracy: LocationAccuracy.high,
-    ),
-    );
-    telemetry = LatLng(loc.latitude, loc.longitude);
-    }
-    }
-    } catch (error) {
-    developer.log(
-    'Failed to setup geolocation telemetry: $error',
-    error: error,
-    stackTrace: StackTrace.current,
-    level: 1000,
-    name: 'NetworkScreen.telemetry',
-    );
-    }
+          var status = await Geolocator.checkPermission();
+          if (status == LocationPermission.denied) {
+            status = await Geolocator.requestPermission();
+          }
+          if (status != LocationPermission.denied &&
+              status != LocationPermission.deniedForever) {
+            final loc = await Geolocator.getCurrentPosition(
+              locationSettings: const LocationSettings(
+                accuracy: LocationAccuracy.high,
+              ),
+            );
+            telemetry = LatLng(loc.latitude, loc.longitude);
+          }
+        }
+      } catch (error) {
+        developer.log(
+          'Failed to setup geolocation telemetry: $error',
+          error: error,
+          stackTrace: StackTrace.current,
+          level: 1000,
+          name: 'NetworkScreen.telemetry',
+        );
+      }
 
-    try {
-    final path = (await getApplicationDocumentsDirectory()).path;
-    final mode =
-    notifier.value.appearance == Appearance.dark ? 'dark' : 'light';
-    final schema = File('$path/styles/$mode.json');
+      try {
+        final path = (await getApplicationDocumentsDirectory()).path;
+        final mode = notifier.value.appearance == Appearance.dark
+            ? 'dark'
+            : 'light';
+        final schema = File('$path/styles/$mode.json');
 
-    if (await schema.exists()) {
-    final Map<String, dynamic> config = jsonDecode(
-    await schema.readAsString(),
-    );
-    config['sprite'] = Uri.file('$path/sprites/v4/$mode').toString();
-    config['glyphs'] =
-    '${Uri.file('$path/fonts')}/{fontstack}/{range}.pbf';
+        if (await schema.exists()) {
+          final Map<String, dynamic> config = jsonDecode(
+            await schema.readAsString(),
+          );
+          config['sprite'] = Uri.file('$path/sprites/v4/$mode').toString();
+          config['glyphs'] =
+              '${Uri.file('$path/fonts')}/{fontstack}/{range}.pbf';
 
-    final tileExists =
-    await File('$path/tiles/protomaps.pmtiles').exists();
-    if (config['sources'] is Map && tileExists) {
-    final pmtilesUrl =
-    'pmtiles://${Uri.file('$path/tiles/protomaps.pmtiles')}';
-    for (final entry in (config['sources'] as Map).entries) {
-    final key = entry.key.toString().toLowerCase();
-    final source = entry.value;
-    if (source is Map &&
-    (source['type'] == 'vector' ||
-    key.contains('protomaps') ||
-    key.contains('vector'))) {
-    source.remove('tiles');
-    source.remove('url');
-    source['url'] = pmtilesUrl;
-    }
-    }
-    } else {
-    if (!tileExists) {
-    developer.log(
-    'Could not find tile file at path: $path/tiles/protomaps.pmtiles',
-    stackTrace: StackTrace.current,
-    level: 1000,
-    name: 'NetworkScreen.setup',
-    );
-    }
-    if (config['sources'] != null) {
-    config['sources'] = {};
-    config['layers'] = [
-    {
-    'id': 'background',
-    'type': 'background',
-    'paint': {'background-color': '#121212'},
-    },
-    ];
-    }
-    }
-    style = jsonEncode(config);
-    } else {
-    developer.log(
-    'Could not find schema file at path: ${schema.path}',
-    stackTrace: StackTrace.current,
-    level: 1000,
-    name: 'NetworkScreen.setup',
-    );
-    }
-    } catch (error) {
-    developer.log(
-    'Failed to initialize network screen setup: $error',
-    error: error,
-    stackTrace: StackTrace.current,
-    level: 1000,
-    name: 'NetworkScreen.setup',
-    );
-    }
+          final tileExists = await File(
+            '$path/tiles/protomaps.pmtiles',
+          ).exists();
+          if (config['sources'] is Map && tileExists) {
+            final pmtilesUrl =
+                'pmtiles://${Uri.file('$path/tiles/protomaps.pmtiles')}';
+            for (final entry in (config['sources'] as Map).entries) {
+              final key = entry.key.toString().toLowerCase();
+              final source = entry.value;
+              if (source is Map &&
+                  (source['type'] == 'vector' ||
+                      key.contains('protomaps') ||
+                      key.contains('vector'))) {
+                source.remove('tiles');
+                source.remove('url');
+                source['url'] = pmtilesUrl;
+              }
+            }
+          } else {
+            if (!tileExists) {
+              developer.log(
+                'Could not find tile file at path: $path/tiles/protomaps.pmtiles',
+                stackTrace: StackTrace.current,
+                level: 1000,
+                name: 'NetworkScreen.setup',
+              );
+            }
+            if (config['sources'] != null) {
+              config['sources'] = {};
+              config['layers'] = [
+                {
+                  'id': 'background',
+                  'type': 'background',
+                  'paint': {'background-color': '#121212'},
+                },
+              ];
+            }
+          }
+          style = jsonEncode(config);
+        } else {
+          developer.log(
+            'Could not find schema file at path: ${schema.path}',
+            stackTrace: StackTrace.current,
+            level: 1000,
+            name: 'NetworkScreen.setup',
+          );
+        }
+      } catch (error) {
+        developer.log(
+          'Failed to initialize network screen setup: $error',
+          error: error,
+          stackTrace: StackTrace.current,
+          level: 1000,
+          name: 'NetworkScreen.setup',
+        );
+      }
 
-    style ??= jsonEncode({
-    'version': 8,
-    'sources': {},
-    'layers': [
-    {
-    'id': 'background',
-    'type': 'background',
-    'paint': {'background-color': '#121212'},
-    },
-    ],
-    });
+      style ??= jsonEncode({
+        'version': 8,
+        'sources': {},
+        'layers': [
+          {
+            'id': 'background',
+            'type': 'background',
+            'paint': {'background-color': '#121212'},
+          },
+        ],
+      });
 
-    if (mounted) setState(() {});
-  }();
+      if (mounted) setState(() {});
+    }();
   }
 
   void _moveToLocation(LatLng target, {double? newZoom}) {
     if (map != null) {
       try {
         final targetZoom = newZoom ?? zoom;
-        map!.animateCamera(
-          CameraUpdate.newLatLngZoom(target, targetZoom),
-        );
+        map!.animateCamera(CameraUpdate.newLatLngZoom(target, targetZoom));
       } catch (error) {
         developer.log(
           'Failed to animate camera to target location: $error',
@@ -335,20 +335,22 @@ class NetworkScreenState extends State<NetworkScreen> {
                 snapSizes: const [0.15, 0.3, 0.85],
                 builder: (context, scrollController) {
                   final loc = selectedLocation!;
-                  final titleName =
-                  loc.ascii.isNotEmpty ? loc.ascii : 'Selected Location';
+                  final titleName = loc.ascii.isNotEmpty
+                      ? loc.ascii
+                      : 'Selected Location';
 
                   return Container(
                     decoration: BoxDecoration(
                       color: theme.colorScheme.surface,
-                      borderRadius:
-                      const BorderRadius.vertical(top: Radius.circular(24)),
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(24),
+                      ),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withValues(alpha: 0.15),
                           blurRadius: 10,
                           spreadRadius: 2,
-                        )
+                        ),
                       ],
                     ),
                     child: ListView(
@@ -377,9 +379,7 @@ class NetworkScreenState extends State<NetworkScreen> {
                                   Text(
                                     titleName,
                                     style: theme.textTheme.headlineSmall
-                                        ?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                                        ?.copyWith(fontWeight: FontWeight.bold),
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
@@ -398,7 +398,7 @@ class NetworkScreenState extends State<NetworkScreen> {
                                   selectedLocation = null;
                                 });
                               },
-                            )
+                            ),
                           ],
                         ),
                         const SizedBox(height: 20),
@@ -467,11 +467,11 @@ class NetworkScreenState extends State<NetworkScreen> {
   }
 
   Widget _buildActionButton(
-      ThemeData theme, {
-        required IconData icon,
-        required String label,
-        required VoidCallback onTap,
-      }) {
+    ThemeData theme, {
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
@@ -496,7 +496,7 @@ class NetworkScreenState extends State<NetworkScreen> {
                 color: theme.colorScheme.primary,
                 fontWeight: FontWeight.w600,
               ),
-            )
+            ),
           ],
         ),
       ),
