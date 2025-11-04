@@ -1,9 +1,17 @@
+import 'dart:async';
 import 'dart:developer' as developer;
-import 'dart:io';
 import 'package:bip39/bip39.dart' as bip39;
+import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:zephyron/models/identity.dart';
+import 'package:zephyron/sql/session.dart';
+import 'package:zephyron/wrappers/tor.dart';
+
+Identity make(String seed) => Identity.fromInput(seed);
+
+dynamic pack(String key) => blob(key);
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
@@ -16,25 +24,55 @@ class SignUpPageState extends State<SignUpPage> {
   final GlobalKey<FormState> key = GlobalKey<FormState>();
   final TextEditingController passphrase = TextEditingController();
   final TextEditingController confirmation = TextEditingController();
-  bool obscured = true;
-  bool toggled = false;
-  bool loading = false;
+
+  bool hidden = true;
+  bool agreed = false;
+  bool busy = false;
   String? seed;
   String? warning;
+  Timer? timer;
 
   @override
   void initState() {
     super.initState();
     try {
       seed = bip39.generateMnemonic();
+      developer.log(
+        'Generated mnemonic seed phrase',
+        name: 'SignUpPageState.initState',
+        level: 800,
+      );
     } catch (error) {
       developer.log(
-        'Failed to generate mnemonic seed: $error',
+        'Failed to generate mnemonic seed phrase',
+        name: 'SignUpPageState.initState',
+        level: 1000,
         error: error,
         stackTrace: StackTrace.current,
-        name: 'SignUpPage.initState',
       );
     }
+  }
+
+  void copy(String text) {
+    Clipboard.setData(ClipboardData(text: text));
+    developer.log(
+      'Copied seed phrase to clipboard',
+      name: 'SignUpPageState.copy',
+      level: 800,
+    );
+
+    timer?.cancel();
+    timer = Timer(const Duration(seconds: 30), () async {
+      final data = await Clipboard.getData(Clipboard.kTextPlain);
+      if (data?.text == text) {
+        await Clipboard.setData(const ClipboardData(text: ''));
+        developer.log(
+          'Cleared seed phrase from clipboard',
+          name: 'SignUpPageState.copy',
+          level: 500,
+        );
+      }
+    });
   }
 
   @override
@@ -89,22 +127,9 @@ class SignUpPageState extends State<SignUpPage> {
                           child: OutlinedButton.icon(
                             icon: const Icon(Icons.copy, size: 18),
                             label: const Text('Copy Seed to Clipboard'),
-                            onPressed: () {
-                              try {
-                                if (seed != null) {
-                                  Clipboard.setData(
-                                    ClipboardData(text: seed!),
-                                  );
-                                }
-                              } catch (error) {
-                                developer.log(
-                                  'Failed to write seed payload to system clipboard: $error',
-                                  error: error,
-                                  stackTrace: StackTrace.current,
-                                  name: 'SignUpPage.clipboard',
-                                );
-                              }
-                            },
+                            onPressed: seed != null
+                                ? () => copy(seed!)
+                                : null,
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -115,39 +140,34 @@ class SignUpPageState extends State<SignUpPage> {
                         const SizedBox(height: 12),
                         TextFormField(
                           controller: passphrase,
-                          obscureText: obscured,
+                          obscureText: hidden,
                           textInputAction: TextInputAction.next,
                           decoration: InputDecoration(
                             hintText: 'Enter encryption passphrase',
+                            errorText: warning,
                             suffixIcon: IconButton(
                               icon: Icon(
-                                obscured
+                                hidden
                                     ? Icons.visibility
                                     : Icons.visibility_off,
                               ),
-                              onPressed: () =>
-                                  setState(() => obscured = !obscured),
+                              onPressed: () => setState(() => hidden = !hidden),
                             ),
                           ),
                           autovalidateMode: AutovalidateMode.onUserInteraction,
-                          validator: (value) {
-                            try {
-                              if (value == null || value.isEmpty) {
-                                return 'Please enter a local passphrase';
-                              }
-                              if (value.length < 8) {
-                                return 'Passphrase must be at least 8 characters';
-                              }
-                              return null;
-                            } catch (error) {
-                              developer.log(
-                                'Failed to evaluate passphrase validation rule: $error',
-                                error: error,
-                                stackTrace: StackTrace.current,
-                                name: 'SignUpPage.validation',
-                              );
-                              return 'An unexpected error occurred.';
+                          onChanged: (_) {
+                            if (warning != null) {
+                              setState(() => warning = null);
                             }
+                          },
+                          validator: (input) {
+                            if (input == null || input.isEmpty) {
+                              return 'Please enter a local passphrase';
+                            }
+                            if (input.length < 8) {
+                              return 'Passphrase must be at least 8 characters';
+                            }
+                            return null;
                           },
                         ),
                         const SizedBox(height: 12),
@@ -158,82 +178,123 @@ class SignUpPageState extends State<SignUpPage> {
                         const SizedBox(height: 12),
                         TextFormField(
                           controller: confirmation,
-                          obscureText: obscured,
+                          obscureText: hidden,
                           textInputAction: TextInputAction.done,
                           decoration: const InputDecoration(
                             hintText: 'Re-enter encryption passphrase',
                           ),
                           autovalidateMode: AutovalidateMode.onUserInteraction,
-                          validator: (value) {
-                            try {
-                              if (value != passphrase.text) {
-                                return 'Passphrases do not match';
-                              }
-                              return null;
-                            } catch (error) {
-                              developer.log(
-                                'Failed to evaluate confirmation passphrase validation: $error',
-                                error: error,
-                                stackTrace: StackTrace.current,
-                                name: 'SignUpPage.validation',
-                              );
-                              return 'An unexpected error occurred.';
+                          validator: (input) {
+                            if (input != passphrase.text) {
+                              return 'Passphrases do not match';
                             }
+                            return null;
                           },
                         ),
                         const SizedBox(height: 24),
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
-                            onPressed: toggled && !loading && seed != null
+                            onPressed: agreed && !busy && seed != null
                                 ? () async {
                               try {
                                 if (key.currentState!.validate()) {
+                                  developer.log(
+                                    'Starting identity creation workflow',
+                                    name: 'SignUpPageState.createIdentity',
+                                    level: 800,
+                                  );
+
+                                  final mnemonic = seed!;
+
                                   setState(() {
-                                    loading = true;
+                                    busy = true;
                                     warning = null;
                                   });
 
-                                  final identity = Identity.fromInput(seed!);
+                                  final user = await compute(make, mnemonic);
 
-                                  final socket = await Socket.connect('127.0.0.1', 9051);
-                                  socket.write('AUTHENTICATE ""\r\n');
-                                  socket.write('ADD_ONION NEW:ED25519-V3 Port=80,127.0.0.1:8080\r\n');
-                                  await socket.flush();
-                                  await socket.close();
+                                  if (user.private.length != 128) {
+                                    developer.log(
+                                      'Private key length validation failed',
+                                      name: 'SignUpPageState.createIdentity',
+                                      level: 1000,
+                                      stackTrace: StackTrace.current,
+                                    );
+                                    throw StateError(
+                                      'Invalid key length: expected 128 hex chars',
+                                    );
+                                  }
+
+                                  await Session.compose(
+                                    Session.label,
+                                    passphrase.text,
+                                    user,
+                                    mnemonic,
+                                  );
+
+                                  final folder = await getApplicationSupportDirectory();
+                                  final path = '${folder.path}/tor';
+
+                                  final rawKey = user.private;
+                                  final encoded = await compute(pack, rawKey);
+                                  final host = await publish(path, encoded);
+
+                                  final tor = host.replaceAll('.onion', '');
+                                  final base = user.address.replaceAll('.onion', '');
+
+                                  if (tor.length >= 50 && base.length >= 50 && tor.substring(0, 50) != base.substring(0, 50)) {
+                                    developer.log(
+                                      'Published Tor address public key mismatch: tor=$host expected=${user.address}',
+                                      name: 'SignUpPageState.createIdentity',
+                                      level: 1000,
+                                      stackTrace: StackTrace.current,
+                                    );
+                                    throw StateError(
+                                      'Published address pubkey does not match identity '
+                                          '(tor=$host expected=${user.address}).',
+                                    );
+                                  }
 
                                   developer.log(
-                                    'Created and published Tor Identity: ${identity.address}',
-                                    name: 'SignUpPage.identity',
+                                    'Completed identity creation successfully',
+                                    name: 'SignUpPageState.createIdentity',
+                                    level: 800,
                                   );
 
                                   if (mounted) {
-                                    Navigator.pushReplacementNamed(
-                                      context,
+                                    Navigator.of(context).pushReplacementNamed(
                                       '/dashboard',
-                                      arguments: identity,
+                                      arguments: user,
                                     );
                                   }
+                                } else {
+                                  developer.log(
+                                    'Form validation failed',
+                                    name: 'SignUpPageState.createIdentity',
+                                    level: 900,
+                                  );
                                 }
                               } catch (error) {
-                                setState(
-                                      () => warning =
-                                  'Failed to initialize and publish identity to Tor network',
-                                );
                                 developer.log(
-                                  'Failed to publish identity onion service: $error',
+                                  'Network or identity initialization failed',
+                                  name: 'SignUpPageState.createIdentity',
+                                  level: 1000,
                                   error: error,
                                   stackTrace: StackTrace.current,
-                                  name: 'SignUpPage.submission',
+                                );
+
+                                setState(
+                                      () => warning = 'Failed to initialize network or save identity credentials',
                                 );
                               } finally {
                                 if (mounted) {
-                                  setState(() => loading = false);
+                                  setState(() => busy = false);
                                 }
                               }
                             }
                                 : null,
-                            child: loading
+                            child: busy
                                 ? const SizedBox(
                               height: 20,
                               width: 20,
@@ -262,9 +323,9 @@ class SignUpPageState extends State<SignUpPage> {
                               ],
                             ),
                           ),
-                          value: toggled,
-                          onChanged: (value) =>
-                              setState(() => toggled = value ?? false),
+                          value: agreed,
+                          onChanged: (input) =>
+                              setState(() => agreed = input ?? false),
                         ),
                       ],
                     ),
@@ -277,10 +338,11 @@ class SignUpPageState extends State<SignUpPage> {
       );
     } catch (error) {
       developer.log(
-        'Failed to render identity creation view layout: $error',
+        'Failed to build SignUpPage UI widget tree',
+        name: 'SignUpPage.build',
+        level: 1000,
         error: error,
         stackTrace: StackTrace.current,
-        name: 'SignUpPage.build',
       );
       return const SizedBox.shrink();
     }
@@ -288,16 +350,30 @@ class SignUpPageState extends State<SignUpPage> {
 
   @override
   void dispose() {
+    timer?.cancel();
     try {
+      passphrase.clear();
       passphrase.dispose();
+
+      confirmation.clear();
       confirmation.dispose();
+
+      seed = null;
+      warning = null;
+
+      developer.log(
+        'Disposed SignUpPageState controller and state resources',
+        name: 'SignUpPageState.dispose',
+        level: 500,
+      );
       super.dispose();
     } catch (error) {
       developer.log(
-        'Failed to release input controllers cleanly: $error',
+        'Failed to release input controllers cleanly during dispose',
+        name: 'SignUpPageState.dispose',
+        level: 1000,
         error: error,
         stackTrace: StackTrace.current,
-        name: 'SignUpPage.dispose',
       );
     }
   }
