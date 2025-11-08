@@ -95,7 +95,10 @@ class SplashScreenState extends State<SplashScreen> {
                         ),
                         onPressed: () {
                           try {
-                            Navigator.pushReplacementNamed(context, '/network/middleware');
+                            Navigator.pushReplacementNamed(
+                              context,
+                              '/network/middleware',
+                            );
                           } catch (error) {
                             developer.log(
                               'Failed to navigate to network middleware screen',
