@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:developer' as developer;
 import 'dart:io';
-import 'dart:isolate';
 import 'package:cloudflare/cloudflare.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -17,7 +16,7 @@ const link = MethodChannel('zephyron/security');
 
 Future<void> main() async {
   runZonedGuarded(
-    () async {
+        () async {
       WidgetsFlutterBinding.ensureInitialized();
 
       if (kReleaseMode) {
@@ -32,12 +31,12 @@ Future<void> main() async {
             );
             exit(0);
           }
-        } catch (fail) {
+        } catch (error) {
           developer.log(
             'Failed to execute platform authorization method channel invocation',
             name: 'main.security.signature',
             level: 1200,
-            error: fail,
+            error: error,
             stackTrace: StackTrace.current,
           );
           exit(0);
@@ -78,45 +77,37 @@ Future<void> main() async {
 
           Talsec.instance.attachListener(guard);
           await Talsec.instance.start(setup);
-        } catch (fail) {
+        } catch (error) {
           developer.log(
             'Failed to configure or start Talsec security monitoring service',
             name: 'main.security.freerasp',
             level: 1000,
-            error: fail,
+            error: error,
             stackTrace: StackTrace.current,
           );
         }
       }
 
       try {
-        final home = await getApplicationSupportDirectory();
-        final path = '${home.path}/tor';
-
-        final pack = await link.invokeMethod<String>('packages');
-        final exec = '$pack/libobfs4proxy.so';
-        const node =
-            'obfs4 192.0.2.1:443 74A91B415C22D956A41B32E0B4AD7B02844E3D5C cert=q2325A... iat-mode=0';
-
-        if (exec.isNotEmpty && File(exec).existsSync()) {
-          await Isolate.run(() {
-            final core = Tor(path: path, binary: exec, bridge: node);
-            core.boot();
-          });
-        } else {
-          developer.log(
-            'Obfs4proxy native executable binary was not found at expected file path: $exec',
-            name: 'main.tor',
-            level: 900,
-            stackTrace: StackTrace.current,
-          );
-        }
-      } catch (fail) {
+        final folder = await getApplicationSupportDirectory();
+        final location = '${folder.path}/tor';
+        unawaited(
+          Sentinel.summon().prepare(location).catchError((error) {
+            developer.log(
+              'Encountered unhandled error while booting shared Tor daemon',
+              name: 'main.sentinel',
+              level: 1000,
+              error: error,
+              stackTrace: StackTrace.current,
+            );
+          }),
+        );
+      } catch (error) {
         developer.log(
-          'Encountered unhandled error while booting Tor proxy client isolate',
-          name: 'main.tor',
+          'Encountered unhandled error while resolving shared Tor daemon location',
+          name: 'main.sentinel',
           level: 1000,
-          error: fail,
+          error: error,
           stackTrace: StackTrace.current,
         );
       }
@@ -129,12 +120,12 @@ Future<void> main() async {
             secretAccessKey: String.fromEnvironment('R2_SECRET_ACCESS_KEY'),
           ),
         );
-      } catch (fail) {
+      } catch (error) {
         developer.log(
           'Failed to instantiate Cloudflare R2 API client bucket instance',
           name: 'main.r2',
           level: 1000,
-          error: fail,
+          error: error,
           stackTrace: StackTrace.current,
         );
       }
@@ -145,12 +136,12 @@ Future<void> main() async {
       );
       runApp(const MyApp());
     },
-    (dynamic fail, dynamic _) {
+        (dynamic error, dynamic _) {
       developer.log(
         'Unhandled asynchronous error caught inside top-level runZonedGuarded boundary',
         name: 'main.uncaught',
         level: 1200,
-        error: fail,
+        error: error,
         stackTrace: StackTrace.current,
       );
     },
@@ -177,12 +168,12 @@ class MyAppState extends State<MyApp> with WidgetsBindingObserver {
   void dispose() {
     try {
       WidgetsBinding.instance.removeObserver(this);
-    } catch (fail) {
+    } catch (error) {
       developer.log(
         'Failed to cleanly unbind lifecycle observer during MyAppState disposal',
         name: 'MyAppState.dispose',
         level: 800,
-        error: fail,
+        error: error,
         stackTrace: StackTrace.current,
       );
     }
@@ -215,8 +206,7 @@ class MyAppState extends State<MyApp> with WidgetsBindingObserver {
       theme: MediaQuery.of(context).platformBrightness == Brightness.light
           ? Pallete.lightTheme(context)
           : Pallete.darkTheme(context),
-      home:
-          page?.call(context) ??
+      home: page?.call(context) ??
           const Scaffold(body: Center(child: CircularProgressIndicator())),
       onGenerateRoute: (RouteSettings info) {
         final page = routes[info.name];
