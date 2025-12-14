@@ -4,23 +4,11 @@ import 'dart:developer' as developer;
 import 'dart:ffi';
 import 'dart:io';
 import 'dart:isolate';
-import 'dart:typed_data';
 import 'package:crypto/crypto.dart' show sha512;
 import 'package:ffi/ffi.dart';
-
-final DynamicLibrary system = DynamicLibrary.open('libc.so');
-
-final restrict = system.lookupFunction<
-    Int32 Function(Int32, Uint64, Uint64, Uint64, Uint64),
-    int Function(int, int, int, int, int)>('prctl');
-
-void harden() {
-  try {
-    restrict(4, 0, 0, 0, 0);
-  } catch (error) {
-    developer.log('Failed to execute process hardening', level: 500, error: error);
-  }
-}
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 
 final DynamicLibrary library = () {
   if (!Platform.isAndroid) throw UnsupportedError('Android');
@@ -28,7 +16,8 @@ final DynamicLibrary library = () {
     return DynamicLibrary.open('libtor.so');
   } catch (error) {
     developer.log(
-      'Missing libtor.so binary library',
+      'Failed to load libtor dynamic library',
+      name: 'library',
       level: 1000,
       error: error,
       stackTrace: StackTrace.current,
@@ -37,58 +26,97 @@ final DynamicLibrary library = () {
   }
 }();
 
-final Pointer<Utf8> Function() release =
-library.lookupFunction<Pointer<Utf8> Function(), Pointer<Utf8> Function()>(
+final DynamicLibrary system = () {
+  try {
+    return DynamicLibrary.open('libc.so');
+  } catch (error) {
+    developer.log(
+      'Failed to load libc dynamic library',
+      name: 'system',
+      level: 1000,
+      error: error,
+      stackTrace: StackTrace.current,
+    );
+    rethrow;
+  }
+}();
+
+final Pointer<Utf8> Function() release = library
+    .lookupFunction<Pointer<Utf8> Function(), Pointer<Utf8> Function()>(
   'tor_api_get_provider_version',
 );
 
-final Pointer<Void> Function() allocate =
-library.lookupFunction<Pointer<Void> Function(), Pointer<Void> Function()>(
+final Pointer<Void> Function() allocate = library
+    .lookupFunction<Pointer<Void> Function(), Pointer<Void> Function()>(
   'tor_main_configuration_new',
 );
 
 final int Function(Pointer<Void>, int, Pointer<Pointer<Utf8>>) configure =
 library.lookupFunction<
     Int32 Function(Pointer<Void>, Int32, Pointer<Pointer<Utf8>>),
-    int Function(Pointer<Void>, int, Pointer<Pointer<Utf8>>)>(
-  'tor_main_configuration_set_command_line',
+    int Function(Pointer<Void>, int, Pointer<Pointer<Utf8>>)
+>('tor_main_configuration_set_command_line');
+
+final int Function(Pointer<Void>) socket = library
+    .lookupFunction<Int32 Function(Pointer<Void>), int Function(Pointer<Void>)>(
+  'tor_main_configuration_setup_control_socket',
 );
 
-final int Function(Pointer<Void>) socket = library.lookupFunction<
-    Int32 Function(Pointer<Void>),
-    int Function(Pointer<Void>)>('tor_main_configuration_setup_control_socket');
-
-final void Function(Pointer<Void>) free =
-library.lookupFunction<Void Function(Pointer<Void>), void Function(Pointer<Void>)>(
+final void Function(Pointer<Void>) free = library
+    .lookupFunction<Void Function(Pointer<Void>), void Function(Pointer<Void>)>(
   'tor_main_configuration_free',
 );
 
-final int Function(Pointer<Void>) launch =
-library.lookupFunction<Int32 Function(Pointer<Void>), int Function(Pointer<Void>)>(
+final int Function(Pointer<Void>) launch = library
+    .lookupFunction<Int32 Function(Pointer<Void>), int Function(Pointer<Void>)>(
   'tor_run_main',
 );
 
-final int Function(int, Pointer<Pointer<Utf8>>) execute = library.lookupFunction<
-    Int32 Function(Int32, Pointer<Pointer<Utf8>>),
-    int Function(int, Pointer<Pointer<Utf8>>)>('tor_main');
+final int Function(int, int, int, int, int) restrict = system.lookupFunction<
+    Int32 Function(Int32, Uint64, Uint64, Uint64, Uint64),
+    int Function(int, int, int, int, int)
+>('prctl');
+
+final int Function(Pointer<Utf8>, int) permit = system.lookupFunction<
+    Int32 Function(Pointer<Utf8>, Uint32),
+    int Function(Pointer<Utf8>, int)
+>('chmod');
+
+void grant(String path, int mode) {
+  final pointer = path.toNativeUtf8();
+  try {
+    permit(pointer, mode);
+  } catch (error) {
+    developer.log(
+      'Failed to execute system permission modification',
+      name: 'grant',
+      level: 1000,
+      error: error,
+      stackTrace: StackTrace.current,
+    );
+  } finally {
+    calloc.free(pointer);
+  }
+}
 
 class Tor {
-  final String path;
-  final String host;
-  final int port;
-  final String binary;
-  final String bridge;
-  final List<String> arguments;
+  String? path;
+  String? binary;
+  String? bridge;
+  String host;
+  int port;
+  List<String> flags;
 
   Pointer<Void> state = nullptr;
+  Isolate? worker;
 
   Tor({
-    required this.path,
-    required this.binary,
-    this.bridge = '',
+    this.path,
+    this.binary,
+    this.bridge,
     this.host = '127.0.0.1',
     this.port = 9050,
-    this.arguments = const [],
+    this.flags = const [],
   });
 
   static String get version {
@@ -96,155 +124,274 @@ class Tor {
       final reference = release();
       if (reference != nullptr) return reference.toDartString();
     } catch (error) {
-      developer.log('Failed to read Tor provider version string', level: 500, error: error);
+      developer.log(
+        'Failed to query native Tor provider version string',
+        name: 'Tor.version',
+        level: 500,
+        error: error,
+        stackTrace: StackTrace.current,
+      );
     }
     return 'Unknown';
   }
 
-  int boot() {
-    developer.log('Starting Tor boot sequence', level: 800);
-    harden();
+  Future<void> boot() async {
+    developer.log(
+      'Starting Tor runtime initialization workflow',
+      name: 'Tor.boot',
+      level: 800,
+    );
 
-    bool native = true;
-    try {
-      state = allocate();
-    } catch (error, trace) {
-      native = false;
+    path ??= '${(await getApplicationSupportDirectory()).path}/tor';
+
+    final folder = Directory(path!);
+    if (!folder.existsSync()) {
+      folder.createSync(recursive: true);
       developer.log(
-        'Failed to allocate Tor configuration: native library unavailable',
-        level: 1000,
-        error: error,
-        stackTrace: trace,
+        'Created isolated data directory for process execution',
+        name: 'Tor.boot',
+        level: 800,
       );
     }
 
-    bool proxy = true;
-    if (binary.isNotEmpty) {
+    if (binary == null) {
       try {
-        final target = File(binary);
-        if (!target.existsSync() || target.lengthSync() == 0) {
-          proxy = false;
+        final bundle = await const MethodChannel('zephyron/security')
+            .invokeMethod<String>('packages');
+
+        if (bundle != null && bundle.isNotEmpty) {
+          final source = File('$bundle/libobfs4proxy.so');
+          final target = File('$path/libobfs4proxy.so');
+
+          if (source.existsSync()) {
+            if (!target.existsSync() || target.lengthSync() != source.lengthSync()) {
+              await source.copy(target.path);
+              developer.log(
+                'Copied transport proxy binary to local working directory',
+                name: 'Tor.boot',
+                level: 800,
+              );
+            }
+            binary = target.path;
+          }
         }
       } catch (error) {
-        proxy = false;
+        developer.log(
+          'Failed to locate transport proxy binary from platform environment',
+          name: 'Tor.boot',
+          level: 500,
+          error: error,
+          stackTrace: StackTrace.current,
+        );
       }
     }
 
-    if (!native && !proxy) {
-      developer.log(
-        'Installation is wrong: both native library and executable binary failed',
-        level: 1000,
-      );
-      throw StateError('Installation is wrong');
-    } else if (!native || (!proxy && binary.isNotEmpty)) {
-      developer.log(
-        'Installation is correct, but given binary is corrupted or missing: $binary',
-        level: 1000,
-      );
-      throw StateError('Installation is correct, but given binary is corrupted or missing');
-    }
+    final receiver = ReceivePort();
+    final signal = Completer<void>();
 
-    final flags = <List<int>>[
-      utf8.encode('tor'),
-      utf8.encode('--DataDirectory'),
-      utf8.encode(path),
-      utf8.encode('--SocksPort'),
-      utf8.encode('$host:$port'),
-      utf8.encode('--ControlPort'),
-      utf8.encode('unix:$path/control.sock'),
-      utf8.encode('--ControlSocketsGroupWritable'),
-      utf8.encode('0'),
-      utf8.encode('--CookieAuthentication'),
-      utf8.encode('1'),
-      utf8.encode('--CookieAuthFile'),
-      utf8.encode('$path/cookie'),
-      utf8.encode('--AvoidDiskWrites'),
-      utf8.encode('1'),
-      utf8.encode('--SafeLogging'),
-      utf8.encode('1'),
-      utf8.encode('--HardwareAccel'),
-      utf8.encode('1'),
-      utf8.encode('--FetchServerDescriptors'),
-      utf8.encode('0'),
-      utf8.encode('--HiddenServiceStatistics'),
-      utf8.encode('0'),
-      if (binary.isNotEmpty) ...[
-        utf8.encode('--ClientTransportPlugin'),
-        utf8.encode('obfs4 exec $binary'),
-      ],
-      if (bridge.isNotEmpty) ...[
-        utf8.encode('--UseBridges'),
-        utf8.encode('1'),
-        utf8.encode('--Bridge'),
-        utf8.encode(bridge),
-      ],
-      for (final argument in arguments) utf8.encode(argument),
+    receiver.listen((message) {
+      if (message == 'ready') {
+        developer.log(
+          'Received completion signal from background proxy isolate',
+          name: 'Tor.boot',
+          level: 800,
+        );
+        if (!signal.isCompleted) signal.complete();
+      } else if (message is String && message.startsWith('fail')) {
+        final error = StateError('Isolate execution failed with code: $message');
+        developer.log(
+          'Background proxy isolate reported runtime failure',
+          name: 'Tor.boot',
+          level: 1000,
+          error: error,
+          stackTrace: StackTrace.current,
+        );
+        if (!signal.isCompleted) signal.completeError(error);
+      }
+    });
+
+    final data = [
+      receiver.sendPort,
+      path!,
+      binary ?? '',
+      bridge ?? '',
+      host,
+      port,
+      flags,
     ];
 
-    final array = calloc<Pointer<Utf8>>(flags.length);
-    final references = <Pointer<Utf8>>[];
-    final sizes = <int>[];
+    worker = await Isolate.spawn(spawn, data);
 
-    for (int count = 0; count < flags.length; count++) {
-      final bytes = flags[count];
-      final node = calloc<Uint8>(bytes.length + 1);
-      final list = node.asTypedList(bytes.length + 1);
-      for (int step = 0; step < bytes.length; step++) {
-        list[step] = bytes[step];
+    return signal.future.timeout(
+      const Duration(seconds: 5),
+      onTimeout: () {
+        if (!signal.isCompleted) signal.complete();
+      },
+    );
+  }
+
+  static void spawn(List<dynamic> arguments) {
+    final sender = arguments[0] as SendPort;
+    final node = Tor(
+      path: arguments[1] as String,
+      binary: arguments[2] as String,
+      bridge: arguments[3] as String,
+      host: arguments[4] as String,
+      port: arguments[5] as int,
+      flags: arguments[6] as List<String>,
+    );
+
+    developer.log(
+      'Executing native process sequence inside spawned isolate',
+      name: 'Tor.spawn',
+      level: 800,
+    );
+
+    sender.send('ready');
+    final code = node.run();
+    if (code != 0) {
+      developer.log(
+        'Native process exited with non-zero status code',
+        name: 'Tor.spawn',
+        level: 1000,
+      );
+      sender.send('fail:$code');
+    }
+  }
+
+  int run() {
+    developer.log(
+      'Configuring security privileges and dynamic parameters',
+      name: 'Tor.run',
+      level: 800,
+    );
+
+    if (kReleaseMode && (Platform.isAndroid || Platform.isLinux)) {
+      try {
+        restrict(4, 0, 0, 0, 0);
+        developer.log(
+          'Applied process memory restriction rules',
+          name: 'Tor.run',
+          level: 800,
+        );
+      } catch (error) {
+        developer.log(
+          'Failed to apply security restriction policy to runtime process',
+          name: 'Tor.run',
+          level: 500,
+          error: error,
+          stackTrace: StackTrace.current,
+        );
       }
-      list[bytes.length] = 0;
-      final text = node.cast<Utf8>();
-      array[count] = text;
-      references.add(text);
-      sizes.add(bytes.length + 1);
     }
 
-    int status = -1;
+    if (Platform.isAndroid || Platform.isLinux || Platform.isMacOS) {
+      grant(path!, 448);
+    }
+
     try {
-      if (state != nullptr) {
-        if (configure(state, flags.length, array) == 0) {
-          status = launch(state);
-        }
-      }
-      if (status == -1) {
-        status = execute(flags.length, array);
-      }
+      state = allocate();
     } catch (error) {
       developer.log(
-        'Tor process execution failed',
+        'Failed to allocate configuration memory handle',
+        name: 'Tor.run',
+        level: 1000,
+        error: error,
+        stackTrace: StackTrace.current,
+      );
+    }
+
+    bool proxy = false;
+    if (binary != null && binary!.isNotEmpty && File(binary!).existsSync()) {
+      if (Platform.isAndroid || Platform.isLinux || Platform.isMacOS) {
+        grant(binary!, 448);
+      }
+      proxy = true;
+    }
+
+    final orders = <String>[
+      'tor',
+      '--DataDirectory', path!,
+      '--SocksPort', '$host:$port',
+      '--ControlPort', 'unix:$path/control.sock',
+      '--ControlSocketsGroupWritable', '0',
+      '--CookieAuthentication', '1',
+      '--CookieAuthFile', '$path/cookie',
+      '--AvoidDiskWrites', '1',
+      '--SafeLogging', '1',
+      '--HardwareAccel', '1',
+      '--HiddenServiceStatistics', '0',
+      if (proxy) ...['--ClientTransportPlugin', 'obfs4 exec $binary'],
+      if (bridge != null && bridge!.isNotEmpty) ...['--UseBridges', '1', '--Bridge', bridge!],
+      ...flags,
+    ];
+
+    final array = calloc<Pointer<Utf8>>(orders.length);
+    final list = <Pointer<Utf8>>[];
+
+    for (var index = 0; index < orders.length; index++) {
+      final pointer = orders[index].toNativeUtf8();
+      array[index] = pointer;
+      list.add(pointer);
+    }
+
+    int code = -1;
+    try {
+      if (state != nullptr && configure(state, orders.length, array) == 0) {
+        code = launch(state);
+      } else {
+        developer.log(
+          'Native command line configuration rejected, refusing legacy fallback entrypoint',
+          name: 'Tor.run',
+          level: 1000,
+          error: StateError('Embedded runtime configuration failed'),
+          stackTrace: StackTrace.current,
+        );
+      }
+      developer.log(
+        'Native daemon execution loop finished',
+        name: 'Tor.run',
+        level: 800,
+      );
+    } catch (error) {
+      developer.log(
+        'Unhandled exception thrown during native daemon execution',
+        name: 'Tor.run',
         level: 1000,
         error: error,
         stackTrace: StackTrace.current,
       );
     } finally {
-      for (int count = 0; count < references.length; count++) {
-        final reference = references[count];
-        final size = sizes[count];
-        reference.cast<Uint8>().asTypedList(size).fillRange(0, size, 0);
-        calloc.free(reference);
+      for (final pointer in list) {
+        calloc.free(pointer);
       }
       calloc.free(array);
     }
 
-    if (status != 0) {
-      developer.log('Tor process exited with error status', level: 900);
-    } else {
-      developer.log('Tor boot completed', level: 800);
-    }
-
-    return status;
+    return code;
   }
 
-  int pipe() {
-    if (state == nullptr) return -1;
-    return socket(state);
-  }
+  int pipe() => state == nullptr ? -1 : socket(state);
 
   void dispose() {
     if (state != nullptr) {
       free(state);
       state = nullptr;
-      developer.log('Disposed Tor state configuration', level: 500);
+      developer.log(
+        'Released native configuration memory handle',
+        name: 'Tor.dispose',
+        level: 500,
+      );
+    }
+
+    if (worker != null) {
+      worker!.kill(priority: Isolate.immediate);
+      worker = null;
+      developer.log(
+        'Terminated background isolate hosting the embedded Tor daemon process',
+        name: 'Tor.dispose',
+        level: 500,
+      );
     }
   }
 
@@ -257,187 +404,240 @@ class Tor {
   }
 }
 
-Uint8List _expand(Uint8List seed) {
-  assert(seed.length == 32, 'Ed25519 seed must be 32 bytes, got ${seed.length}');
-  final hash = Uint8List.fromList(sha512.convert(seed).bytes);
-  hash[0] &= 248;
-  hash[31] &= 127;
-  hash[31] |= 64;
-  return hash;
+class Sentinel {
+  static Sentinel? keeper;
+
+  Tor? circuit;
+  Completer<void>? promise;
+  Socket? link;
+  StreamIterator<String>? flow;
+  String? location;
+
+  static Sentinel summon() {
+    keeper ??= Sentinel();
+    return keeper!;
+  }
+
+  Future<void> prepare(String target) {
+    if (promise != null) return promise!.future;
+    location = target;
+    promise = Completer<void>();
+    guard();
+    return promise!.future;
+  }
+
+  Future<void> guard() async {
+    developer.log(
+      'Beginning shared Tor daemon boot and control channel negotiation',
+      name: 'Sentinel.guard',
+      level: 800,
+    );
+
+    try {
+      await assemble().timeout(const Duration(minutes: 3));
+
+      developer.log(
+        'Shared Tor daemon reported full bootstrap completion',
+        name: 'Sentinel.guard',
+        level: 800,
+      );
+
+      promise!.complete();
+    } catch (error) {
+      developer.log(
+        'Failed to boot shared Tor daemon or negotiate control channel',
+        name: 'Sentinel.guard',
+        level: 1000,
+        error: error,
+        stackTrace: StackTrace.current,
+      );
+
+      link?.destroy();
+      link = null;
+      flow = null;
+      circuit?.dispose();
+      circuit = null;
+
+      promise!.completeError(error);
+      promise = null;
+    }
+  }
+
+  Future<void> assemble() async {
+    final folder = Directory(location!);
+    if (!await folder.exists()) await folder.create(recursive: true);
+    if (Platform.isAndroid || Platform.isLinux || Platform.isMacOS) {
+      grant(location!, 448);
+    }
+
+    final file = File('$location/control.sock');
+
+    if (circuit == null) {
+      final residue = File('$location/state');
+      if (await residue.exists()) await residue.delete();
+
+      if (await file.exists()) await file.delete();
+
+      circuit = Tor(path: location);
+      unawaited(
+        circuit!.boot().catchError((error) {
+          developer.log(
+            'Background boot of the shared Tor daemon reported failure',
+            name: 'Sentinel.assemble',
+            level: 1000,
+            error: error,
+            stackTrace: StackTrace.current,
+          );
+        }),
+      );
+    }
+
+    if (!await file.exists()) {
+      final horizon = folder.watch(events: FileSystemEvent.create);
+      final arrival = horizon.firstWhere((event) => event.path == file.path);
+      await arrival;
+    }
+
+    if (link == null) {
+      var round = 0;
+      while (link == null) {
+        try {
+          link = await Socket.connect(
+            InternetAddress(file.path, type: InternetAddressType.unix),
+            0,
+          );
+        } catch (error) {
+          round += 1;
+          if (round >= 10) rethrow;
+          await Future.delayed(const Duration(milliseconds: 200));
+        }
+      }
+
+      final lines = link!
+          .cast<List<int>>()
+          .transform(utf8.decoder)
+          .transform(const LineSplitter());
+      flow = StreamIterator<String>(lines);
+
+      final cookie = File('$location/cookie');
+      if (Platform.isAndroid || Platform.isLinux || Platform.isMacOS) {
+        grant(cookie.path, 384);
+      }
+      final bytes = await cookie.readAsBytes();
+      final digest = bytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();
+
+      await order('AUTHENTICATE $digest');
+      await order('SETEVENTS STATUS_CLIENT');
+    }
+
+    final phase = await order('GETINFO status/bootstrap-phase');
+    if (!phase.contains('PROGRESS=100')) await listen();
+  }
+
+  Future<String> order(String demand) async {
+    link?.write('$demand\r\n');
+    await link?.flush();
+
+    late String answer;
+    while (true) {
+      final buffer = StringBuffer();
+      while (await flow!.moveNext()) {
+        final line = flow!.current;
+        buffer.writeln(line);
+        if (line.length >= 4 && line[3] == ' ') break;
+      }
+      answer = buffer.toString();
+
+      final code = answer.length >= 3 ? answer.substring(0, 3) : '';
+      if (code == '650') {
+        developer.log(
+          'Discarded an asynchronous event notification received while awaiting a command reply',
+          name: 'Sentinel.order',
+          level: 500,
+        );
+        continue;
+      }
+      break;
+    }
+
+    if (!answer.trim().split('\n').last.startsWith('250')) {
+      final command = demand.split(' ').first;
+      final issue = StateError(
+        'Control channel command rejected: $command -> ${answer.trim()}',
+      );
+      developer.log(
+        'Control channel rejected an issued command during negotiation',
+        name: 'Sentinel.order',
+        level: 1000,
+        error: issue,
+        stackTrace: StackTrace.current,
+      );
+      throw issue;
+    }
+    return answer;
+  }
+
+  Future<void> listen() async {
+    while (await flow!.moveNext()) {
+      final line = flow!.current;
+      if (line.contains('BOOTSTRAP') && line.contains('PROGRESS=100')) return;
+    }
+    final issue = StateError('Control channel closed before bootstrap completion');
+    developer.log(
+      'Control channel closed while awaiting bootstrap completion event',
+      name: 'Sentinel.listen',
+      level: 1000,
+      error: issue,
+      stackTrace: StackTrace.current,
+    );
+    throw issue;
+  }
+
+  Future<String> publish(String target, String secret) async {
+    await prepare(target);
+    final answer = await order(
+      'ADD_ONION ED25519-V3:$secret Port=80,127.0.0.1:8080 Flags=Detach',
+    );
+    final match = RegExp(r'ServiceID=(\S+)').firstMatch(answer);
+    if (match == null) {
+      final issue = StateError('Service identifier missing from control channel answer');
+      developer.log(
+        'Onion service publication answer missing expected service identifier',
+        name: 'Sentinel.publish',
+        level: 1000,
+        error: issue,
+        stackTrace: StackTrace.current,
+      );
+      throw issue;
+    }
+    developer.log(
+      'Successfully authenticated and published shared onion service endpoint',
+      name: 'Sentinel.publish',
+      level: 800,
+    );
+    return match.group(1)!;
+  }
 }
 
 String blob(String text) {
+  if (text.length < 128) throw ArgumentError('Input payload below key minimum length');
+
   final raw = Uint8List(64);
   for (var index = 0; index < 64; index++) {
     raw[index] = int.parse(text.substring(index * 2, index * 2 + 2), radix: 16);
   }
 
   final seed = raw.sublist(0, 32);
-  final expanded = _expand(seed);
-  final result = base64.encode(expanded);
+  final data = Uint8List.fromList(sha512.convert(seed).bytes);
+  data[0] &= 248;
+  data[31] &= 127;
+  data[31] |= 64;
+
+  final output = base64.encode(data);
 
   raw.fillRange(0, raw.length, 0);
   seed.fillRange(0, seed.length, 0);
-  expanded.fillRange(0, expanded.length, 0);
+  data.fillRange(0, data.length, 0);
 
-  return result;
-}
-
-Future<String> publish(
-    String path,
-    String identifier, {
-      String obfs4BinaryPath = '',
-      List<String> arguments = const [],
-    }) async {
-  final directory = Directory(path);
-  if (!await directory.exists()) {
-    await directory.create(recursive: true);
-  }
-  if (Platform.isAndroid || Platform.isLinux || Platform.isMacOS) {
-    await Process.run('chmod', ['700', path]);
-  }
-
-  final control = File('$path/control.sock');
-  final address = InternetAddress(control.path, type: InternetAddressType.unix);
-
-  Socket? connection;
-  try {
-    connection = await Socket.connect(address, 0);
-  } catch (error) {
-    developer.log('Control socket unreadable, starting Tor daemon', level: 900, error: error);
-
-    if (await control.exists()) await control.delete();
-
-    Object? cause;
-    StackTrace? trace;
-
-    unawaited(
-      Isolate.run(
-            () => Tor(
-          path: path,
-          binary: obfs4BinaryPath,
-          arguments: arguments,
-        ).boot(),
-      ).then((status) {
-        if (status != 0) {
-          cause = StateError('Tor daemon exited with status $status');
-          trace = StackTrace.current;
-        }
-      }).catchError((error, stack) {
-        cause = error;
-        trace = stack;
-        developer.log(
-          'Background Tor daemon failed to start',
-          level: 1000,
-          error: error,
-          stackTrace: stack,
-        );
-      }),
-    );
-
-    int counter = 0;
-    while (!await control.exists() && counter < 30) {
-      if (cause != null) {
-        developer.log(
-          'Control socket never appeared because the daemon failed',
-          level: 1000,
-          error: cause,
-          stackTrace: trace,
-        );
-        Error.throwWithStackTrace(
-          StateError('Tor daemon failed to start: $cause'),
-          trace ?? StackTrace.current,
-        );
-      }
-      await Future.delayed(const Duration(milliseconds: 500));
-      counter++;
-    }
-    if (!await control.exists()) {
-      final reason = cause != null ? ' Last known error: $cause' : '';
-      developer.log(
-        'Timed out waiting for control socket creation',
-        level: 1000,
-        stackTrace: StackTrace.current,
-      );
-      throw StateError('Timed out waiting for control socket.$reason');
-    }
-
-    int attempt = 0;
-    while (connection == null) {
-      try {
-        connection = await Socket.connect(address, 0);
-      } catch (error) {
-        attempt++;
-        if (attempt >= 10) {
-          developer.log(
-            'Failed to connect to control socket after max attempts',
-            level: 1000,
-            error: error,
-            stackTrace: StackTrace.current,
-          );
-          rethrow;
-        }
-        await Future.delayed(const Duration(milliseconds: 300));
-      }
-    }
-  }
-
-  final cookie = File('$path/cookie');
-  if (Platform.isAndroid || Platform.isLinux || Platform.isMacOS) {
-    await Process.run('chmod', ['600', cookie.path]);
-  }
-
-  final lines = connection
-      .cast<List<int>>()
-      .transform(utf8.decoder)
-      .transform(const LineSplitter());
-  final reader = StreamIterator<String>(lines);
-
-  Future<String> send(String command) async {
-    connection?.write('$command\r\n');
-    await connection?.flush();
-    final buffer = StringBuffer();
-    while (await reader.moveNext()) {
-      final line = reader.current;
-      buffer.writeln(line);
-      if (line.length >= 4 && line[3] == ' ') break;
-    }
-    final result = buffer.toString();
-    if (!result.trim().split('\n').last.startsWith('250')) {
-      developer.log(
-        'Tor control command error response received',
-        level: 1000,
-        stackTrace: StackTrace.current,
-      );
-      throw StateError('Tor control command failed: $result');
-    }
-    return result;
-  }
-
-  final secret = await cookie.readAsBytes();
-  final hex = secret
-      .map((byte) => byte.toRadixString(16).padLeft(2, '0'))
-      .join();
-
-  await send('AUTHENTICATE $hex');
-
-  final result = await send(
-    'ADD_ONION ED25519-V3:$identifier Port=80,127.0.0.1:8080 Flags=Detach',
-  );
-
-  await reader.cancel();
-  await connection.close();
-
-  final match = RegExp(r'ServiceID=(\S+)').firstMatch(result);
-  if (match == null) {
-    developer.log(
-      'Missing service address in ADD_ONION response',
-      level: 1000,
-      stackTrace: StackTrace.current,
-    );
-    throw StateError('Missing service address in ADD_ONION response.');
-  }
-
-  developer.log('Published onion service successfully', level: 800);
-  return match.group(1)!;
+  return output;
 }
