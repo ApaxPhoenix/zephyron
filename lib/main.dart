@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:freerasp/freerasp.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:zephyron/routes.dart';
+import 'package:zephyron/services/courier.dart';
 import 'package:zephyron/theme.dart';
 import 'package:zephyron/wrappers/tor.dart';
 
@@ -16,7 +17,7 @@ const link = MethodChannel('zephyron/security');
 
 Future<void> main() async {
   runZonedGuarded(
-        () async {
+    () async {
       WidgetsFlutterBinding.ensureInitialized();
 
       if (kReleaseMode) {
@@ -42,49 +43,58 @@ Future<void> main() async {
           exit(0);
         }
 
-        try {
-          const hash = String.fromEnvironment(
-            'APP_CERT_HASH',
-            defaultValue: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+        // Without the signing certificate hash freeRASP can only report a
+        // tampered app and the process would close itself, so monitoring is
+        // skipped for builds made without --dart-define-from-file=.env.
+        const hash = String.fromEnvironment('APP_CERT_HASH');
+        if (hash.isEmpty) {
+          developer.log(
+            'APP_CERT_HASH was not provided at build time, runtime threat monitoring is disabled for this build',
+            name: 'main.security.freerasp',
+            level: 900,
           );
+        }
 
-          final setup = TalsecConfig(
-            androidConfig: AndroidConfig(
-              packageName: 'com.aveloux.zephyron',
-              signingCertHashes: [hash],
-              supportedStores: ['com.android.vending'],
-            ),
-            watcherMail: 'security@aveloux.com',
-            isProd: true,
-          );
+        if (hash.isNotEmpty) {
+          try {
+            final setup = TalsecConfig(
+              androidConfig: AndroidConfig(
+                packageName: 'com.aveloux.zephyron',
+                signingCertHashes: [hash],
+                supportedStores: ['com.android.vending'],
+              ),
+              watcherMail: 'security@aveloux.com',
+              isProd: true,
+            );
 
-          void quit(String risk) {
+            void quit(String risk) {
+              developer.log(
+                'Security runtime detected severe environment threat: $risk. Initiating shutdown.',
+                name: 'main.security.threat',
+                level: 1200,
+                stackTrace: StackTrace.current,
+              );
+              exit(0);
+            }
+
+            final guard = ThreatCallback(
+              onAppIntegrity: () => quit('App Integrity Tampered'),
+              onHooks: () => quit('Hooking Framework Active'),
+              onPrivilegedAccess: () => quit('Privileged Root Access Detected'),
+              onSimulator: () => quit('Emulator Environment Detected'),
+            );
+
+            Talsec.instance.attachListener(guard);
+            await Talsec.instance.start(setup);
+          } catch (error) {
             developer.log(
-              'Security runtime detected severe environment threat: $risk. Initiating shutdown.',
-              name: 'main.security.threat',
-              level: 1200,
+              'Failed to configure or start Talsec security monitoring service',
+              name: 'main.security.freerasp',
+              level: 1000,
+              error: error,
               stackTrace: StackTrace.current,
             );
-            exit(0);
           }
-
-          final guard = ThreatCallback(
-            onAppIntegrity: () => quit('App Integrity Tampered'),
-            onHooks: () => quit('Hooking Framework Active'),
-            onPrivilegedAccess: () => quit('Privileged Root Access Detected'),
-            onSimulator: () => quit('Emulator Environment Detected'),
-          );
-
-          Talsec.instance.attachListener(guard);
-          await Talsec.instance.start(setup);
-        } catch (error) {
-          developer.log(
-            'Failed to configure or start Talsec security monitoring service',
-            name: 'main.security.freerasp',
-            level: 1000,
-            error: error,
-            stackTrace: StackTrace.current,
-          );
         }
       }
 
@@ -136,7 +146,7 @@ Future<void> main() async {
       );
       runApp(const MyApp());
     },
-        (dynamic error, dynamic _) {
+    (dynamic error, dynamic _) {
       developer.log(
         'Unhandled asynchronous error caught inside top-level runZonedGuarded boundary',
         name: 'main.uncaught',
@@ -194,33 +204,42 @@ class MyAppState extends State<MyApp> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final page = routes[route];
 
-    return MaterialApp(
-      title: 'Zephyron',
-      debugShowMaterialGrid: false,
-      debugShowCheckedModeBanner: false,
-      showSemanticsDebugger: false,
-      localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
-        DefaultMaterialLocalizations.delegate,
-        DefaultWidgetsLocalizations.delegate,
-      ],
-      theme: MediaQuery.of(context).platformBrightness == Brightness.light
-          ? Pallete.lightTheme(context)
-          : Pallete.darkTheme(context),
-      home: page?.call(context) ??
-          const Scaffold(body: Center(child: CircularProgressIndicator())),
-      onGenerateRoute: (RouteSettings info) {
-        final page = routes[info.name];
-        if (page != null) {
-          return MaterialPageRoute(builder: (context) => page(context));
-        }
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: Courier.instance.theme,
+      builder: (context, mode, _) {
+        return MaterialApp(
+          title: 'Zephyron',
+          debugShowMaterialGrid: false,
+          debugShowCheckedModeBanner: false,
+          showSemanticsDebugger: false,
+          localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
+            DefaultMaterialLocalizations.delegate,
+            DefaultWidgetsLocalizations.delegate,
+          ],
+          theme: Pallete.lightTheme(context),
+          darkTheme: Pallete.darkTheme(context),
+          themeMode: mode,
+          home:
+              page?.call(context) ??
+              const Scaffold(body: Center(child: CircularProgressIndicator())),
+          onGenerateRoute: (RouteSettings info) {
+            final page = routes[info.name];
+            if (page != null) {
+              return MaterialPageRoute(
+                settings: info,
+                builder: (context) => page(context),
+              );
+            }
 
-        developer.log(
-          'Requested route resolution failed: "${info.name}" is not registered in routes table',
-          name: 'MyAppState.onGenerateRoute',
-          level: 900,
-          stackTrace: StackTrace.current,
+            developer.log(
+              'Requested route resolution failed: "${info.name}" is not registered in routes table',
+              name: 'MyAppState.onGenerateRoute',
+              level: 900,
+              stackTrace: StackTrace.current,
+            );
+            return null;
+          },
         );
-        return null;
       },
     );
   }
