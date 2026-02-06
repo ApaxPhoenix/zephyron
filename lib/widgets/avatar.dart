@@ -129,3 +129,25 @@ class Portrait extends StatelessWidget {
     );
   }
 }
+
+/// Status mark in the style of a chat app: a dot, a moon, a bar or a ring.
+class Glyph extends StatelessWidget {
+  final Availability availability;
+  final double size;
+
+  const Glyph({super.key, required this.availability, this.size = 18});
+
+  @override
+  Widget build(BuildContext context) {
+    return Icon(
+      switch (availability) {
+        Availability.available => Icons.circle,
+        Availability.away => Icons.nightlight_round,
+        Availability.busy => Icons.remove_circle,
+        Availability.invisible => Icons.circle_outlined,
+      },
+      size: size,
+      color: Avatar.tone(availability),
+    );
+  }
+}
