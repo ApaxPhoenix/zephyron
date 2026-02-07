@@ -92,6 +92,13 @@ class LogInPageState extends State<LogInPage> {
     }
   }
 
+  static String pause(Duration wait) {
+    final seconds = wait.inSeconds + 1;
+    if (seconds < 60) return '$seconds ${seconds == 1 ? 'second' : 'seconds'}';
+    final minutes = (seconds / 60).ceil();
+    return '$minutes ${minutes == 1 ? 'minute' : 'minutes'}';
+  }
+
   Future<void> unlock() async {
     try {
       if (!key.currentState!.validate()) {
@@ -156,6 +163,24 @@ class LogInPageState extends State<LogInPage> {
           quarantine = null;
         });
       }
+    } on IdentitiesPurgedException catch (error) {
+      developer.log(
+        'Every identity purged after unlock attempts looked like an attack',
+        name: 'LogInPageState.unlockDatabase',
+        level: 1200,
+        error: error,
+        stackTrace: StackTrace.current,
+      );
+
+      if (mounted) {
+        setState(() {
+          warning =
+              'Those attempts looked like someone trying to break in. Every identity on this phone has been erased.';
+          identities = [];
+          selection = null;
+          quarantine = null;
+        });
+      }
     } on IdentityQuarantinedException catch (error) {
       developer.log(
         'Identity temporarily quarantined after repeated failed unlock attempts',
@@ -169,7 +194,7 @@ class LogInPageState extends State<LogInPage> {
         setState(
           () => warning =
               'Too many wrong passphrases. Try again in '
-              '${error.remaining.inSeconds} seconds.',
+              '${pause(error.remaining)}.',
         );
       }
       await refresh();
@@ -337,7 +362,7 @@ class LogInPageState extends State<LogInPage> {
                             const SizedBox(height: 12),
                             Text(
                               'Too many wrong passphrases. Try again in '
-                              '${quarantine!.inSeconds} seconds.',
+                              '${pause(quarantine!)}.',
                               style: TextStyle(color: theme.colorScheme.error),
                             ),
                           ],
