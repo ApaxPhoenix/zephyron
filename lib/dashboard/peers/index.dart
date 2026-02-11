@@ -6,6 +6,7 @@ import 'package:zephyron/models/trustee.dart';
 import 'package:zephyron/services/courier.dart';
 import 'package:zephyron/widgets/avatar.dart';
 import 'package:zephyron/widgets/beacon.dart';
+import 'package:zephyron/widgets/section.dart';
 import 'package:zephyron/widgets/stamp.dart';
 
 class PeersPage extends StatefulWidget {
@@ -86,32 +87,11 @@ class PeersPageState extends State<PeersPage> {
           final blocked = everyone.where((item) => item.blocked).toList();
 
           Widget header(String text, int count, {Widget? trailing}) {
-            return Padding(
+            return Heading(
+              text,
+              count: count,
+              trailing: trailing,
               padding: const EdgeInsets.fromLTRB(20, 24, 8, 6),
-              child: Row(
-                children: [
-                  Text(text, style: Theme.of(context).textTheme.titleSmall),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 7,
-                      vertical: 1,
-                    ),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: scheme.outline),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      '$count',
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        fontFeatures: const [FontFeature.tabularFigures()],
-                      ),
-                    ),
-                  ),
-                  const Spacer(),
-                  ?trailing,
-                ],
-              ),
             );
           }
 
@@ -170,7 +150,7 @@ class PeersPageState extends State<PeersPage> {
 
           final children = <Widget>[
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               child: TextField(
                 controller: search,
                 decoration: InputDecoration(
@@ -190,7 +170,7 @@ class PeersPageState extends State<PeersPage> {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
               child: Identifier(
                 address: courier.self?.address ?? '',
                 name: courier.me.name,
@@ -202,8 +182,9 @@ class PeersPageState extends State<PeersPage> {
           if (courier.roster.isEmpty) {
             children.add(
               Padding(
-                padding: const EdgeInsets.fromLTRB(32, 64, 32, 32),
+                padding: const EdgeInsets.fromLTRB(32, 72, 32, 32),
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Container(
                       padding: const EdgeInsets.all(20),
