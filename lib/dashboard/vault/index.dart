@@ -3,10 +3,12 @@ import 'package:zephyron/dashboard/chats/compose.dart';
 import 'package:zephyron/enums.dart';
 import 'package:zephyron/models/profile.dart';
 import 'package:zephyron/services/courier.dart';
+import 'package:zephyron/services/warden.dart';
 import 'package:zephyron/services/web.dart';
 import 'package:zephyron/sql/session.dart';
 import 'package:zephyron/widgets/avatar.dart';
 import 'package:zephyron/widgets/beacon.dart';
+import 'package:zephyron/widgets/section.dart';
 import 'package:zephyron/widgets/sheet.dart';
 import 'package:zephyron/wrappers/tor.dart';
 
@@ -39,23 +41,30 @@ class VaultPageState extends State<VaultPage> {
     if (sure) await Session.dispose();
   }
 
+  Future<void> status() async {
+    final picked = await Sheets.availability(
+      context,
+      current: courier.me.availability,
+    );
+    if (picked == null || picked == courier.me.availability) return;
+    await courier.publish(courier.me.copy()..availability = picked);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final inset = MediaQuery.paddingOf(context).bottom;
 
     return Scaffold(
+      backgroundColor: scheme.surface,
       appBar: AppBar(
         automaticallyImplyLeading: false,
         title: const Text('Settings'),
-        actions: [
-          const Center(child: Beacon()),
+        actions: const [
           Padding(
-            padding: const EdgeInsets.only(right: 4.0),
-            child: IconButton(
-              icon: const Icon(Icons.lock_outlined),
-              onPressed: lock,
-              tooltip: 'Lock Vault',
-            ),
+            padding: EdgeInsets.only(right: 16),
+            child: Center(child: Beacon()),
           ),
         ],
       ),
@@ -79,288 +88,378 @@ class VaultPageState extends State<VaultPage> {
               .where((item) => item.blocked)
               .length;
 
-          Widget header(String text) {
-            return Padding(
-              padding: const EdgeInsets.only(left: 4.0, top: 24, bottom: 8.0),
-              child: Text(text, style: Theme.of(context).textTheme.titleSmall),
+          Widget value(String text) => Text(
+            text,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
+          );
+
+          Widget choice<T>({
+            required T value,
+            required List<(T, String)> options,
+            required ValueChanged<T> onChanged,
+          }) {
+            return DropdownButtonHideUnderline(
+              child: DropdownButton<T>(
+                value: value,
+                borderRadius: BorderRadius.circular(12),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
+                icon: Icon(
+                  Icons.unfold_more,
+                  size: 18,
+                  color: scheme.onSurfaceVariant,
+                ),
+                items: [
+                  for (final (option, label) in options)
+                    DropdownMenuItem(value: option, child: Text(label)),
+                ],
+                onChanged: (picked) {
+                  if (picked != null) onChanged(picked);
+                },
+              ),
             );
           }
 
           return ListView(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16.0,
-              vertical: 8.0,
-            ),
+            padding: EdgeInsets.fromLTRB(16, 16, 16, 24 + inset),
             children: [
               Card(
                 clipBehavior: Clip.antiAlias,
-                child: InkWell(
-                  onTap: () => Navigator.pushNamed(
-                    context,
-                    '/dashboard/settings/profile',
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Row(
-                      children: [
-                        Avatar(
-                          label: me.name.isEmpty ? '?' : me.name,
-                          image: me.avatar,
-                          size: 56,
-                          online: reach == Reach.online,
-                          availability: me.availability,
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SizedBox(
+                      height: 128,
+                      child: Stack(
+                        children: [
+                          Container(
+                            height: 72,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  scheme.primary,
+                                  scheme.secondary.withValues(alpha: 0.75),
+                                ],
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            left: 16,
+                            top: 32,
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: theme.cardTheme.color ?? scheme.surface,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Avatar(
+                                label: me.name.isEmpty ? '?' : me.name,
+                                image: me.avatar,
+                                size: 76,
+                                online: reach == Reach.online,
+                                availability: me.availability,
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            right: 12,
+                            top: 86,
+                            child: OutlinedButton(
+                              style: OutlinedButton.styleFrom(
+                                minimumSize: const Size(0, 34),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                ),
+                                side: BorderSide(color: scheme.outline),
+                                foregroundColor: scheme.onSurface,
+                              ),
+                              onPressed: () => Navigator.pushNamed(
+                                context,
+                                '/dashboard/settings/profile',
+                              ),
+                              child: const Text('Edit Profile'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            me.name.isEmpty ? 'Set Your Name' : me.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            me.mood.isNotEmpty
+                                ? me.mood
+                                : me.bio.isNotEmpty
+                                ? me.bio
+                                : 'Add a status and bio',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
                             children: [
-                              Text(
-                                me.name.isEmpty ? 'Set Your Name' : me.name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.titleMedium
-                                    ?.copyWith(fontWeight: FontWeight.bold),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                me.mood.isNotEmpty
-                                    ? me.mood
-                                    : me.bio.isNotEmpty
-                                    ? me.bio
-                                    : 'Add a status and bio',
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(color: scheme.onSurfaceVariant),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '${trustees.length} Trustees • $online Online',
-                                style: Theme.of(context).textTheme.labelSmall
-                                    ?.copyWith(color: scheme.primary),
-                              ),
+                              for (final (count, label) in [
+                                (trustees.length, 'Trustees'),
+                                (online, 'Online'),
+                              ]) ...[
+                                Text(
+                                  '$count',
+                                  style: theme.textTheme.labelLarge?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    fontFeatures: const [
+                                      FontFeature.tabularFigures(),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(label, style: theme.textTheme.bodySmall),
+                                const SizedBox(width: 16),
+                              ],
                             ],
                           ),
-                        ),
-                        Icon(
-                          Icons.chevron_right,
-                          color: scheme.onSurfaceVariant,
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
+                    const Divider(),
+                    ListTile(
+                      onTap: status,
+                      leading: SizedBox(
+                        width: 24,
+                        child: Center(
+                          child: Glyph(availability: me.availability),
+                        ),
+                      ),
+                      title: Text(me.availability.label),
+                      subtitle: Text(me.availability.hint),
+                      trailing: Icon(
+                        Icons.chevron_right,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 4,
+              Identifier(address: address, name: me.name),
+              const Heading('Privacy'),
+              Group(
                 children: [
-                  for (final state in Availability.values)
-                    FilterChip(
-                      selected: me.availability == state,
-                      showCheckmark: false,
-                      avatar: Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: Avatar.tone(state),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      label: Text(state.label),
-                      labelStyle: TextStyle(
-                        color: me.availability == state
-                            ? scheme.primary
-                            : scheme.onSurfaceVariant,
-                      ),
-                      onSelected: (_) => courier.publish(
-                        courier.me.copy()..availability = state,
-                      ),
+                  SwitchListTile(
+                    secondary: const Icon(Icons.done_all),
+                    title: const Text('Read Receipts'),
+                    subtitle: const Text(
+                      'Let trustees see when you have read their messages',
                     ),
+                    value: prefs.receipts,
+                    onChanged: (value) => tune((next) => next.receipts = value),
+                  ),
+                  SwitchListTile(
+                    secondary: const Icon(Icons.keyboard_outlined),
+                    title: const Text('Typing Indicators'),
+                    subtitle: const Text('Show trustees when you are typing'),
+                    value: prefs.typing,
+                    onChanged: (value) => tune((next) => next.typing = value),
+                  ),
+                  SwitchListTile(
+                    secondary: const Icon(Icons.mark_email_unread_outlined),
+                    title: const Text('Message Requests'),
+                    subtitle: const Text(
+                      'Allow people who are not trustees to message you',
+                    ),
+                    value: prefs.strangers,
+                    onChanged: (value) =>
+                        tune((next) => next.strangers = value),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.block),
+                    title: const Text('Blocked'),
+                    subtitle: const Text('Manage blocked keys in Trustees'),
+                    trailing: Pill(count: blocked),
+                  ),
                 ],
               ),
-              const SizedBox(height: 16),
-              Identifier(address: address, name: me.name),
-              header('Privacy'),
-              SwitchListTile(
-                secondary: const Icon(Icons.done_all),
-                title: const Text('Read Receipts'),
-                subtitle: const Text(
-                  'Let trustees see when you have read their messages',
-                ),
-                value: prefs.receipts,
-                onChanged: (value) => tune((next) => next.receipts = value),
+              const Heading('Notifications'),
+              Group(
+                children: [
+                  SwitchListTile(
+                    secondary: const Icon(Icons.notifications_outlined),
+                    title: const Text('In-App Banners'),
+                    subtitle: const Text(
+                      'Muted automatically on Do not disturb',
+                    ),
+                    value: prefs.banners,
+                    onChanged: (value) => tune((next) => next.banners = value),
+                  ),
+                  SwitchListTile(
+                    secondary: const Icon(Icons.vibration),
+                    title: const Text('Haptics'),
+                    subtitle: const Text('Vibrate on send and long press'),
+                    value: prefs.haptics,
+                    onChanged: (value) => tune((next) => next.haptics = value),
+                  ),
+                ],
               ),
-              SwitchListTile(
-                secondary: const Icon(Icons.keyboard_outlined),
-                title: const Text('Typing Indicators'),
-                subtitle: const Text('Show trustees when you are typing'),
-                value: prefs.typing,
-                onChanged: (value) => tune((next) => next.typing = value),
+              const Heading('Media'),
+              Group(
+                children: [
+                  ListTile(
+                    leading: const Icon(Icons.gif_box_outlined),
+                    title: const Text('GIPHY'),
+                    subtitle: Text(
+                      Giphy.ready
+                          ? 'Search and previews load over Tor'
+                          : 'Add GIPHY_API_KEY to .env to enable',
+                    ),
+                    trailing: Icon(
+                      Giphy.ready ? Icons.check_circle : Icons.key_off,
+                      color: Giphy.ready
+                          ? scheme.primary
+                          : scheme.onSurfaceVariant,
+                    ),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.shield_outlined),
+                    title: const Text('GIF Content Rating'),
+                    trailing: choice<Rating>(
+                      value: prefs.rating,
+                      options: [
+                        for (final rating in Rating.values)
+                          (rating, rating.label),
+                      ],
+                      onChanged: (picked) =>
+                          tune((next) => next.rating = picked),
+                    ),
+                  ),
+                ],
               ),
-              SwitchListTile(
-                secondary: const Icon(Icons.mark_email_unread_outlined),
-                title: const Text('Message Requests'),
-                subtitle: const Text(
-                  'Allow people who are not trustees to message you',
-                ),
-                value: prefs.strangers,
-                onChanged: (value) => tune((next) => next.strangers = value),
+              const Heading('Appearance'),
+              Group(
+                children: [
+                  ListTile(
+                    leading: const Icon(Icons.brightness_6_outlined),
+                    title: const Text('Theme'),
+                    trailing: choice<ThemeMode>(
+                      value: prefs.theme,
+                      options: const [
+                        (ThemeMode.system, 'System'),
+                        (ThemeMode.light, 'Light'),
+                        (ThemeMode.dark, 'Dark'),
+                      ],
+                      onChanged: (picked) =>
+                          tune((next) => next.theme = picked),
+                    ),
+                  ),
+                ],
               ),
-              ListTile(
-                leading: const Icon(Icons.block),
-                title: const Text('Blocked'),
-                subtitle: const Text('Manage blocked keys in Trustees'),
-                trailing: Text('$blocked'),
-              ),
-              header('Notifications'),
-              SwitchListTile(
-                secondary: const Icon(Icons.notifications_outlined),
-                title: const Text('In-App Banners'),
-                subtitle: const Text('Muted automatically on Do not disturb'),
-                value: prefs.banners,
-                onChanged: (value) => tune((next) => next.banners = value),
-              ),
-              SwitchListTile(
-                secondary: const Icon(Icons.vibration),
-                title: const Text('Haptics'),
-                subtitle: const Text('Vibrate on send and long press'),
-                value: prefs.haptics,
-                onChanged: (value) => tune((next) => next.haptics = value),
-              ),
-              header('Media'),
-              ListTile(
-                leading: const Icon(Icons.gif_box_outlined),
-                title: const Text('GIPHY'),
-                subtitle: Text(
-                  Giphy.ready
-                      ? 'Search and previews load over Tor'
-                      : 'Add GIPHY_API_KEY to .env to enable',
-                ),
-                trailing: Icon(
-                  Giphy.ready ? Icons.check_circle : Icons.key_off,
-                  color: Giphy.ready ? scheme.primary : scheme.onSurfaceVariant,
-                ),
-              ),
-              ListTile(
-                leading: const Icon(Icons.shield_outlined),
-                title: const Text('GIF Content Rating'),
-                trailing: DropdownButton<Rating>(
-                  value: prefs.rating,
-                  underline: const SizedBox.shrink(),
-                  items: [
-                    for (final rating in Rating.values)
-                      DropdownMenuItem(
-                        value: rating,
-                        child: Text(rating.label),
+              const Heading('Network & Routing'),
+              Group(
+                children: [
+                  ListTile(
+                    leading: const Icon(Icons.router_outlined),
+                    title: const Text('Tor Proxy Daemon'),
+                    subtitle: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 250),
+                      layoutBuilder: (current, previous) => Stack(
+                        alignment: Alignment.centerLeft,
+                        children: [...previous, ?current],
                       ),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) tune((next) => next.rating = value);
-                  },
-                ),
-              ),
-              header('Appearance'),
-              ListTile(
-                leading: const Icon(Icons.brightness_6_outlined),
-                title: const Text('Theme'),
-                trailing: DropdownButton<ThemeMode>(
-                  value: prefs.theme,
-                  underline: const SizedBox.shrink(),
-                  items: const [
-                    DropdownMenuItem(
-                      value: ThemeMode.system,
-                      child: Text('System'),
+                      child: reach == Reach.connecting
+                          ? Padding(
+                              key: const ValueKey('progress'),
+                              padding: const EdgeInsets.only(top: 8),
+                              child: LinearProgressIndicator(
+                                value: progress > 0 ? progress / 100 : null,
+                              ),
+                            )
+                          : Text(
+                              reach == Reach.online
+                                  ? 'Bootstrapped and routing all traffic'
+                                  : 'Unavailable, retrying',
+                              key: ValueKey(reach),
+                            ),
                     ),
-                    DropdownMenuItem(
-                      value: ThemeMode.light,
-                      child: Text('Light'),
-                    ),
-                    DropdownMenuItem(
-                      value: ThemeMode.dark,
-                      child: Text('Dark'),
-                    ),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) tune((next) => next.theme = value);
-                  },
-                ),
-              ),
-              header('Network & Routing'),
-              ListTile(
-                leading: const Icon(Icons.router_outlined),
-                title: const Text('Tor Proxy Daemon'),
-                subtitle: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 250),
-                  layoutBuilder: (current, previous) => Stack(
-                    alignment: Alignment.centerLeft,
-                    children: [...previous, ?current],
                   ),
-                  child: reach == Reach.connecting
-                      ? Padding(
-                          key: const ValueKey('progress'),
-                          padding: const EdgeInsets.only(top: 8),
-                          child: LinearProgressIndicator(
-                            value: progress > 0 ? progress / 100 : null,
-                          ),
-                        )
-                      : Text(
-                          reach == Reach.online
-                              ? 'Bootstrapped and routing all traffic'
-                              : 'Unavailable, retrying',
-                          key: ValueKey(reach),
-                        ),
+                  ListTile(
+                    leading: const Icon(Icons.dns_outlined),
+                    title: const Text('Onion Service'),
+                    subtitle: Text(
+                      courier.server != null
+                          ? 'Port 80 → 127.0.0.1:${Courier.port}'
+                          : 'Listener not bound',
+                    ),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.info_outline),
+                    title: const Text('Tor Version'),
+                    trailing: value(version),
+                  ),
+                ],
+              ),
+              const Heading('Security'),
+              const Group(
+                children: [
+                  ListTile(
+                    leading: Icon(Icons.storage_outlined),
+                    title: Text('Local Storage'),
+                    subtitle: Text(
+                      'SQLCipher with an Argon2id key; attachments sealed with AES-256-GCM',
+                    ),
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.key_outlined),
+                    title: Text('Message Signing'),
+                    subtitle: Text('Ed25519, bound to your discovery key'),
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.gpp_maybe_outlined),
+                    title: Text('Unlock Protection'),
+                    subtitle: Text(
+                      '${Warden.lockout} wrong passphrases across identities lock them all. Attempts that look like an attack erase every identity on this phone.',
+                    ),
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.timer_outlined),
+                    title: Text('Inactivity Timeout'),
+                    subtitle: Text('Auto-lock vault after 10 minutes of idle'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 32),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: scheme.error,
+                  side: BorderSide(color: scheme.error.withValues(alpha: 0.6)),
+                  minimumSize: const Size.fromHeight(52),
                 ),
-              ),
-              ListTile(
-                leading: const Icon(Icons.dns_outlined),
-                title: const Text('Onion Service'),
-                subtitle: Text(
-                  courier.server != null
-                      ? 'Port 80 → 127.0.0.1:${Courier.port}'
-                      : 'Listener not bound',
-                ),
-              ),
-              ListTile(
-                leading: const Icon(Icons.info_outline),
-                title: const Text('Tor Version'),
-                trailing: Text(version),
-              ),
-              header('Security'),
-              const ListTile(
-                leading: Icon(Icons.storage_outlined),
-                title: Text('Local Storage'),
-                subtitle: Text(
-                  'SQLCipher with an Argon2id key; attachments sealed with AES-256-GCM',
-                ),
-              ),
-              const ListTile(
-                leading: Icon(Icons.key_outlined),
-                title: Text('Message Signing'),
-                subtitle: Text('Ed25519, bound to your discovery key'),
-              ),
-              const ListTile(
-                leading: Icon(Icons.timer_outlined),
-                title: Text('Inactivity Timeout'),
-                subtitle: Text('Auto-lock vault after 10 minutes of idle'),
+                onPressed: lock,
+                icon: const Icon(Icons.lock_outlined),
+                label: const Text('Lock Vault'),
               ),
               const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: scheme.error,
-                    side: BorderSide(color: scheme.error),
-                    minimumSize: const Size.fromHeight(48),
-                  ),
-                  onPressed: lock,
-                  icon: const Icon(Icons.lock_outlined),
-                  label: const Text('Lock Vault'),
-                ),
+              Text(
+                'Zephyron · Tor $version',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.labelSmall,
               ),
-              const SizedBox(height: 24),
             ],
           );
         },
