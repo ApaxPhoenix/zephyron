@@ -78,7 +78,7 @@ class Group extends StatelessWidget {
   /// Where the hairline starts, so it lines up with the row text.
   final double indent;
 
-  const Group({super.key, required this.children, this.indent = 56});
+  const Group({super.key, required this.children, this.indent = 60});
 
   @override
   Widget build(BuildContext context) {
