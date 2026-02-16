@@ -203,23 +203,9 @@ class ProfilePageState extends State<ProfilePage> {
                         RadioListTile<Availability>(
                           value: state,
                           contentPadding: EdgeInsets.zero,
-                          secondary: AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
-                            width: 10,
-                            height: 10,
-                            decoration: BoxDecoration(
-                              color: Avatar.tone(state),
-                              shape: BoxShape.circle,
-                            ),
-                          ),
+                          secondary: Glyph(availability: state),
                           title: Text(state.label),
-                          subtitle: Text(switch (state) {
-                            Availability.available => 'Reachable and chatting',
-                            Availability.away => 'Replies may be slow',
-                            Availability.busy => 'Mutes in-app banners here',
-                            Availability.invisible =>
-                              'Appear offline; no typing, pings or read receipts',
-                          }),
+                          subtitle: Text(state.hint),
                         ),
                     ],
                   ),
