@@ -75,7 +75,7 @@ class AttemptLedger {
 }
 
 class Session {
-  static const storage = FlutterSecureStorage();
+  static const FlutterSecureStorage storage = Database.keychain;
   static const key = 'sessions';
 
   static const int throttleThreshold = 5;
