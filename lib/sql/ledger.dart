@@ -30,7 +30,9 @@ class Ledger {
           mood TEXT NOT NULL DEFAULT '',
           availability INTEGER NOT NULL DEFAULT 0,
           avatar BLOB,
-          revision INTEGER NOT NULL DEFAULT 0
+          revision INTEGER NOT NULL DEFAULT 0,
+          fuse INTEGER NOT NULL DEFAULT 0,
+          fused INTEGER NOT NULL DEFAULT 0
         )
       ''');
       await base.execute('''
@@ -55,13 +57,15 @@ class Ledger {
         )
       ''');
 
-      for (final (name, type) in [
-        ('kind', 'INTEGER NOT NULL DEFAULT 0'),
-        ('meta', 'TEXT'),
+      for (final (table, name, type) in [
+        ('history', 'kind', 'INTEGER NOT NULL DEFAULT 0'),
+        ('history', 'meta', 'TEXT'),
+        ('trustees', 'fuse', 'INTEGER NOT NULL DEFAULT 0'),
+        ('trustees', 'fused', 'INTEGER NOT NULL DEFAULT 0'),
       ]) {
-        final columns = await base.rawQuery('PRAGMA table_info(history)');
+        final columns = await base.rawQuery('PRAGMA table_info($table)');
         if (!columns.any((row) => row['name'] == name)) {
-          await base.execute('ALTER TABLE history ADD COLUMN $name $type');
+          await base.execute('ALTER TABLE $table ADD COLUMN $name $type');
         }
       }
 
