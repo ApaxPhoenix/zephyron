@@ -93,7 +93,7 @@ class ComposeState extends State<Compose> {
         bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
       child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
         child: Form(
           key: key,
           child: Column(

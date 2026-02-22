@@ -80,7 +80,7 @@ class RelaysPageState extends State<RelaysPage> {
       onRefresh: refresh,
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: EdgeInsets.fromLTRB(16, 20, 16, 32 + inset),
+        padding: EdgeInsets.fromLTRB(20, 20, 20, 32 + inset),
         children: children,
       ),
     );
@@ -144,7 +144,7 @@ class RelaysPageState extends State<RelaysPage> {
                   final known = peer == null ? null : courier.roster[peer];
                   return ListTile(
                     contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
+                      horizontal: 20,
                       vertical: 4,
                     ),
                     onTap: peer == null
@@ -232,7 +232,7 @@ class RelaysPageState extends State<RelaysPage> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
                           child: Row(
                             children: [
                               Text(
@@ -338,7 +338,7 @@ class RelaysPageState extends State<RelaysPage> {
                         ),
                         const Divider(),
                         Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 4, 8, 4),
+                          padding: const EdgeInsets.fromLTRB(20, 4, 12, 4),
                           child: Row(
                             children: [
                               Expanded(
@@ -429,7 +429,7 @@ class RelaysPageState extends State<RelaysPage> {
                     )
                   else
                     Group(
-                      indent: 72,
+                      indent: 76,
                       children: [
                         for (final channel in Pager.slice(
                           connections,
@@ -469,7 +469,7 @@ class RelaysPageState extends State<RelaysPage> {
                     Card(
                       key: ValueKey('circuit:${circuit.id}'),
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -733,7 +733,7 @@ class RelaysPageState extends State<RelaysPage> {
                   ),
                   Card(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [

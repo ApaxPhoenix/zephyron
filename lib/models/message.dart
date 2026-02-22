@@ -73,6 +73,11 @@ class Message {
 
   int get height => meta['height'] as int? ?? 0;
 
+  /// Seconds this message lives for, or 0 when it is kept.
+  int get fuse => meta['fuse'] as int? ?? 0;
+
+  DateTime? get expiry => fuse > 0 ? time.add(Duration(seconds: fuse)) : null;
+
   String get preview {
     final caption = text.replaceAll('\n', ' ').trim();
     return switch (kind) {
