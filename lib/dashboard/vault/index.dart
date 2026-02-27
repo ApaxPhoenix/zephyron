@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:zephyron/auth/panic.dart';
 import 'package:zephyron/dashboard/chats/compose.dart';
 import 'package:zephyron/enums.dart';
 import 'package:zephyron/models/profile.dart';
@@ -497,6 +498,13 @@ class VaultPageState extends State<VaultPage> {
                     ),
                   ),
                   ListTile(
+                    leading: Icon(Icons.crisis_alert_outlined),
+                    title: Text('Panic Wipe'),
+                    subtitle: Text(
+                      'Long-press the app icon or the unlock screen title to erase everything after a ${PanicPage.grace} second countdown',
+                    ),
+                  ),
+                  ListTile(
                     leading: Icon(Icons.timer_outlined),
                     title: Text('Inactivity Timeout'),
                     subtitle: Text('Auto-lock vault after 10 minutes of idle'),
@@ -513,6 +521,16 @@ class VaultPageState extends State<VaultPage> {
                 onPressed: lock,
                 icon: const Icon(Icons.lock_outlined),
                 label: const Text('Lock Vault'),
+              ),
+              const SizedBox(height: 8),
+              TextButton.icon(
+                style: TextButton.styleFrom(
+                  foregroundColor: scheme.error,
+                  minimumSize: const Size.fromHeight(48),
+                ),
+                onPressed: () => Navigator.pushNamed(context, '/panic'),
+                icon: const Icon(Icons.delete_forever_outlined),
+                label: const Text('Erase Everything'),
               ),
               const SizedBox(height: 16),
               Text(
