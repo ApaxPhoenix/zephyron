@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:zephyron/splash.dart';
 import 'package:zephyron/auth/index.dart';
+import 'package:zephyron/auth/panic.dart';
 import 'package:zephyron/dashboard/index.dart';
 import 'package:zephyron/dashboard/chats/message.dart';
 import 'package:zephyron/dashboard/peers/node.dart';
@@ -12,6 +13,7 @@ import 'package:zephyron/network/middleware.dart';
 final Map<String, WidgetBuilder> routes = {
   '/': (context) => const SplashScreen(),
   '/auth': (context) => const AuthScreen(),
+  '/panic': (context) => const PanicPage(),
   '/dashboard': (context) => const DashboardScreen(),
   '/dashboard/chats/message': (context) {
     final arguments =
