@@ -334,6 +334,15 @@ class VaultPageState extends State<VaultPage> {
                     onChanged: (value) =>
                         tune((next) => next.strangers = value),
                   ),
+                  SwitchListTile(
+                    secondary: const Icon(Icons.screenshot_monitor_outlined),
+                    title: const Text('Screen Security'),
+                    subtitle: const Text(
+                      'Block screenshots and screen recording, and hide chats in the app switcher',
+                    ),
+                    value: prefs.shield,
+                    onChanged: (value) => tune((next) => next.shield = value),
+                  ),
                   ListTile(
                     leading: const Icon(Icons.block),
                     title: const Text('Blocked'),
