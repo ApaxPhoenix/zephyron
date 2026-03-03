@@ -11,6 +11,7 @@ import 'package:quick_actions/quick_actions.dart';
 import 'package:zephyron/routes.dart';
 import 'package:zephyron/services/courier.dart';
 import 'package:zephyron/services/shield.dart';
+import 'package:zephyron/services/tripwire.dart';
 import 'package:zephyron/theme.dart';
 import 'package:zephyron/wrappers/tor.dart';
 
@@ -69,22 +70,7 @@ Future<void> main() async {
               isProd: true,
             );
 
-            void quit(String risk) {
-              developer.log(
-                'Security runtime detected severe environment threat: $risk. Initiating shutdown.',
-                name: 'main.security.threat',
-                level: 1200,
-                stackTrace: StackTrace.current,
-              );
-              exit(0);
-            }
-
-            final guard = ThreatCallback(
-              onAppIntegrity: () => quit('App Integrity Tampered'),
-              onHooks: () => quit('Hooking Framework Active'),
-              onPrivilegedAccess: () => quit('Privileged Root Access Detected'),
-              onSimulator: () => quit('Emulator Environment Detected'),
-            );
+            final guard = Tripwire.callback();
 
             Talsec.instance.attachListener(guard);
             await Talsec.instance.start(setup);
