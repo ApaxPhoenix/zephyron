@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:zephyron/auth/panic.dart';
 import 'package:zephyron/dashboard/chats/compose.dart';
 import 'package:zephyron/enums.dart';
 import 'package:zephyron/models/profile.dart';
 import 'package:zephyron/services/courier.dart';
+import 'package:zephyron/services/duress.dart';
 import 'package:zephyron/services/warden.dart';
 import 'package:zephyron/services/web.dart';
 import 'package:zephyron/sql/session.dart';
@@ -21,6 +23,49 @@ class VaultPage extends StatefulWidget {
 
 class VaultPageState extends State<VaultPage> {
   late final String version = Tor.version;
+  String? decoy;
+
+  @override
+  void initState() {
+    super.initState();
+    refresh();
+  }
+
+  Future<void> refresh() async {
+    final armed = await Duress.decoy();
+    if (mounted) setState(() => decoy = armed);
+  }
+
+  Future<void> duress() async {
+    final navigator = Navigator.of(context);
+    if (decoy == Session.profile && decoy != null) {
+      await Sheets.actions(
+        context,
+        items: [
+          SheetAction(
+            icon: Icons.edit_outlined,
+            label: 'Change Duress Passphrase',
+            onTap: () async {
+              await navigator.pushNamed('/dashboard/settings/duress');
+              await refresh();
+            },
+          ),
+          SheetAction(
+            icon: Icons.remove_moderator_outlined,
+            label: 'Turn Off',
+            destructive: true,
+            onTap: () async {
+              await Duress.disarm();
+              await refresh();
+            },
+          ),
+        ],
+      );
+      return;
+    }
+    await navigator.pushNamed('/dashboard/settings/duress');
+    await refresh();
+  }
 
   Courier get courier => Courier.instance;
 
@@ -289,6 +334,15 @@ class VaultPageState extends State<VaultPage> {
                     onChanged: (value) =>
                         tune((next) => next.strangers = value),
                   ),
+                  SwitchListTile(
+                    secondary: const Icon(Icons.screenshot_monitor_outlined),
+                    title: const Text('Screen Security'),
+                    subtitle: const Text(
+                      'Block screenshots and screen recording, and hide chats in the app switcher',
+                    ),
+                    value: prefs.shield,
+                    onChanged: (value) => tune((next) => next.shield = value),
+                  ),
                   ListTile(
                     leading: const Icon(Icons.block),
                     title: const Text('Blocked'),
@@ -415,8 +469,24 @@ class VaultPageState extends State<VaultPage> {
                 ],
               ),
               const Heading('Security'),
-              const Group(
+              Group(
                 children: [
+                  ListTile(
+                    leading: const Icon(Icons.theater_comedy_outlined),
+                    title: const Text('Duress Passphrase'),
+                    subtitle: Text(
+                      decoy == null
+                          ? 'Off. Set one that erases everything but this identity'
+                          : decoy == Session.profile
+                          ? 'On. Opens this identity and erases the rest'
+                          : 'On, for another identity on this phone',
+                    ),
+                    trailing: Icon(
+                      Icons.chevron_right,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                    onTap: duress,
+                  ),
                   ListTile(
                     leading: Icon(Icons.storage_outlined),
                     title: Text('Local Storage'),
@@ -437,6 +507,13 @@ class VaultPageState extends State<VaultPage> {
                     ),
                   ),
                   ListTile(
+                    leading: Icon(Icons.crisis_alert_outlined),
+                    title: Text('Panic Wipe'),
+                    subtitle: Text(
+                      'Long-press the app icon or the unlock screen title to erase everything after a ${PanicPage.grace} second countdown',
+                    ),
+                  ),
+                  ListTile(
                     leading: Icon(Icons.timer_outlined),
                     title: Text('Inactivity Timeout'),
                     subtitle: Text('Auto-lock vault after 10 minutes of idle'),
@@ -453,6 +530,16 @@ class VaultPageState extends State<VaultPage> {
                 onPressed: lock,
                 icon: const Icon(Icons.lock_outlined),
                 label: const Text('Lock Vault'),
+              ),
+              const SizedBox(height: 8),
+              TextButton.icon(
+                style: TextButton.styleFrom(
+                  foregroundColor: scheme.error,
+                  minimumSize: const Size.fromHeight(48),
+                ),
+                onPressed: () => Navigator.pushNamed(context, '/panic'),
+                icon: const Icon(Icons.delete_forever_outlined),
+                label: const Text('Erase Everything'),
               ),
               const SizedBox(height: 16),
               Text(

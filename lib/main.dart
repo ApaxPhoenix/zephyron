@@ -7,8 +7,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:freerasp/freerasp.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:quick_actions/quick_actions.dart';
 import 'package:zephyron/routes.dart';
 import 'package:zephyron/services/courier.dart';
+import 'package:zephyron/services/shield.dart';
+import 'package:zephyron/services/tripwire.dart';
 import 'package:zephyron/theme.dart';
 import 'package:zephyron/wrappers/tor.dart';
 
@@ -67,22 +70,7 @@ Future<void> main() async {
               isProd: true,
             );
 
-            void quit(String risk) {
-              developer.log(
-                'Security runtime detected severe environment threat: $risk. Initiating shutdown.',
-                name: 'main.security.threat',
-                level: 1200,
-                stackTrace: StackTrace.current,
-              );
-              exit(0);
-            }
-
-            final guard = ThreatCallback(
-              onAppIntegrity: () => quit('App Integrity Tampered'),
-              onHooks: () => quit('Hooking Framework Active'),
-              onPrivilegedAccess: () => quit('Privileged Root Access Detected'),
-              onSimulator: () => quit('Emulator Environment Detected'),
-            );
+            final guard = Tripwire.callback();
 
             Talsec.instance.attachListener(guard);
             await Talsec.instance.start(setup);
@@ -166,12 +154,37 @@ class MyApp extends StatefulWidget {
 }
 
 class MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  static final GlobalKey<NavigatorState> navigator = GlobalKey();
   String route = '/';
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    shortcuts();
+  }
+
+  /// Adds "Panic wipe" to the app icon's long-press menu.
+  void shortcuts() {
+    try {
+      const actions = QuickActions();
+      actions.initialize((type) {
+        if (type != 'panic') return;
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => navigator.currentState?.pushNamed('/panic'),
+        );
+      });
+      actions.setShortcutItems(const [
+        ShortcutItem(type: 'panic', localizedTitle: 'Panic wipe'),
+      ]);
+    } catch (error) {
+      developer.log(
+        'Failed to register the panic wipe launcher shortcut',
+        name: 'MyAppState.shortcuts',
+        level: 900,
+        error: error,
+      );
+    }
   }
 
   @override
@@ -208,6 +221,7 @@ class MyAppState extends State<MyApp> with WidgetsBindingObserver {
       valueListenable: Courier.instance.theme,
       builder: (context, mode, _) {
         return MaterialApp(
+          navigatorKey: navigator,
           title: 'Zephyron',
           debugShowMaterialGrid: false,
           debugShowCheckedModeBanner: false,
@@ -219,6 +233,10 @@ class MyAppState extends State<MyApp> with WidgetsBindingObserver {
           theme: Pallete.lightTheme(context),
           darkTheme: Pallete.darkTheme(context),
           themeMode: mode,
+          builder: (context, child) => Curtain(
+            enabled: Courier.instance.shielded,
+            child: child ?? const SizedBox.shrink(),
+          ),
           home:
               page?.call(context) ??
               const Scaffold(body: Center(child: CircularProgressIndicator())),
