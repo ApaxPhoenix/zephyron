@@ -13,6 +13,9 @@ class Profile {
   String mood;
   Availability availability;
   Uint8List? avatar;
+
+  /// A wide picture or animated GIF shown behind the avatar.
+  Uint8List? banner;
   int revision;
 
   Profile({
@@ -21,11 +24,13 @@ class Profile {
     this.mood = '',
     this.availability = Availability.available,
     this.avatar,
+    this.banner,
     this.revision = 0,
   });
 
   factory Profile.fromJson(Map<String, dynamic> json) {
     final picture = json['avatar'] as String?;
+    final cover = json['banner'] as String?;
     final state = json['availability'] as String?;
     return Profile(
       name: clip(json['name'], names),
@@ -38,17 +43,22 @@ class Profile {
       avatar: picture != null && picture.isNotEmpty
           ? base64.decode(picture)
           : null,
+      banner: cover != null && cover.isNotEmpty ? base64.decode(cover) : null,
       revision: json['revision'] as int? ?? 0,
     );
   }
 
-  Map<String, dynamic> toJson() {
+  /// The banner is left out of frames sent to trustees, which carry it in a
+  /// frame of its own; it is kept when the profile is stored locally.
+  Map<String, dynamic> toJson({bool banner = true}) {
     return {
       'name': name,
       'bio': bio,
       'mood': mood,
       'availability': availability.name,
       'avatar': avatar == null ? '' : base64.encode(avatar!),
+      if (banner)
+        'banner': this.banner == null ? '' : base64.encode(this.banner!),
       'revision': revision,
     };
   }
