@@ -119,6 +119,9 @@ class Courier extends ChangeNotifier {
   static const int line = 512 * 1024;
   static const int slice = 48 * 1024;
   static const int portrait = 256 * 1024;
+
+  /// Largest banner, so its frame stays under [line] once base64 encoded.
+  static const int banner = 360 * 1024;
   static const String protocol = 'zephyron/1';
   static const Duration horizon = Duration(seconds: 90);
 
@@ -577,8 +580,13 @@ class Courier extends ChangeNotifier {
         case Signal.whois:
           if (roster[from]?.trusted == true) {
             channel.send(
-              seal(Signal.profile, from, body: jsonEncode(me.toJson())),
+              seal(
+                Signal.profile,
+                from,
+                body: jsonEncode(me.toJson(banner: false)),
+              ),
             );
+            channel.send(seal(Signal.banner, from, body: cover()));
           }
         case Signal.profile:
           final known = roster[from];
@@ -709,6 +717,15 @@ class Courier extends ChangeNotifier {
         case Signal.timer:
           final choice = jsonDecode(body) as Map;
           await adjust(from, choice['fuse'], choice['fused']);
+        case Signal.banner:
+          final known = roster[from];
+          if (known == null || known.blocked) break;
+          final picture = (jsonDecode(body) as Map)['banner'];
+          if (picture is! String) break;
+          final bytes = picture.isEmpty ? null : base64.decode(picture);
+          if ((bytes?.length ?? 0) > banner) break;
+          known.banner = bytes;
+          await Ledger.keep(known);
       }
 
       if (epoch != generation) return;
@@ -1087,15 +1104,24 @@ class Courier extends ChangeNotifier {
     } catch (_) {}
   }
 
+  /// The banner frame body for this identity's profile.
+  String cover() => jsonEncode({
+    'banner': me.banner == null || me.banner!.length > banner
+        ? ''
+        : base64.encode(me.banner!),
+  });
+
   Future<void> publish(Profile profile) async {
     profile.revision = DateTime.now().millisecondsSinceEpoch;
     me = profile;
     await Ledger.write('profile', profile.toJson());
     notifyListeners();
-    final body = jsonEncode(profile.toJson());
+    final body = jsonEncode(profile.toJson(banner: false));
+    final picture = cover();
     for (final entry in channels.entries.toList()) {
       if (!entry.value.alive || roster[entry.key]?.trusted != true) continue;
       entry.value.send(seal(Signal.profile, entry.key, body: body));
+      entry.value.send(seal(Signal.banner, entry.key, body: picture));
     }
   }
 
