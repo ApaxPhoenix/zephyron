@@ -180,19 +180,7 @@ class VaultPageState extends State<VaultPage> {
                       height: 128,
                       child: Stack(
                         children: [
-                          Container(
-                            height: 72,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [
-                                  scheme.primary,
-                                  scheme.secondary.withValues(alpha: 0.75),
-                                ],
-                              ),
-                            ),
-                          ),
+                          Cover(banner: me.banner, height: 72),
                           Positioned(
                             left: 16,
                             top: 32,
