@@ -121,6 +121,10 @@ class Ledger {
     }, conflictAlgorithm: cipher.ConflictAlgorithm.replace);
   }
 
+  static Future<void> remove(String key) async {
+    await base.delete('preferences', where: 'key = ?', whereArgs: [key]);
+  }
+
   static Future<List<Trustee>> trustees() async {
     final rows = await base.query('trustees');
     return rows.map(Trustee.fromRow).toList();
