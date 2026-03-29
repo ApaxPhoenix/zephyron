@@ -9,6 +9,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:zephyron/enums.dart';
 import 'package:zephyron/models/identity.dart';
 import 'package:zephyron/services/courier.dart';
+import 'package:zephyron/services/ratchet.dart';
 import 'package:zephyron/sql/database.dart' as store;
 import 'package:zephyron/sql/ledger.dart';
 
@@ -144,3 +145,38 @@ Future<void> until(bool Function() condition) async {
 
 Uint8List pattern(int length) =>
     Uint8List.fromList(List.generate(length, (index) => index * 7 % 251));
+
+/// Agrees an end-to-end session between two identities in the test store,
+/// in whichever direction their roles require.
+Future<void> pairUp(Identity from, Identity to) async {
+  if (await Ratchet.paired(from, to.address)) return;
+  if (Ratchet.lead(from, to.address)) {
+    await Ratchet.learn(to.address, await Ratchet.bundle(to));
+    return;
+  }
+  await Ratchet.learn(from.address, await Ratchet.bundle(from));
+  final opening = await Ratchet.seal(to, from.address, utf8.encode('{}'));
+  await Ratchet.open(from, to.address, opening);
+}
+
+/// The encrypted frame body [from] would send to the courier's identity.
+Future<String> confide(Identity from, Object inner) async {
+  final to = Courier.instance.self!;
+  await pairUp(from, to);
+  final clear = utf8.encode(inner is String ? inner : jsonEncode(inner));
+  return jsonEncode(await Ratchet.seal(from, to.address, clear));
+}
+
+/// An attachment chunk sealed with the key from its manifest.
+Future<Map<String, dynamic>> piece(
+  String id,
+  Uint8List key,
+  int seq,
+  List<int> data,
+) async => {
+  'v': Courier.protocol,
+  'kind': 'chunk',
+  'id': id,
+  'seq': seq,
+  'data': base64.encode(await Ratchet.chunk(key, seq, data)),
+};
