@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
 import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:async';
+import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:minio/minio.dart';
 
@@ -17,12 +17,11 @@ class NetworkMiddlewareScreenState extends State<NetworkMiddlewareScreen>
     with TickerProviderStateMixin {
   late final AnimationController animation;
   double progress = 0.0;
-  String root = '';
+  String? root;
 
   @override
   void initState() {
     super.initState();
-
     animation = AnimationController(
       duration: const Duration(seconds: 5),
       vsync: this,
@@ -30,9 +29,9 @@ class NetworkMiddlewareScreenState extends State<NetworkMiddlewareScreen>
 
     unawaited(() async {
       if (progress > 0.0) return;
-
       try {
-        root = (await getApplicationDocumentsDirectory()).path;
+        final directory = await getApplicationDocumentsDirectory();
+        root = directory.path;
         await Directory('$root/map').create(recursive: true);
 
         final client = Minio(
@@ -44,7 +43,6 @@ class NetworkMiddlewareScreenState extends State<NetworkMiddlewareScreen>
         );
 
         final items = <({String key, String name, int size, String? hash})>[];
-
         final stream = client
             .listObjectsV2('appwrite', prefix: 'map/', recursive: true)
             .timeout(const Duration(seconds: 4));
@@ -55,13 +53,13 @@ class NetworkMiddlewareScreenState extends State<NetworkMiddlewareScreen>
               final name = object.key!.substring('map/'.length);
               developer.log(
                 'Found $name with ${object.size ?? 0} bytes',
-                name: 'NetworkMiddlewareScreen',
+                name: 'NetworkMiddlewareScreen.listObjects',
               );
               items.add((
-                key: object.key!,
-                name: name,
-                size: object.size ?? 0,
-                hash: object.eTag,
+              key: object.key!,
+              name: name,
+              size: object.size ?? 0,
+              hash: object.eTag,
               ));
             }
           }
@@ -72,7 +70,6 @@ class NetworkMiddlewareScreenState extends State<NetworkMiddlewareScreen>
 
           final total = items.fold<int>(0, (sum, item) => sum + item.size);
           final received = List<int>.filled(items.length, 0);
-
           int pointer = 0;
 
           Future<void> worker() async {
@@ -83,22 +80,21 @@ class NetworkMiddlewareScreenState extends State<NetworkMiddlewareScreen>
               final item = items[current];
               try {
                 final file = File('$root/map/${item.name}');
-
                 if (await file.exists() &&
                     (item.size == 0 || await file.length() == item.size)) {
                   received[current] = item.size;
                   if (mounted) {
                     setState(
-                      () => progress =
+                          () => progress =
                           0.1 +
-                          ((received.fold<int>(0, (sum, bytes) => sum + bytes) /
+                              ((received.fold<int>(0, (sum, bytes) => sum + bytes) /
                                   (total > 0 ? total : 1)) *
-                              0.8),
+                                  0.8),
                     );
                   }
                   developer.log(
                     'Skipping matching file ${item.name}',
-                    name: 'NetworkMiddlewareScreen',
+                    name: 'NetworkMiddlewareScreen.workerSkip',
                   );
                   continue;
                 }
@@ -110,7 +106,7 @@ class NetworkMiddlewareScreenState extends State<NetworkMiddlewareScreen>
                     start = length;
                     developer.log(
                       'Resuming ${item.name} from byte $start',
-                      name: 'NetworkMiddlewareScreen',
+                      name: 'NetworkMiddlewareScreen.workerResume',
                     );
                   } else {
                     await file.delete();
@@ -127,21 +123,20 @@ class NetworkMiddlewareScreenState extends State<NetworkMiddlewareScreen>
                 final writer = file.openWrite(
                   mode: start > 0 ? FileMode.append : FileMode.write,
                 );
-
                 try {
                   await for (final chunk in data) {
                     writer.add(chunk);
                     received[current] += chunk.length;
                     if (mounted) {
                       setState(
-                        () => progress =
+                            () => progress =
                             0.1 +
-                            ((received.fold<int>(
-                                      0,
+                                ((received.fold<int>(
+                                  0,
                                       (sum, bytes) => sum + bytes,
-                                    ) /
+                                ) /
                                     (total > 0 ? total : 1)) *
-                                0.8),
+                                    0.8),
                       );
                     }
                   }
@@ -153,11 +148,11 @@ class NetworkMiddlewareScreenState extends State<NetworkMiddlewareScreen>
                 received[current] = item.size;
                 if (mounted) {
                   setState(
-                    () => progress =
+                        () => progress =
                         0.1 +
-                        ((received.fold<int>(0, (sum, bytes) => sum + bytes) /
+                            ((received.fold<int>(0, (sum, bytes) => sum + bytes) /
                                 (total > 0 ? total : 1)) *
-                            0.8),
+                                0.8),
                   );
                 }
               } catch (error, trace) {
@@ -165,7 +160,7 @@ class NetworkMiddlewareScreenState extends State<NetworkMiddlewareScreen>
                   'Sync failed for ${item.name} due to $error',
                   error: error,
                   stackTrace: trace,
-                  name: 'NetworkMiddlewareScreen',
+                  name: 'NetworkMiddlewareScreen.workerSync',
                   level: 1000,
                 );
               }
@@ -186,31 +181,24 @@ class NetworkMiddlewareScreenState extends State<NetworkMiddlewareScreen>
           'Operational network failure from $error',
           error: error,
           stackTrace: trace,
-          name: 'NetworkMiddlewareScreen',
+          name: 'NetworkMiddlewareScreen.syncFailure',
           level: 1000,
         );
-
-        try {
-          if (root.isNotEmpty) {
-            final directory = Directory('$root/map');
-            if (await directory.exists()) {
-              final entities = await directory.list(recursive: true).toList();
-              if (entities.any((entity) => entity is File)) {
-                developer.log(
-                  'Routing to network view with local assets',
-                  name: 'NetworkMiddlewareScreen',
-                );
-                if (mounted) {
-                  Navigator.of(
-                    context,
-                  ).pushReplacementNamed('/network', arguments: root);
-                  return;
-                }
-              }
+        if (root != null) {
+          final target = Directory('$root/map');
+          if (await target.exists() && (await target.list(recursive: true).toList()).any((entity) => entity is File)) {
+            developer.log(
+              'Routing to network view with local assets',
+              name: 'NetworkMiddlewareScreen.localFallback',
+            );
+            if (mounted) {
+              Navigator.of(
+                context,
+              ).pushReplacementNamed('/network', arguments: root);
+              return;
             }
           }
-        } catch (_) {}
-
+        }
         if (mounted) {
           Navigator.of(context).pushReplacementNamed('/');
         }
@@ -240,16 +228,16 @@ class NetworkMiddlewareScreenState extends State<NetworkMiddlewareScreen>
                   return Opacity(
                     opacity: value >= 0.5
                         ? 1.0 -
-                              Curves.easeOut.transform(
-                                ((value - 0.5) / 0.5).clamp(0.0, 1.0),
-                              )
+                        Curves.easeOut.transform(
+                          ((value - 0.5) / 0.5).clamp(0.0, 1.0),
+                        )
                         : 1.0,
                     child: Transform.scale(
                       scale: value >= 0.3 && value < 0.6
                           ? Curves.easeOut.transform(
-                                  ((value - 0.3) / 0.3).clamp(0.0, 1.0),
-                                ) *
-                                30
+                        ((value - 0.3) / 0.3).clamp(0.0, 1.0),
+                      ) *
+                          30
                           : value >= 0.6
                           ? 30.0
                           : 1.0,
@@ -278,23 +266,23 @@ class NetworkMiddlewareScreenState extends State<NetworkMiddlewareScreen>
                           (index + 1) % 4 == 0 || (index + 1) % 4 == 1;
                       final double spread = value < 0.15
                           ? Curves.easeOut.transform(
-                              (value / 0.15).clamp(0.0, 1.0),
-                            )
+                        (value / 0.15).clamp(0.0, 1.0),
+                      )
                           : value >= 0.55
                           ? 1.0 -
-                                Curves.easeIn.transform(
-                                  ((value - 0.55) / 0.15).clamp(0.0, 1.0),
-                                )
+                          Curves.easeIn.transform(
+                            ((value - 0.55) / 0.15).clamp(0.0, 1.0),
+                          )
                           : 1.0;
                       final double orbit = value >= 0.15 && value < 0.5
                           ? Curves.easeInOut.transform(
-                              ((value - 0.15) / 0.35).clamp(0.0, 1.0),
-                            )
+                        ((value - 0.15) / 0.35).clamp(0.0, 1.0),
+                      )
                           : 0.0;
                       final double bounce = value >= 0.55 && value < 0.65
                           ? Curves.elasticOut.transform(
-                              ((value - 0.55) / 0.1).clamp(0.0, 1.0),
-                            )
+                        ((value - 0.55) / 0.1).clamp(0.0, 1.0),
+                      )
                           : value >= 0.65
                           ? 1.0
                           : 0.0;
@@ -309,11 +297,11 @@ class NetworkMiddlewareScreenState extends State<NetworkMiddlewareScreen>
                         ),
                         child: Container(
                           width:
-                              16.0 +
+                          16.0 +
                               16.0 * (1.0 - spread) +
                               8.0 * (1.0 - spread) * bounce,
                           height:
-                              16.0 +
+                          16.0 +
                               16.0 * (1.0 - spread) +
                               8.0 * (1.0 - spread) * bounce,
                           decoration: BoxDecoration(
