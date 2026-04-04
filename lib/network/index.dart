@@ -1,15 +1,16 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:maplibre/maplibre.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:sqflite/sqflite.dart';
+import 'package:maplibre_gl/maplibre_gl.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:sqlite3/sqlite3.dart';
 import 'package:zephyron/enums.dart';
-import 'package:zephyron/state.dart';
 import 'package:zephyron/models/location.dart';
-import 'package:zephyron/widgets/dropdown-field.dart';
+import 'package:zephyron/state.dart';
+import 'package:zephyron/widgets/dropdown.dart';
 
 class NetworkScreen extends StatefulWidget {
   const NetworkScreen({super.key});
@@ -20,137 +21,121 @@ class NetworkScreen extends StatefulWidget {
 
 class NetworkScreenState extends State<NetworkScreen> {
   final input = TextEditingController();
-  MapController? controller;
-  String style = '';
-  bool loading = true;
-  double zoom = 1.0;
+  MapLibreMapController? map;
+  Database? database;
+  String? style;
+  double zoom = 14.0;
+  LatLng? telemetry;
 
   @override
   void initState() {
     super.initState();
+
     () async {
       try {
-        bool operational = await Geolocator.isLocationServiceEnabled();
-        if (operational) {
-          LocationPermission authorization = await Geolocator.checkPermission();
-          if (authorization == LocationPermission.denied) {
-            authorization = await Geolocator.requestPermission();
-          }
-
-          if (authorization != LocationPermission.denied &&
-              authorization != LocationPermission.deniedForever) {
-            Geolocator.getCurrentPosition(
-              locationSettings: const LocationSettings(
-                accuracy: LocationAccuracy.high,
-              ),
-            ).then((telemetry) async {
-              int attempts = 0;
-
-              while (controller == null && attempts < 10) {
-                await Future.delayed(const Duration(milliseconds: 200));
-                attempts++;
-              }
-
-              if (controller != null) {
-                await controller!.animateCamera(
-                  center: Geographic(
-                    lon: telemetry.longitude,
-                    lat: telemetry.latitude,
-                  ),
-                  zoom: zoom,
-                );
-              }
-            });
-          }
-        }
-      } catch (error) {
-        developer.log(
-          'Location initialization failure: $error',
-          name: 'NetworkScreen',
-        );
-      }
-
-      try {
-        final folder = await getApplicationDocumentsDirectory();
-        final target = Directory('${folder.path}/map');
-
-        if (await target.exists()) {
-    await for (final file in target.list(recursive: true)) {
-    if (file is File) {
-    final name = file.path.split('/').last.toLowerCase();
-
-    if (name.contains('low') && name.endsWith('.pmtiles')) {
-    String appearance = 'light';
-
-    if (notifier.value.appearance == Appearance.dark) {
-    appearance = 'dark';
+        if (await Geolocator.isLocationServiceEnabled()) {
+    var status = await Geolocator.checkPermission();
+    if (status == LocationPermission.denied) {
+    status = await Geolocator.requestPermission();
     }
-    if (notifier.value.appearance == Appearance.grayscale) {
-    appearance = 'grayscale';
-    }
-
-    final schema = File('${target.path}/styles/$appearance.json');
-
-    if (await schema.exists()) {
-    final content = await schema.readAsString();
-    final Map<String, dynamic> configuration = jsonDecode(
-    content,
+    if (status != LocationPermission.denied && status != LocationPermission.deniedForever) {
+    final loc = await Geolocator.getCurrentPosition(
+    locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
     );
-
-    configuration["sprite"] =
-    "file://${target.path}/sprites/v4/$appearance";
-    configuration["glyphs"] =
-    "file://${target.path}/fonts/{fontstack}/{range}.pbf";
-
-    if (configuration["sources"] != null) {
-    if (configuration["sources"]["protomaps"] != null) {
-    configuration["sources"]["protomaps"]["url"] =
-    "pmtiles://file://${file.path}";
-    }
-    if (configuration["sources"]["vector-tiles"] != null) {
-    configuration["sources"]["vector-tiles"]["url"] =
-    "pmtiles://file://${file.path}";
-    }
-    }
-
-    if (mounted) {
-    setState(() {
-    style = jsonEncode(configuration);
-    loading = false;
-    });
-    }
-    } else {
-    if (mounted) {
-    setState(() {
-    style =
-    '{"version":8,"sources":{"protomaps":{"type":"vector","url":"pmtiles://file://${file.path}"}},"layers":[{"id":"background","type":"background","paint":{"background-color":"#f7f7f7"}}]}';
-    loading = false;
-    });
-    }
-    }
-    return;
-    }
-    }
+    telemetry = LatLng(loc.latitude, loc.longitude);
     }
     }
     } catch (error) {
     developer.log(
-    'Error initializing map: $error',
-    name: 'NetworkScreen',
+    'Failed to setup geolocation telemetry: $error',
     error: error,
+    stackTrace: StackTrace.current,
+    level: 1000,
+    name: 'NetworkScreen.telemetry',
     );
     }
 
-    if (mounted) {
-    setState(() => loading = false);
+    try {
+    final path = (await getApplicationDocumentsDirectory()).path;
+    final mode = notifier.value.appearance == Appearance.dark ? 'dark' : 'light';
+    final schema = File('$path/styles/$mode.json');
+
+    if (await schema.exists()) {
+    final Map<String, dynamic> config = jsonDecode(await schema.readAsString());
+    config['sprite'] = Uri.file('$path/sprites/v4/$mode').toString();
+    config['glyphs'] = '${Uri.file('$path/fonts')}/{fontstack}/{range}.pbf';
+
+    final tileExists = await File('$path/tiles/protomaps.pmtiles').exists();
+    if (config['sources'] is Map && tileExists) {
+    final pmtilesUrl = 'pmtiles://${Uri.file('$path/tiles/protomaps.pmtiles')}';
+    for (final entry in (config['sources'] as Map).entries) {
+    final key = entry.key.toString().toLowerCase();
+    final source = entry.value;
+    if (source is Map && (source['type'] == 'vector' || key.contains('protomaps') || key.contains('vector'))) {
+    source.remove('tiles');
+    source.remove('url');
+    source['url'] = pmtilesUrl;
     }
+    }
+    } else {
+    if (!tileExists) {
+    developer.log(
+    'Could not find tile file at path: $path/tiles/protomaps.pmtiles',
+    stackTrace: StackTrace.current,
+    level: 1000,
+    name: 'NetworkScreen.setup',
+    );
+    }
+    if (config['sources'] != null) {
+    config['sources'] = {};
+    config['layers'] = [
+    {
+    'id': 'background',
+    'type': 'background',
+    'paint': {'background-color': '#121212'},
+    },
+    ];
+    }
+    }
+    style = jsonEncode(config);
+    } else {
+    developer.log(
+    'Could not find schema file at path: ${schema.path}',
+    stackTrace: StackTrace.current,
+    level: 1000,
+    name: 'NetworkScreen.setup',
+    );
+    }
+    } catch (error) {
+    developer.log(
+    'Failed to initialize network screen setup: $error',
+    error: error,
+    stackTrace: StackTrace.current,
+    level: 1000,
+    name: 'NetworkScreen.setup',
+    );
+    }
+
+    style ??= jsonEncode({
+    'version': 8,
+    'sources': {},
+    'layers': [
+    {
+    'id': 'background',
+    'type': 'background',
+    'paint': {'background-color': '#121212'},
+    },
+    ],
+    });
+
+    if (mounted) setState(() {});
   }();
   }
 
   @override
   Widget build(BuildContext context) {
     try {
-      if (loading) {
+      if (style == null) {
         return const Scaffold(body: Center(child: CircularProgressIndicator()));
       }
 
@@ -158,75 +143,87 @@ class NetworkScreenState extends State<NetworkScreen> {
         body: Stack(
           children: [
             Positioned.fill(
-              child: ClipRRect(
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(16),
-                  topRight: Radius.circular(16),
+              child: MapLibreMap(
+                initialCameraPosition: CameraPosition(
+                  target: telemetry ?? const LatLng(20.0, 0.0),
+                  zoom: zoom,
                 ),
-                child: MapLibreMap(
-                  options: MapOptions(
-                    initCenter: const Geographic(lon: 0, lat: 20),
-                    initZoom: zoom,
-                    initPitch: 0,
-                    initStyle: style,
-                  ),
-                  onMapCreated: (map) {
-                    controller = map;
-                  },
-                ),
+                styleString: style!,
+                attributionButtonMargins: const math.Point(-1000, -1000),
+                logoViewMargins: const math.Point(-1000, -1000),
+                onMapCreated: (instance) => map = instance,
               ),
             ),
             Positioned(
-              top: MediaQuery.of(context).padding.top + 16,
+              top: MediaQuery.paddingOf(context).top + 16,
               left: 16,
               right: 16,
               child: DropdownField(
                 controller: input,
                 decoration: const InputDecoration(
                   hintText: 'Search...',
-                  border: InputBorder.none,
-                  isDense: true,
+                  contentPadding: EdgeInsets.all(16),
                 ),
                 search: (query) async {
-                  try {
-                    final folder = await getApplicationDocumentsDirectory();
-                    final path = '${folder.path}/map/misc/locations.db';
-                    final database = await openDatabase(path);
-
-                    final clean = query.replaceAll("'", "''");
-                    final rows = await database.rawQuery('''
-                      SELECT l.* FROM locations l 
-                      JOIN search s ON l.id = s.content_rowid 
-                      WHERE search MATCH '$clean*' 
-                      LIMIT 10
-                    ''');
-
-                    await database.close();
-                    return rows.map((json) => Location.fromJson(json)).toList();
-                  } catch (error) {
-                    developer.log(
-                      'Search failure: $error',
-                      name: 'NetworkScreen.search',
-                      error: error,
-                    );
-                    return [];
-                  }
-                },
-                select: (location) async {
-                  if (controller != null) {
+                  if (query.trim().isNotEmpty) {
                     try {
-                      await controller!.animateCamera(
-                        center: Geographic(
-                          lon: location.longitude,
-                          lat: location.latitude,
+                      if (database == null) {
+                        final dbPath = '${(await getApplicationDocumentsDirectory()).path}/misc/locations.database';
+                        if (await File(dbPath).exists()) {
+                          database = sqlite3.open(dbPath);
+                        } else {
+                          developer.log(
+                            'Could not find database file at path: $dbPath',
+                            stackTrace: StackTrace.current,
+                            level: 1000,
+                            name: 'NetworkScreen.search',
+                          );
+                        }
+                      }
+
+                      if (database != null) {
+                        final filter = query
+                            .trim()
+                            .split(RegExp(r'\s+'))
+                            .where((w) => w.isNotEmpty)
+                            .map((w) => '$w*')
+                            .join(' ');
+
+                        final rows = database!.select(
+                          'SELECT l.* FROM locations l JOIN search s ON l.id = s.rowid WHERE s.ascii MATCH ? LIMIT 40;',
+                          [filter],
+                        );
+
+                        return rows.map((row) => Location.fromJson(row)).toList();
+                      }
+                    } catch (error) {
+                      developer.log(
+                        'Search query execution failed: $error',
+                        error: error,
+                        stackTrace: StackTrace.current,
+                        level: 1000,
+                        name: 'NetworkScreen.search',
+                      );
+                    }
+                  }
+                  return [];
+                },
+                select: (location) {
+                  if (map != null) {
+                    try {
+                      map!.animateCamera(
+                        CameraUpdate.newLatLngZoom(
+                          LatLng(location.latitude, location.longitude),
+                          zoom,
                         ),
-                        zoom: zoom,
                       );
                     } catch (error) {
                       developer.log(
-                        'Navigation failure: $error',
-                        name: 'NetworkScreen.select',
+                        'Failed to animate camera to target location: $error',
                         error: error,
+                        stackTrace: StackTrace.current,
+                        level: 1000,
+                        name: 'NetworkScreen.navigation',
                       );
                     }
                   }
@@ -242,31 +239,36 @@ class NetworkScreenState extends State<NetworkScreen> {
                   FloatingActionButton.small(
                     heroTag: 'settings',
                     onPressed: () {
-                      Navigator.of(context).pushNamed('/network/settings');
+                      try {
+                        Navigator.of(context).pushNamed('/network/settings');
+                      } catch (error) {
+                        developer.log(
+                          'Failed to navigate to network settings: $error',
+                          error: error,
+                          stackTrace: StackTrace.current,
+                          level: 1000,
+                          name: 'NetworkScreen.navigation',
+                        );
+                      }
                     },
                     child: const Icon(Icons.settings),
                   ),
                   const SizedBox(height: 8),
                   FloatingActionButton.small(
                     heroTag: 'location',
-                    onPressed: () async {
-                      if (controller == null) return;
-
-                      try {
-                        final telemetry = await Geolocator.getCurrentPosition();
-
-                        await controller!.animateCamera(
-                          center: Geographic(
-                            lon: telemetry.longitude,
-                            lat: telemetry.latitude,
-                          ),
-                          zoom: zoom,
-                        );
-                      } catch (error) {
-                        developer.log(
-                          'Location tracking failure: $error',
-                          name: 'NetworkScreen',
-                        );
+                    onPressed: () {
+                      if (map != null && telemetry != null) {
+                        try {
+                          map!.animateCamera(CameraUpdate.newLatLngZoom(telemetry!, zoom));
+                        } catch (error) {
+                          developer.log(
+                            'Failed to animate camera to telemetry location: $error',
+                            error: error,
+                            stackTrace: StackTrace.current,
+                            level: 1000,
+                            name: 'NetworkScreen.navigation',
+                          );
+                        }
                       }
                     },
                     child: const Icon(Icons.my_location),
@@ -274,10 +276,18 @@ class NetworkScreenState extends State<NetworkScreen> {
                   const SizedBox(height: 8),
                   FloatingActionButton.small(
                     heroTag: 'zoom-in',
-                    onPressed: () async {
-                      if (controller != null) {
+                    onPressed: () {
+                      try {
                         zoom = (zoom + 1).clamp(0.0, 22.0);
-                        await controller!.animateCamera(zoom: zoom);
+                        map?.animateCamera(CameraUpdate.zoomTo(zoom));
+                      } catch (error) {
+                        developer.log(
+                          'Failed to zoom in: $error',
+                          error: error,
+                          stackTrace: StackTrace.current,
+                          level: 1000,
+                          name: 'NetworkScreen.navigation',
+                        );
                       }
                     },
                     child: const Icon(Icons.add),
@@ -285,10 +295,18 @@ class NetworkScreenState extends State<NetworkScreen> {
                   const SizedBox(height: 8),
                   FloatingActionButton.small(
                     heroTag: 'zoom-out',
-                    onPressed: () async {
-                      if (controller != null) {
+                    onPressed: () {
+                      try {
                         zoom = (zoom - 1).clamp(0.0, 22.0);
-                        await controller!.animateCamera(zoom: zoom);
+                        map?.animateCamera(CameraUpdate.zoomTo(zoom));
+                      } catch (error) {
+                        developer.log(
+                          'Failed to zoom out: $error',
+                          error: error,
+                          stackTrace: StackTrace.current,
+                          level: 1000,
+                          name: 'NetworkScreen.navigation',
+                        );
                       }
                     },
                     child: const Icon(Icons.remove),
@@ -301,9 +319,10 @@ class NetworkScreenState extends State<NetworkScreen> {
       );
     } catch (error) {
       developer.log(
-        'Error building widget: $error',
+        'Layout error rendering network screen: $error',
         error: error,
         stackTrace: StackTrace.current,
+        level: 1000,
         name: 'NetworkScreen.build',
       );
       return const SizedBox.shrink();
@@ -314,14 +333,16 @@ class NetworkScreenState extends State<NetworkScreen> {
   void dispose() {
     try {
       input.dispose();
-      super.dispose();
+      database?.close();
     } catch (error) {
       developer.log(
-        'Error during dispose: $error',
+        'Cleanup error in network screen dispose: $error',
         error: error,
         stackTrace: StackTrace.current,
+        level: 1000,
         name: 'NetworkScreen.dispose',
       );
     }
+    super.dispose();
   }
 }
