@@ -21,136 +21,124 @@ class NetworkScreen extends StatefulWidget {
 class NetworkScreenState extends State<NetworkScreen> {
   final input = TextEditingController();
   MapController? controller;
-  String style = '';
-  bool loading = true;
+  Database? database;
+  String? style;
   double zoom = 1.0;
+  Geographic? telemetry;
 
   @override
   void initState() {
     super.initState();
     () async {
-      try {
-        bool operational = await Geolocator.isLocationServiceEnabled();
-        if (operational) {
-          LocationPermission authorization = await Geolocator.checkPermission();
-          if (authorization == LocationPermission.denied) {
-            authorization = await Geolocator.requestPermission();
-          }
-
-          if (authorization != LocationPermission.denied &&
-              authorization != LocationPermission.deniedForever) {
-            Geolocator.getCurrentPosition(
-              locationSettings: const LocationSettings(
-                accuracy: LocationAccuracy.high,
-              ),
-            ).then((telemetry) async {
-              int attempts = 0;
-
-              while (controller == null && attempts < 10) {
-                await Future.delayed(const Duration(milliseconds: 200));
-                attempts++;
-              }
-
-              if (controller != null) {
-                await controller!.animateCamera(
-                  center: Geographic(
-                    lon: telemetry.longitude,
-                    lat: telemetry.latitude,
-                  ),
-                  zoom: zoom,
-                );
-              }
-            });
-          }
-        }
-      } catch (error) {
-        developer.log(
-          'Location initialization failure: $error',
-          name: 'NetworkScreen',
-        );
+      telemetry = await gps();
+      if (mounted) {
+        setState(() {});
       }
 
       try {
         final folder = await getApplicationDocumentsDirectory();
         final target = Directory('${folder.path}/map');
-
         if (await target.exists()) {
-    await for (final file in target.list(recursive: true)) {
-    if (file is File) {
-    final name = file.path.split('/').last.toLowerCase();
+          final files = target.list(recursive: true);
+          await for (final file in files) {
+            if (file is File) {
+              final name = file.path.split('/').last.toLowerCase();
+              if (name.contains('low') && name.endsWith('.pmtiles')) {
+                final mode = switch (notifier.value.appearance) {
+                  Appearance.dark => 'dark',
+                  Appearance.grayscale => 'grayscale',
+                  _ => 'light',
+                };
 
-    if (name.contains('low') && name.endsWith('.pmtiles')) {
-    String appearance = 'light';
+                final schema = File('${target.path}/styles/$mode.json');
+                if (await schema.exists()) {
+                  final Map<String, dynamic> configuration = jsonDecode(
+                    await schema.readAsString(),
+                  );
+                  configuration["sprite"] =
+                      "file://${target.path}/sprites/v4/$mode";
+                  configuration["glyphs"] =
+                      "file://${target.path}/fonts/{fontstack}/{range}.pbf";
+                  final sources = configuration["sources"];
+                  if (sources != null) {
+                    if (sources["protomaps"] != null) {
+                      sources["protomaps"]["url"] =
+                          "pmtiles://file://${file.path}";
+                    }
+                    if (sources["vector-tiles"] != null) {
+                      sources["vector-tiles"]["url"] =
+                          "pmtiles://file://${file.path}";
+                    }
+                  }
+                  style = jsonEncode(configuration);
+                } else {
+                  style = jsonEncode({
+                    "version": 8,
+                    "sources": {
+                      "protomaps": {
+                        "type": "vector",
+                        "url": "pmtiles://file://${file.path}",
+                      },
+                    },
+                    "layers": [
+                      {
+                        "id": "background",
+                        "type": "background",
+                        "paint": {"background-color": "#f7f7f7"},
+                      },
+                    ],
+                  });
+                }
+                break;
+              }
+            }
+          }
+        }
+      } catch (error) {
+        developer.log(
+          'Map error: $error',
+          error: error,
+          name: 'NetworkScreen.mapInit',
+        );
+      }
 
-    if (notifier.value.appearance == Appearance.dark) {
-    appearance = 'dark';
-    }
-    if (notifier.value.appearance == Appearance.grayscale) {
-    appearance = 'grayscale';
-    }
+      if (mounted) {
+        setState(() {});
+      }
+    }();
+  }
 
-    final schema = File('${target.path}/styles/$appearance.json');
-
-    if (await schema.exists()) {
-    final content = await schema.readAsString();
-    final Map<String, dynamic> configuration = jsonDecode(
-    content,
-    );
-
-    configuration["sprite"] =
-    "file://${target.path}/sprites/v4/$appearance";
-    configuration["glyphs"] =
-    "file://${target.path}/fonts/{fontstack}/{range}.pbf";
-
-    if (configuration["sources"] != null) {
-    if (configuration["sources"]["protomaps"] != null) {
-    configuration["sources"]["protomaps"]["url"] =
-    "pmtiles://file://${file.path}";
-    }
-    if (configuration["sources"]["vector-tiles"] != null) {
-    configuration["sources"]["vector-tiles"]["url"] =
-    "pmtiles://file://${file.path}";
-    }
-    }
-
-    if (mounted) {
-    setState(() {
-    style = jsonEncode(configuration);
-    loading = false;
-    });
-    }
-    } else {
-    if (mounted) {
-    setState(() {
-    style =
-    '{"version":8,"sources":{"protomaps":{"type":"vector","url":"pmtiles://file://${file.path}"}},"layers":[{"id":"background","type":"background","paint":{"background-color":"#f7f7f7"}}]}';
-    loading = false;
-    });
-    }
-    }
-    return;
-    }
-    }
-    }
-    }
+  Future<Geographic?> gps() async {
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) return null;
+      LocationPermission auth = await Geolocator.checkPermission();
+      if (auth == LocationPermission.denied) {
+        auth = await Geolocator.requestPermission();
+      }
+      if (auth == LocationPermission.denied ||
+          auth == LocationPermission.deniedForever) {
+        return null;
+      }
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
+      );
+      return Geographic(lon: position.longitude, lat: position.latitude);
     } catch (error) {
-    developer.log(
-    'Error initializing map: $error',
-    name: 'NetworkScreen',
-    error: error,
-    );
+      developer.log(
+        'Location error: $error',
+        error: error,
+        name: 'NetworkScreen.location',
+      );
+      return null;
     }
-
-    if (mounted) {
-    setState(() => loading = false);
-    }
-  }();
   }
 
   @override
   Widget build(BuildContext context) {
     try {
-      if (loading) {
+      if (style == null) {
         return const Scaffold(body: Center(child: CircularProgressIndicator()));
       }
 
@@ -165,19 +153,33 @@ class NetworkScreenState extends State<NetworkScreen> {
                 ),
                 child: MapLibreMap(
                   options: MapOptions(
-                    initCenter: const Geographic(lon: 0, lat: 20),
+                    initCenter: telemetry ?? const Geographic(lon: 0, lat: 20),
                     initZoom: zoom,
                     initPitch: 0,
-                    initStyle: style,
+                    initStyle: style!,
                   ),
                   onMapCreated: (map) {
                     controller = map;
+                    if (telemetry != null) {
+                      try {
+                        controller!.animateCamera(
+                          center: telemetry!,
+                          zoom: zoom,
+                        );
+                      } catch (error) {
+                        developer.log(
+                          'Navigation failure: $error',
+                          error: error,
+                          name: 'NetworkScreen.select',
+                        );
+                      }
+                    }
                   },
                 ),
               ),
             ),
             Positioned(
-              top: MediaQuery.of(context).padding.top + 16,
+              top: MediaQuery.paddingOf(context).top + 16,
               left: 16,
               right: 16,
               child: DropdownField(
@@ -188,34 +190,51 @@ class NetworkScreenState extends State<NetworkScreen> {
                   isDense: true,
                 ),
                 search: (query) async {
+                  if (query.trim().isEmpty) return [];
                   try {
-                    final folder = await getApplicationDocumentsDirectory();
-                    final path = '${folder.path}/map/misc/locations.db';
-                    final database = await openDatabase(path);
+                    if (database == null || !database!.isOpen) {
+                      final folder = await getApplicationDocumentsDirectory();
+                      final target = Directory('${folder.path}/map');
+                      if (await target.exists()) {
+                        final files = target.list(recursive: true);
+                        await for (final file in files) {
+                          if (file is File) {
+                            final name = file.path
+                                .split('/')
+                                .last
+                                .toLowerCase();
+                            if (name == 'locations.db') {
+                              database = await openDatabase(
+                                file.path,
+                                readOnly: true,
+                              );
+                              break;
+                            }
+                          }
+                        }
+                      }
+                    }
 
-                    final clean = query.replaceAll("'", "''");
-                    final rows = await database.rawQuery('''
-                      SELECT l.* FROM locations l 
-                      JOIN search s ON l.id = s.content_rowid 
-                      WHERE search MATCH '$clean*' 
-                      LIMIT 10
-                    ''');
+                    if (database == null || !database!.isOpen) return [];
 
-                    await database.close();
+                    final rows = await database!.rawQuery(
+                      'SELECT l.* FROM locations l JOIN search s ON l.id = s.content_rowid WHERE search MATCH ? LIMIT 10',
+                      ['$query*'],
+                    );
                     return rows.map((json) => Location.fromJson(json)).toList();
                   } catch (error) {
                     developer.log(
                       'Search failure: $error',
-                      name: 'NetworkScreen.search',
                       error: error,
+                      name: 'NetworkScreen.search',
                     );
                     return [];
                   }
                 },
-                select: (location) async {
+                select: (location) {
                   if (controller != null) {
                     try {
-                      await controller!.animateCamera(
+                      controller!.animateCamera(
                         center: Geographic(
                           lon: location.longitude,
                           lat: location.latitude,
@@ -225,8 +244,8 @@ class NetworkScreenState extends State<NetworkScreen> {
                     } catch (error) {
                       developer.log(
                         'Navigation failure: $error',
-                        name: 'NetworkScreen.select',
                         error: error,
+                        name: 'NetworkScreen.select',
                       );
                     }
                   }
@@ -241,32 +260,30 @@ class NetworkScreenState extends State<NetworkScreen> {
                 children: [
                   FloatingActionButton.small(
                     heroTag: 'settings',
-                    onPressed: () {
-                      Navigator.of(context).pushNamed('/network/settings');
-                    },
+                    onPressed: () =>
+                        Navigator.of(context).pushNamed('/network/settings'),
                     child: const Icon(Icons.settings),
                   ),
                   const SizedBox(height: 8),
                   FloatingActionButton.small(
                     heroTag: 'location',
                     onPressed: () async {
-                      if (controller == null) return;
-
-                      try {
-                        final telemetry = await Geolocator.getCurrentPosition();
-
-                        await controller!.animateCamera(
-                          center: Geographic(
-                            lon: telemetry.longitude,
-                            lat: telemetry.latitude,
-                          ),
-                          zoom: zoom,
-                        );
-                      } catch (error) {
-                        developer.log(
-                          'Location tracking failure: $error',
-                          name: 'NetworkScreen',
-                        );
+                      if (controller != null) {
+                        final position = await gps();
+                        if (position != null) {
+                          try {
+                            controller!.animateCamera(
+                              center: position,
+                              zoom: zoom,
+                            );
+                          } catch (error) {
+                            developer.log(
+                              'Navigation failure: $error',
+                              error: error,
+                              name: 'NetworkScreen.select',
+                            );
+                          }
+                        }
                       }
                     },
                     child: const Icon(Icons.my_location),
@@ -274,10 +291,10 @@ class NetworkScreenState extends State<NetworkScreen> {
                   const SizedBox(height: 8),
                   FloatingActionButton.small(
                     heroTag: 'zoom-in',
-                    onPressed: () async {
+                    onPressed: () {
+                      zoom = (zoom + 1).clamp(0.0, 22.0);
                       if (controller != null) {
-                        zoom = (zoom + 1).clamp(0.0, 22.0);
-                        await controller!.animateCamera(zoom: zoom);
+                        controller!.animateCamera(zoom: zoom);
                       }
                     },
                     child: const Icon(Icons.add),
@@ -285,10 +302,10 @@ class NetworkScreenState extends State<NetworkScreen> {
                   const SizedBox(height: 8),
                   FloatingActionButton.small(
                     heroTag: 'zoom-out',
-                    onPressed: () async {
+                    onPressed: () {
+                      zoom = (zoom - 1).clamp(0.0, 22.0);
                       if (controller != null) {
-                        zoom = (zoom - 1).clamp(0.0, 22.0);
-                        await controller!.animateCamera(zoom: zoom);
+                        controller!.animateCamera(zoom: zoom);
                       }
                     },
                     child: const Icon(Icons.remove),
@@ -314,7 +331,7 @@ class NetworkScreenState extends State<NetworkScreen> {
   void dispose() {
     try {
       input.dispose();
-      super.dispose();
+      database?.close();
     } catch (error) {
       developer.log(
         'Error during dispose: $error',
@@ -323,5 +340,6 @@ class NetworkScreenState extends State<NetworkScreen> {
         name: 'NetworkScreen.dispose',
       );
     }
+    super.dispose();
   }
 }

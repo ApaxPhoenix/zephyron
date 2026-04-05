@@ -4,8 +4,6 @@ class Location {
   final String iso;
   final double latitude;
   final double longitude;
-  final String code;
-  final String feature;
 
   const Location({
     required this.id,
@@ -13,8 +11,6 @@ class Location {
     required this.iso,
     this.latitude = 0.0,
     this.longitude = 0.0,
-    this.code = '',
-    this.feature = '',
   });
 
   factory Location.fromJson(Map<String, dynamic> json) {
@@ -24,8 +20,6 @@ class Location {
       iso: json['iso'] as String? ?? '',
       latitude: (json['latitude'] as num?)?.toDouble() ?? 0.0,
       longitude: (json['longitude'] as num?)?.toDouble() ?? 0.0,
-      code: json['code'] as String? ?? '',
-      feature: json['feature'] as String? ?? '',
     );
   }
 
@@ -35,8 +29,6 @@ class Location {
     'iso': iso,
     'latitude': latitude,
     'longitude': longitude,
-    'code': code,
-    'feature': feature,
   };
 
   Location copyWith({
@@ -45,8 +37,6 @@ class Location {
     String? iso,
     double? latitude,
     double? longitude,
-    String? code,
-    String? feature,
   }) {
     return Location(
       id: id ?? this.id,
@@ -54,8 +44,6 @@ class Location {
       iso: iso ?? this.iso,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
-      code: code ?? this.code,
-      feature: feature ?? this.feature,
     );
   }
 }

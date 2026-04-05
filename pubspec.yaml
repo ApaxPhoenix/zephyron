@@ -37,15 +37,19 @@ dependencies:
 
   path_provider: ^2.1.5
   path: ^1.9.1
-  appwrite: ^20.2.1
+  appwrite: ^25.1.0
   crypto: ^3.0.7
   ffi: ^2.1.4
   http: ^1.6.0
   maplibre: ^0.3.0
   geolocator: ^14.0.2
   minio: ^3.5.8
-  sqflite: ^2.4.3
+  sqlite3: ^3.3.3
 
+hooks:
+  user_defines:
+    sqlite3:
+      source: sqlite3
 
 dev_dependencies:
   flutter_test:
@@ -56,7 +60,7 @@ dev_dependencies:
   # activated in the `analysis_options.yaml` file located at the root of your
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
-  flutter_lints: ^5.0.0
+  flutter_lints: ^6.0.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
