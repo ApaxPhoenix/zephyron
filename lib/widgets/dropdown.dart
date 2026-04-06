@@ -95,7 +95,9 @@ class DropdownFieldState extends State<DropdownField> {
   }
 
   OverlayEntry overlay() {
-    final box = context.findRenderObject() as RenderBox;
+    final box = context.findRenderObject() as RenderBox?;
+    if (box == null || !box.attached)
+      return OverlayEntry(builder: (_) => const SizedBox.shrink());
     final size = box.size;
 
     return OverlayEntry(
@@ -103,7 +105,7 @@ class DropdownFieldState extends State<DropdownField> {
         width: size.width,
         child: CompositedTransformFollower(
           link: link,
-          showWhenUnlinked: true,
+          showWhenUnlinked: false,
           offset: Offset(0.0, size.height + 8.0),
           child: Material(
             elevation: 4.0,
@@ -118,25 +120,26 @@ class DropdownFieldState extends State<DropdownField> {
                 separatorBuilder: (context, index) => const Divider(height: 1),
                 itemBuilder: (context, index) {
                   final location = items[index];
-                  print(location.ascii);
 
-                  final displayName = location.ascii.isNotEmpty
+                  final primary = location.ascii.isNotEmpty
                       ? location.ascii
                       : 'Unknown Location';
-                  final displayCountry = location.iso.isNotEmpty
+
+                  final country = location.iso.isNotEmpty
                       ? ', ${location.iso}'
                       : '';
 
                   return ListTile(
                     leading: const Icon(Icons.location_on),
-                    title: Text('$displayName$displayCountry'),
+                    title: Text('$primary$country'),
                     subtitle: Text(
                       'Lat: ${location.latitude.toStringAsFixed(4)} • Lon: ${location.longitude.toStringAsFixed(4)}',
                     ),
                     onTap: () {
-                      widget.controller.text = '$displayName$displayCountry';
+                      widget.controller.text = '$primary$country';
                       widget.select(location);
                       focus.unfocus();
+                      hide();
                     },
                   );
                 },
@@ -159,13 +162,13 @@ class DropdownFieldState extends State<DropdownField> {
         decoration: widget.decoration.copyWith(
           suffixIcon: active
               ? const SizedBox(
-            width: 20,
-            height: 20,
-            child: Padding(
-              padding: EdgeInsets.all(14.0),
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-          )
+                  width: 20,
+                  height: 20,
+                  child: Padding(
+                    padding: EdgeInsets.all(14.0),
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                )
               : widget.decoration.suffixIcon,
         ),
       ),
