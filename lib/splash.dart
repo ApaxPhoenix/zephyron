@@ -72,11 +72,11 @@ class SplashScreenState extends State<SplashScreen> {
                         onPressed: () {
                           try {
                             Navigator.pushNamed(context, '/auth');
-                          } catch (error, stackTrace) {
+                          } catch (error) {
                             developer.log(
                               'Failed to navigate to authentication screen',
                               error: error,
-                              stackTrace: stackTrace,
+                              stackTrace: StackTrace.current,
                               name: 'SplashScreen.navigation',
                             );
                           }
@@ -95,15 +95,12 @@ class SplashScreenState extends State<SplashScreen> {
                         ),
                         onPressed: () {
                           try {
-                            Navigator.pushReplacementNamed(
-                              context,
-                              '/network', // SWITCH BACK TO /network/middleware
-                            );
-                          } catch (error, stackTrace) {
+                            Navigator.pushReplacementNamed(context, '/network');
+                          } catch (error) {
                             developer.log(
-                              'Failed to navigate to map screen',
+                              'Failed to navigate to network middleware screen',
                               error: error,
-                              stackTrace: stackTrace,
+                              stackTrace: StackTrace.current,
                               name: 'SplashScreen.navigation',
                             );
                           }
