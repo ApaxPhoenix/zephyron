@@ -95,7 +95,9 @@ class DropdownFieldState extends State<DropdownField> {
   }
 
   OverlayEntry overlay() {
-    final box = context.findRenderObject() as RenderBox;
+    final box = context.findRenderObject() as RenderBox?;
+    if (box == null || !box.attached)
+      return OverlayEntry(builder: (_) => const SizedBox.shrink());
     final size = box.size;
 
     return OverlayEntry(
@@ -108,7 +110,7 @@ class DropdownFieldState extends State<DropdownField> {
           child: Material(
             elevation: 4.0,
             borderRadius: BorderRadius.circular(12),
-            color: Theme.of(context).canvasColor,
+            clipBehavior: Clip.antiAlias,
             child: Container(
               constraints: const BoxConstraints(maxHeight: 280),
               child: ListView.separated(
@@ -118,16 +120,26 @@ class DropdownFieldState extends State<DropdownField> {
                 separatorBuilder: (context, index) => const Divider(height: 1),
                 itemBuilder: (context, index) {
                   final location = items[index];
+
+                  final primary = location.ascii.isNotEmpty
+                      ? location.ascii
+                      : 'Unknown Location';
+
+                  final country = location.iso.isNotEmpty
+                      ? ', ${location.iso}'
+                      : '';
+
                   return ListTile(
                     leading: const Icon(Icons.location_on),
-                    title: Text(location.iso),
+                    title: Text('$primary$country'),
                     subtitle: Text(
-                      '${location.ascii} • ${location.feature} • ${location.code}',
+                      'Lat: ${location.latitude.toStringAsFixed(4)} • Lon: ${location.longitude.toStringAsFixed(4)}',
                     ),
                     onTap: () {
-                      widget.controller.text = location.iso;
+                      widget.controller.text = '$primary$country';
                       widget.select(location);
                       focus.unfocus();
+                      hide();
                     },
                   );
                 },
@@ -143,36 +155,21 @@ class DropdownFieldState extends State<DropdownField> {
   Widget build(BuildContext context) {
     return CompositedTransformTarget(
       link: link,
-      child: Container(
-        height: 56,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        decoration: BoxDecoration(
-          color: Theme.of(context).scaffoldBackgroundColor,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: TextFormField(
-                controller: widget.controller,
-                focusNode: focus,
-                onChanged: update,
-                decoration: widget.decoration.copyWith(
-                  suffixIcon: active
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: Padding(
-                            padding: EdgeInsets.all(14.0),
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                        )
-                      : widget.decoration.suffixIcon,
-                ),
-              ),
-            ),
-            IconButton(onPressed: () {}, icon: const Icon(Icons.bookmark)),
-          ],
+      child: TextFormField(
+        controller: widget.controller,
+        focusNode: focus,
+        onChanged: update,
+        decoration: widget.decoration.copyWith(
+          suffixIcon: active
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: Padding(
+                    padding: EdgeInsets.all(14.0),
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                )
+              : widget.decoration.suffixIcon,
         ),
       ),
     );
