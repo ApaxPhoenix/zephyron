@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Required for network sockets and Tor relay connections -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <!-- Location permissions for map functionality -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <!-- Required for precise location access -->
