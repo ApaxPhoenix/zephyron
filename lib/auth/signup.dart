@@ -1,6 +1,9 @@
+import 'dart:developer' as developer;
+import 'dart:io';
+import 'package:bip39/bip39.dart' as bip39;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'dart:developer' as developer;
+import 'package:zephyron/models/identity.dart';
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
@@ -18,6 +21,21 @@ class SignUpPageState extends State<SignUpPage> {
   bool loading = false;
   String? seed;
   String? warning;
+
+  @override
+  void initState() {
+    super.initState();
+    try {
+      seed = bip39.generateMnemonic();
+    } catch (error) {
+      developer.log(
+        'Failed to generate mnemonic seed: $error',
+        error: error,
+        stackTrace: StackTrace.current,
+        name: 'SignUpPage.initState',
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -61,8 +79,7 @@ class SignUpPageState extends State<SignUpPage> {
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: SelectableText(
-                            seed ??
-                                'alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima',
+                            seed ?? 'Generating seed phrase...',
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
                         ),
@@ -74,16 +91,14 @@ class SignUpPageState extends State<SignUpPage> {
                             label: const Text('Copy Seed to Clipboard'),
                             onPressed: () {
                               try {
-                                Clipboard.setData(
-                                  ClipboardData(
-                                    text:
-                                        seed ??
-                                        'alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima',
-                                  ),
-                                );
+                                if (seed != null) {
+                                  Clipboard.setData(
+                                    ClipboardData(text: seed!),
+                                  );
+                                }
                               } catch (error) {
                                 developer.log(
-                                  'Failed to write seed phrase payload to system clipboard: $error',
+                                  'Failed to write seed payload to system clipboard: $error',
                                   error: error,
                                   stackTrace: StackTrace.current,
                                   name: 'SignUpPage.clipboard',
@@ -170,59 +185,62 @@ class SignUpPageState extends State<SignUpPage> {
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
-                            onPressed: toggled && !loading
+                            onPressed: toggled && !loading && seed != null
                                 ? () async {
-                                    try {
-                                      if (key.currentState!.validate()) {
-                                        setState(() {
-                                          loading = true;
-                                          warning = null;
-                                        });
-                                        try {
-                                          if (mounted) {
-                                            WidgetsBinding.instance
-                                                .addPostFrameCallback((_) {
-                                                  Navigator.pushReplacementNamed(
-                                                    context,
-                                                    '/dashboard',
-                                                  );
-                                                });
-                                          }
-                                        } catch (error) {
-                                          setState(
-                                            () => warning =
-                                                'Failed to initialize and store local keypair',
-                                          );
-                                          developer.log(
-                                            'Failed to write generated identity keypair to secure storage: $error',
-                                            error: error,
-                                            stackTrace: StackTrace.current,
-                                            name: 'SignUpPage.storage',
-                                          );
-                                        } finally {
-                                          if (mounted) {
-                                            setState(() => loading = false);
-                                          }
-                                        }
-                                      }
-                                    } catch (error) {
-                                      developer.log(
-                                        'Failed to process submission workflow execution: $error',
-                                        error: error,
-                                        stackTrace: StackTrace.current,
-                                        name: 'SignUpPage.submission',
-                                      );
-                                    }
+                              try {
+                                if (key.currentState!.validate()) {
+                                  setState(() {
+                                    loading = true;
+                                    warning = null;
+                                  });
+
+                                  final identity = Identity.fromInput(seed!);
+
+                                  final socket = await Socket.connect('127.0.0.1', 9051);
+                                  socket.write('AUTHENTICATE ""\r\n');
+                                  socket.write('ADD_ONION NEW:ED25519-V3 Port=80,127.0.0.1:8080\r\n');
+                                  await socket.flush();
+                                  await socket.close();
+
+                                  developer.log(
+                                    'Created and published Tor Identity: ${identity.address}',
+                                    name: 'SignUpPage.identity',
+                                  );
+
+                                  if (mounted) {
+                                    Navigator.pushReplacementNamed(
+                                      context,
+                                      '/dashboard',
+                                      arguments: identity,
+                                    );
                                   }
+                                }
+                              } catch (error) {
+                                setState(
+                                      () => warning =
+                                  'Failed to initialize and publish identity to Tor network',
+                                );
+                                developer.log(
+                                  'Failed to publish identity onion service: $error',
+                                  error: error,
+                                  stackTrace: StackTrace.current,
+                                  name: 'SignUpPage.submission',
+                                );
+                              } finally {
+                                if (mounted) {
+                                  setState(() => loading = false);
+                                }
+                              }
+                            }
                                 : null,
                             child: loading
                                 ? const SizedBox(
-                                    height: 20,
-                                    width: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                              ),
+                            )
                                 : const Text('Create Identity'),
                           ),
                         ),
@@ -239,7 +257,7 @@ class SignUpPageState extends State<SignUpPage> {
                                 ),
                                 TextSpan(
                                   text:
-                                      '. If I lose my seed phrase or local passphrase, my account and messages cannot be recovered.',
+                                  '. If I lose my seed phrase or local passphrase, my account and messages cannot be recovered.',
                                 ),
                               ],
                             ),
