@@ -2,6 +2,19 @@ import 'dart:ffi';
 import 'dart:io';
 import 'package:ffi/ffi.dart';
 
+final DynamicLibrary system = DynamicLibrary.open('libc.so');
+
+final prctl = system.lookupFunction<
+    Int32 Function(Int32, Uint64, Uint64, Uint64, Uint64),
+    int Function(int, int, int, int, int)
+>('prctl');
+
+void harden() {
+  try {
+    prctl(4, 0, 0, 0, 0);
+  } catch (_) {}
+}
+
 @Native<Pointer<Utf8> Function()>(symbol: 'tor_api_get_provider_version')
 external Pointer<Utf8> release();
 
@@ -32,37 +45,30 @@ external int launch(Pointer<Void> configuration);
 external int execute(int count, Pointer<Pointer<Utf8>> vector);
 
 final DynamicLibrary library = () {
-  if (Platform.isIOS) throw UnsupportedError('iOS is not supported.');
-  if (Platform.isMacOS) throw UnsupportedError('macOS is not supported.');
-  if (Platform.isLinux) throw UnsupportedError('Linux is not supported.');
-  if (Platform.isWindows) throw UnsupportedError('Windows is not supported.');
-  if (Platform.isFuchsia) throw UnsupportedError('Fuchsia is not supported.');
-
-  if (Platform.isAndroid) {
-    try {
-      return DynamicLibrary.open('libtor.so');
-    } catch (_) {
-      throw StateError('libtor.so not found in jniLibs.');
-    }
+  if (!Platform.isAndroid) throw UnsupportedError('Only Android is supported.');
+  try {
+    return DynamicLibrary.open('libtor.so');
+  } catch (_) {
+    throw StateError('libtor.so not found in jniLibs.');
   }
-
-  throw UnsupportedError('Only Android is supported.');
 }();
 
 class Tor {
   final String path;
   final String host;
   final int socks;
-  final int control;
+  final String binary;
+  final String bridge;
   final List<String> arguments;
 
   Pointer<Void> configuration = nullptr;
 
   Tor({
     required this.path,
+    required this.binary,
+    this.bridge = '',
     this.host = '127.0.0.1',
     this.socks = 9050,
-    this.control = 9051,
     this.arguments = const [],
   });
 
@@ -74,60 +80,83 @@ class Tor {
     return 'Unknown';
   }
 
-  static int run(List<String> arguments) {
-    final options = ['tor', ...arguments];
-    return using((arena) {
-      final vector = arena<Pointer<Utf8>>(options.length);
-      for (int index = 0; index < options.length; index++) {
-        vector[index] = options[index].toNativeUtf8(allocator: arena);
-      }
-
-      try {
-        final configuration = allocate();
-        if (configuration != nullptr) {
-          if (configure(configuration, options.length, vector) == 0) {
-            final result = launch(configuration);
-            clean(configuration);
-            return result;
-          }
-          clean(configuration);
-        }
-      } catch (_) {}
-
-      return execute(options.length, vector);
-    });
-  }
-
   int boot() {
+    harden();
+
     configuration = allocate();
 
-    final options = [
-      'tor',
-      '--DataDirectory',
-      path,
-      '--SocksPort',
-      '$host:$socks',
-      '--ControlPort',
-      '$host:$control',
-      '--HiddenserviceStatisticsChecking',
-      '0',
-      ...arguments,
+    final options = <List<int>>[
+      'tor'.codeUnits,
+      '--DataDirectory'.codeUnits,
+      path.codeUnits,
+      '--SocksPort'.codeUnits,
+      '$host:$socks'.codeUnits,
+      '--ControlPort'.codeUnits,
+      'unix:$path/control.sock'.codeUnits,
+      '--ControlSocketsGroupWritable'.codeUnits,
+      '0'.codeUnits,
+      '--CookieAuthentication'.codeUnits,
+      '1'.codeUnits,
+      '--CookieAuthFile'.codeUnits,
+      '$path/cookie'.codeUnits,
+      '--AvoidDiskWrites'.codeUnits,
+      '1'.codeUnits,
+      '--FetchServerDescriptors'.codeUnits,
+      '0'.codeUnits,
+      '--HiddenserviceStatisticsChecking'.codeUnits,
+      '0'.codeUnits,
+      if (binary.isNotEmpty) ...[
+        '--ClientTransportPlugin'.codeUnits,
+        'obfs4 exec $binary'.codeUnits,
+      ],
+      if (bridge.isNotEmpty) ...[
+        '--UseBridges'.codeUnits,
+        '1'.codeUnits,
+        '--Bridge'.codeUnits,
+        bridge.codeUnits,
+      ],
+      for (final argument in arguments) argument.codeUnits,
     ];
 
-    return using((arena) {
-      final vector = arena<Pointer<Utf8>>(options.length);
-      for (int index = 0; index < options.length; index++) {
-        vector[index] = options[index].toNativeUtf8(allocator: arena);
-      }
+    final vector = calloc<Pointer<Utf8>>(options.length);
+    final pointers = <Pointer<Utf8>>[];
+    final lengths = <int>[];
 
+    for (int index = 0; index < options.length; index++) {
+      final bytes = options[index];
+      final pointer = calloc<Uint8>(bytes.length + 1);
+      final list = pointer.asTypedList(bytes.length + 1);
+      for (int i = 0; i < bytes.length; i++) {
+        list[i] = bytes[i];
+      }
+      list[bytes.length] = 0;
+      final utf = pointer.cast<Utf8>();
+      vector[index] = utf;
+      pointers.add(utf);
+      lengths.add(bytes.length + 1);
+    }
+
+    int result = -1;
+    try {
       if (configuration != nullptr) {
         if (configure(configuration, options.length, vector) == 0) {
-          return launch(configuration);
+          result = launch(configuration);
         }
       }
+      if (result == -1) {
+        result = execute(options.length, vector);
+      }
+    } finally {
+      for (int index = 0; index < pointers.length; index++) {
+        final pointer = pointers[index];
+        final length = lengths[index];
+        pointer.cast<Uint8>().asTypedList(length).fillRange(0, length, 0);
+        calloc.free(pointer);
+      }
+      calloc.free(vector);
+    }
 
-      return execute(options.length, vector);
-    });
+    return result;
   }
 
   int pipe() {
