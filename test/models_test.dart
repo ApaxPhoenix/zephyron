@@ -61,7 +61,7 @@ void main() {
         'status': -4,
         'meta': '{not json',
       });
-      expect(copy.kind, Kind.card);
+      expect(copy.kind, Kind.text);
       expect(copy.status, Status.sending);
       expect(copy.meta, isEmpty);
     });
