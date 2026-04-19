@@ -5,8 +5,12 @@ plugins {
 
 android {
     namespace = "com.aveloux.zephyron"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
+
+    buildFeatures {
+        buildConfig = true
+    }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -19,16 +23,35 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        val signature = System.getenv("SHA256_SIGNATURE") ?: "YOUR_DEBUG_HEX_HASH"
+        buildConfigField("String", "SHA256_SIGNATURE", "\"$signature\"")
     }
 
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("debug")
+
+            // Enable R8 code shrinking, obfuscation, and optimization
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+        }
+    }
+
+    // Ensures Gradle picks up libtor.so binaries from src/main/jniLibs/<abi>/
+    sourceSets {
+        getByName("main") {
+            jniLibs.srcDirs("src/main/jniLibs")
         }
     }
 
     packaging {
         jniLibs {
+            // Extracts .so binaries to disk on install so dlopen/Dart FFI can access them
             useLegacyPackaging = true
         }
     }
