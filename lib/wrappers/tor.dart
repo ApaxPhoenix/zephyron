@@ -1,18 +1,25 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:developer' as developer;
 import 'dart:ffi';
 import 'dart:io';
+import 'dart:isolate';
+import 'dart:typed_data';
+import 'package:crypto/crypto.dart' show sha512;
 import 'package:ffi/ffi.dart';
 
 final DynamicLibrary system = DynamicLibrary.open('libc.so');
 
 final restrict = system.lookupFunction<
     Int32 Function(Int32, Uint64, Uint64, Uint64, Uint64),
-    int Function(int, int, int, int, int)
->('prctl');
+    int Function(int, int, int, int, int)>('prctl');
 
 void harden() {
   try {
     restrict(4, 0, 0, 0, 0);
-  } catch (_) {}
+  } catch (error) {
+    developer.log('Failed to execute process hardening', level: 500, error: error);
+  }
 }
 
 final DynamicLibrary library = () {
@@ -20,49 +27,50 @@ final DynamicLibrary library = () {
   try {
     return DynamicLibrary.open('libtor.so');
   } catch (error) {
-    throw StateError('Missing libtor.so: $error');
+    developer.log(
+      'Missing libtor.so binary library',
+      level: 1000,
+      error: error,
+      stackTrace: StackTrace.current,
+    );
+    rethrow;
   }
 }();
 
-final Pointer<Utf8> Function() release = library
-    .lookupFunction<Pointer<Utf8> Function(), Pointer<Utf8> Function()>(
+final Pointer<Utf8> Function() release =
+library.lookupFunction<Pointer<Utf8> Function(), Pointer<Utf8> Function()>(
   'tor_api_get_provider_version',
 );
 
-final Pointer<Void> Function() allocate = library
-    .lookupFunction<Pointer<Void> Function(), Pointer<Void> Function()>(
+final Pointer<Void> Function() allocate =
+library.lookupFunction<Pointer<Void> Function(), Pointer<Void> Function()>(
   'tor_main_configuration_new',
 );
 
 final int Function(Pointer<Void>, int, Pointer<Pointer<Utf8>>) configure =
 library.lookupFunction<
     Int32 Function(Pointer<Void>, Int32, Pointer<Pointer<Utf8>>),
-    int Function(Pointer<Void>, int, Pointer<Pointer<Utf8>>)
->('tor_main_configuration_set_command_line');
+    int Function(Pointer<Void>, int, Pointer<Pointer<Utf8>>)>(
+  'tor_main_configuration_set_command_line',
+);
 
-final int Function(Pointer<Void>) socket = library
-    .lookupFunction<
+final int Function(Pointer<Void>) socket = library.lookupFunction<
     Int32 Function(Pointer<Void>),
-    int Function(Pointer<Void>)
->('tor_main_configuration_setup_control_socket');
+    int Function(Pointer<Void>)>('tor_main_configuration_setup_control_socket');
 
-final void Function(Pointer<Void>) freeState = library
-    .lookupFunction<
-    Void Function(Pointer<Void>),
-    void Function(Pointer<Void>)
->('tor_main_configuration_free');
+final void Function(Pointer<Void>) free =
+library.lookupFunction<Void Function(Pointer<Void>), void Function(Pointer<Void>)>(
+  'tor_main_configuration_free',
+);
 
-final int Function(Pointer<Void>) launch = library
-    .lookupFunction<
-    Int32 Function(Pointer<Void>),
-    int Function(Pointer<Void>)
->('tor_run_main');
+final int Function(Pointer<Void>) launch =
+library.lookupFunction<Int32 Function(Pointer<Void>), int Function(Pointer<Void>)>(
+  'tor_run_main',
+);
 
-final int Function(int, Pointer<Pointer<Utf8>>) execute = library
-    .lookupFunction<
+final int Function(int, Pointer<Pointer<Utf8>>) execute = library.lookupFunction<
     Int32 Function(Int32, Pointer<Pointer<Utf8>>),
-    int Function(int, Pointer<Pointer<Utf8>>)
->('tor_main');
+    int Function(int, Pointer<Pointer<Utf8>>)>('tor_main');
 
 class Tor {
   final String path;
@@ -70,7 +78,7 @@ class Tor {
   final int port;
   final String binary;
   final String bridge;
-  final List<String> args;
+  final List<String> arguments;
 
   Pointer<Void> state = nullptr;
 
@@ -80,57 +88,97 @@ class Tor {
     this.bridge = '',
     this.host = '127.0.0.1',
     this.port = 9050,
-    this.args = const [],
+    this.arguments = const [],
   });
 
   static String get version {
     try {
       final reference = release();
       if (reference != nullptr) return reference.toDartString();
-    } catch (_) {}
+    } catch (error) {
+      developer.log('Failed to read Tor provider version string', level: 500, error: error);
+    }
     return 'Unknown';
   }
 
   int boot() {
+    developer.log('Starting Tor boot sequence', level: 800);
     harden();
 
-    state = allocate();
+    bool native = true;
+    try {
+      state = allocate();
+    } catch (error, trace) {
+      native = false;
+      developer.log(
+        'Failed to allocate Tor configuration: native library unavailable',
+        level: 1000,
+        error: error,
+        stackTrace: trace,
+      );
+    }
+
+    bool proxy = true;
+    if (binary.isNotEmpty) {
+      try {
+        final target = File(binary);
+        if (!target.existsSync() || target.lengthSync() == 0) {
+          proxy = false;
+        }
+      } catch (error) {
+        proxy = false;
+      }
+    }
+
+    if (!native && !proxy) {
+      developer.log(
+        'Installation is wrong: both native library and executable binary failed',
+        level: 1000,
+      );
+      throw StateError('Installation is wrong');
+    } else if (!native || (!proxy && binary.isNotEmpty)) {
+      developer.log(
+        'Installation is correct, but given binary is corrupted or missing: $binary',
+        level: 1000,
+      );
+      throw StateError('Installation is correct, but given binary is corrupted or missing');
+    }
 
     final flags = <List<int>>[
-      'tor'.codeUnits,
-      '--DataDirectory'.codeUnits,
-      path.codeUnits,
-      '--SocksPort'.codeUnits,
-      '$host:$port'.codeUnits,
-      '--ControlPort'.codeUnits,
-      'unix:$path/control.sock'.codeUnits,
-      '--ControlSocketsGroupWritable'.codeUnits,
-      '0'.codeUnits,
-      '--CookieAuthentication'.codeUnits,
-      '1'.codeUnits,
-      '--CookieAuthFile'.codeUnits,
-      '$path/cookie'.codeUnits,
-      '--AvoidDiskWrites'.codeUnits,
-      '1'.codeUnits,
-      '--SafeLogging'.codeUnits,
-      '1'.codeUnits,
-      '--HardwareAcc'.codeUnits,
-      '1'.codeUnits,
-      '--FetchServerDescriptors'.codeUnits,
-      '0'.codeUnits,
-      '--HiddenserviceStatisticsChecking'.codeUnits,
-      '0'.codeUnits,
+      utf8.encode('tor'),
+      utf8.encode('--DataDirectory'),
+      utf8.encode(path),
+      utf8.encode('--SocksPort'),
+      utf8.encode('$host:$port'),
+      utf8.encode('--ControlPort'),
+      utf8.encode('unix:$path/control.sock'),
+      utf8.encode('--ControlSocketsGroupWritable'),
+      utf8.encode('0'),
+      utf8.encode('--CookieAuthentication'),
+      utf8.encode('1'),
+      utf8.encode('--CookieAuthFile'),
+      utf8.encode('$path/cookie'),
+      utf8.encode('--AvoidDiskWrites'),
+      utf8.encode('1'),
+      utf8.encode('--SafeLogging'),
+      utf8.encode('1'),
+      utf8.encode('--HardwareAccel'),
+      utf8.encode('1'),
+      utf8.encode('--FetchServerDescriptors'),
+      utf8.encode('0'),
+      utf8.encode('--HiddenServiceStatistics'),
+      utf8.encode('0'),
       if (binary.isNotEmpty) ...[
-        '--ClientTransportPlugin'.codeUnits,
-        'obfs4 exec $binary'.codeUnits,
+        utf8.encode('--ClientTransportPlugin'),
+        utf8.encode('obfs4 exec $binary'),
       ],
       if (bridge.isNotEmpty) ...[
-        '--UseBridges'.codeUnits,
-        '1'.codeUnits,
-        '--Bridge'.codeUnits,
-        bridge.codeUnits,
+        utf8.encode('--UseBridges'),
+        utf8.encode('1'),
+        utf8.encode('--Bridge'),
+        utf8.encode(bridge),
       ],
-      for (final arg in args) arg.codeUnits,
+      for (final argument in arguments) utf8.encode(argument),
     ];
 
     final array = calloc<Pointer<Utf8>>(flags.length);
@@ -161,6 +209,13 @@ class Tor {
       if (status == -1) {
         status = execute(flags.length, array);
       }
+    } catch (error) {
+      developer.log(
+        'Tor process execution failed',
+        level: 1000,
+        error: error,
+        stackTrace: StackTrace.current,
+      );
     } finally {
       for (int count = 0; count < references.length; count++) {
         final reference = references[count];
@@ -169,6 +224,12 @@ class Tor {
         calloc.free(reference);
       }
       calloc.free(array);
+    }
+
+    if (status != 0) {
+      developer.log('Tor process exited with error status', level: 900);
+    } else {
+      developer.log('Tor boot completed', level: 800);
     }
 
     return status;
@@ -181,8 +242,9 @@ class Tor {
 
   void dispose() {
     if (state != nullptr) {
-      freeState(state);
+      free(state);
       state = nullptr;
+      developer.log('Disposed Tor state configuration', level: 500);
     }
   }
 
@@ -193,4 +255,189 @@ class Tor {
       dispose();
     }
   }
+}
+
+Uint8List _expand(Uint8List seed) {
+  assert(seed.length == 32, 'Ed25519 seed must be 32 bytes, got ${seed.length}');
+  final hash = Uint8List.fromList(sha512.convert(seed).bytes);
+  hash[0] &= 248;
+  hash[31] &= 127;
+  hash[31] |= 64;
+  return hash;
+}
+
+String blob(String text) {
+  final raw = Uint8List(64);
+  for (var index = 0; index < 64; index++) {
+    raw[index] = int.parse(text.substring(index * 2, index * 2 + 2), radix: 16);
+  }
+
+  final seed = raw.sublist(0, 32);
+  final expanded = _expand(seed);
+  final result = base64.encode(expanded);
+
+  raw.fillRange(0, raw.length, 0);
+  seed.fillRange(0, seed.length, 0);
+  expanded.fillRange(0, expanded.length, 0);
+
+  return result;
+}
+
+Future<String> publish(
+    String path,
+    String identifier, {
+      String obfs4BinaryPath = '',
+      List<String> arguments = const [],
+    }) async {
+  final directory = Directory(path);
+  if (!await directory.exists()) {
+    await directory.create(recursive: true);
+  }
+  if (Platform.isAndroid || Platform.isLinux || Platform.isMacOS) {
+    await Process.run('chmod', ['700', path]);
+  }
+
+  final control = File('$path/control.sock');
+  final address = InternetAddress(control.path, type: InternetAddressType.unix);
+
+  Socket? connection;
+  try {
+    connection = await Socket.connect(address, 0);
+  } catch (error) {
+    developer.log('Control socket unreadable, starting Tor daemon', level: 900, error: error);
+
+    if (await control.exists()) await control.delete();
+
+    Object? cause;
+    StackTrace? trace;
+
+    unawaited(
+      Isolate.run(
+            () => Tor(
+          path: path,
+          binary: obfs4BinaryPath,
+          arguments: arguments,
+        ).boot(),
+      ).then((status) {
+        if (status != 0) {
+          cause = StateError('Tor daemon exited with status $status');
+          trace = StackTrace.current;
+        }
+      }).catchError((error, stack) {
+        cause = error;
+        trace = stack;
+        developer.log(
+          'Background Tor daemon failed to start',
+          level: 1000,
+          error: error,
+          stackTrace: stack,
+        );
+      }),
+    );
+
+    int counter = 0;
+    while (!await control.exists() && counter < 30) {
+      if (cause != null) {
+        developer.log(
+          'Control socket never appeared because the daemon failed',
+          level: 1000,
+          error: cause,
+          stackTrace: trace,
+        );
+        Error.throwWithStackTrace(
+          StateError('Tor daemon failed to start: $cause'),
+          trace ?? StackTrace.current,
+        );
+      }
+      await Future.delayed(const Duration(milliseconds: 500));
+      counter++;
+    }
+    if (!await control.exists()) {
+      final reason = cause != null ? ' Last known error: $cause' : '';
+      developer.log(
+        'Timed out waiting for control socket creation',
+        level: 1000,
+        stackTrace: StackTrace.current,
+      );
+      throw StateError('Timed out waiting for control socket.$reason');
+    }
+
+    int attempt = 0;
+    while (connection == null) {
+      try {
+        connection = await Socket.connect(address, 0);
+      } catch (error) {
+        attempt++;
+        if (attempt >= 10) {
+          developer.log(
+            'Failed to connect to control socket after max attempts',
+            level: 1000,
+            error: error,
+            stackTrace: StackTrace.current,
+          );
+          rethrow;
+        }
+        await Future.delayed(const Duration(milliseconds: 300));
+      }
+    }
+  }
+
+  final cookie = File('$path/cookie');
+  if (Platform.isAndroid || Platform.isLinux || Platform.isMacOS) {
+    await Process.run('chmod', ['600', cookie.path]);
+  }
+
+  final lines = connection
+      .cast<List<int>>()
+      .transform(utf8.decoder)
+      .transform(const LineSplitter());
+  final reader = StreamIterator<String>(lines);
+
+  Future<String> send(String command) async {
+    connection?.write('$command\r\n');
+    await connection?.flush();
+    final buffer = StringBuffer();
+    while (await reader.moveNext()) {
+      final line = reader.current;
+      buffer.writeln(line);
+      if (line.length >= 4 && line[3] == ' ') break;
+    }
+    final result = buffer.toString();
+    if (!result.trim().split('\n').last.startsWith('250')) {
+      developer.log(
+        'Tor control command error response received',
+        level: 1000,
+        stackTrace: StackTrace.current,
+      );
+      throw StateError('Tor control command failed: $result');
+    }
+    return result;
+  }
+
+  final secret = await cookie.readAsBytes();
+  final hex = secret
+      .map((byte) => byte.toRadixString(16).padLeft(2, '0'))
+      .join();
+
+  await send('AUTHENTICATE $hex');
+
+  final result = await send(
+    'ADD_ONION ED25519-V3:$identifier Port=80,127.0.0.1:8080 Flags=Detach',
+  );
+
+  await reader.cancel();
+  await connection.close();
+
+  final match = RegExp(r'ServiceID=(\S+)').firstMatch(result);
+  if (match == null) {
+    developer.log(
+      'Missing service address in ADD_ONION response',
+      level: 1000,
+      stackTrace: StackTrace.current,
+    );
+    throw StateError('Missing service address in ADD_ONION response.');
+  }
+
+  developer.log('Published onion service successfully', level: 800);
+  return match.group(1)!;
 }

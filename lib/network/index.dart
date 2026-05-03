@@ -64,8 +64,9 @@ class NetworkScreenState extends State<NetworkScreen> {
 
     try {
     final path = (await getApplicationDocumentsDirectory()).path;
-    final mode =
-    notifier.value.appearance == Appearance.dark ? 'dark' : 'light';
+    final mode = notifier.value.appearance == Appearance.dark
+    ? 'dark'
+        : 'light';
     final schema = File('$path/styles/$mode.json');
 
     if (await schema.exists()) {
@@ -76,8 +77,9 @@ class NetworkScreenState extends State<NetworkScreen> {
     config['glyphs'] =
     '${Uri.file('$path/fonts')}/{fontstack}/{range}.pbf';
 
-    final tileExists =
-    await File('$path/tiles/protomaps.pmtiles').exists();
+    final tileExists = await File(
+    '$path/tiles/protomaps.pmtiles',
+    ).exists();
     if (config['sources'] is Map && tileExists) {
     final pmtilesUrl =
     'pmtiles://${Uri.file('$path/tiles/protomaps.pmtiles')}';
@@ -152,9 +154,7 @@ class NetworkScreenState extends State<NetworkScreen> {
     if (map != null) {
       try {
         final targetZoom = newZoom ?? zoom;
-        map!.animateCamera(
-          CameraUpdate.newLatLngZoom(target, targetZoom),
-        );
+        map!.animateCamera(CameraUpdate.newLatLngZoom(target, targetZoom));
       } catch (error) {
         developer.log(
           'Failed to animate camera to target location: $error',
@@ -335,20 +335,22 @@ class NetworkScreenState extends State<NetworkScreen> {
                 snapSizes: const [0.15, 0.3, 0.85],
                 builder: (context, scrollController) {
                   final loc = selectedLocation!;
-                  final titleName =
-                  loc.ascii.isNotEmpty ? loc.ascii : 'Selected Location';
+                  final titleName = loc.ascii.isNotEmpty
+                      ? loc.ascii
+                      : 'Selected Location';
 
                   return Container(
                     decoration: BoxDecoration(
                       color: theme.colorScheme.surface,
-                      borderRadius:
-                      const BorderRadius.vertical(top: Radius.circular(24)),
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(24),
+                      ),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withValues(alpha: 0.15),
                           blurRadius: 10,
                           spreadRadius: 2,
-                        )
+                        ),
                       ],
                     ),
                     child: ListView(
@@ -377,9 +379,7 @@ class NetworkScreenState extends State<NetworkScreen> {
                                   Text(
                                     titleName,
                                     style: theme.textTheme.headlineSmall
-                                        ?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                                        ?.copyWith(fontWeight: FontWeight.bold),
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
@@ -398,30 +398,117 @@ class NetworkScreenState extends State<NetworkScreen> {
                                   selectedLocation = null;
                                 });
                               },
-                            )
+                            ),
                           ],
                         ),
                         const SizedBox(height: 20),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceAround,
                           children: [
-                            _buildActionButton(
-                              theme,
-                              icon: Icons.directions_rounded,
-                              label: 'Directions',
+                            InkWell(
                               onTap: () {},
+                              borderRadius: BorderRadius.circular(12),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    CircleAvatar(
+                                      radius: 20,
+                                      backgroundColor:
+                                      theme.colorScheme.primaryContainer,
+                                      child: Icon(
+                                        Icons.directions_rounded,
+                                        color: theme
+                                            .colorScheme.onPrimaryContainer,
+                                        size: 20,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      'Directions',
+                                      style: theme.textTheme.labelMedium
+                                          ?.copyWith(
+                                        color: theme.colorScheme.primary,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
-                            _buildActionButton(
-                              theme,
-                              icon: Icons.bookmark_border_rounded,
-                              label: 'Save',
+                            InkWell(
                               onTap: () {},
+                              borderRadius: BorderRadius.circular(12),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    CircleAvatar(
+                                      radius: 20,
+                                      backgroundColor:
+                                      theme.colorScheme.primaryContainer,
+                                      child: Icon(
+                                        Icons.bookmark_border_rounded,
+                                        color: theme
+                                            .colorScheme.onPrimaryContainer,
+                                        size: 20,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      'Save',
+                                      style: theme.textTheme.labelMedium
+                                          ?.copyWith(
+                                        color: theme.colorScheme.primary,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
-                            _buildActionButton(
-                              theme,
-                              icon: Icons.share_rounded,
-                              label: 'Share',
+                            InkWell(
                               onTap: () {},
+                              borderRadius: BorderRadius.circular(12),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    CircleAvatar(
+                                      radius: 20,
+                                      backgroundColor:
+                                      theme.colorScheme.primaryContainer,
+                                      child: Icon(
+                                        Icons.share_rounded,
+                                        color: theme
+                                            .colorScheme.onPrimaryContainer,
+                                        size: 20,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      'Share',
+                                      style: theme.textTheme.labelMedium
+                                          ?.copyWith(
+                                        color: theme.colorScheme.primary,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
                           ],
                         ),
@@ -464,43 +551,6 @@ class NetworkScreenState extends State<NetworkScreen> {
       );
       return const SizedBox.shrink();
     }
-  }
-
-  Widget _buildActionButton(
-      ThemeData theme, {
-        required IconData icon,
-        required String label,
-        required VoidCallback onTap,
-      }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircleAvatar(
-              radius: 20,
-              backgroundColor: theme.colorScheme.primaryContainer,
-              child: Icon(
-                icon,
-                color: theme.colorScheme.onPrimaryContainer,
-                size: 20,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              label,
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: theme.colorScheme.primary,
-                fontWeight: FontWeight.w600,
-              ),
-            )
-          ],
-        ),
-      ),
-    );
   }
 
   @override

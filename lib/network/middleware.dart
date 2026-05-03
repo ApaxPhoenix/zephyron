@@ -671,19 +671,22 @@ class NetworkMiddlewareScreenState extends State<NetworkMiddlewareScreen>
     try {
       loop.dispose();
       rate.dispose();
-      getApplicationDocumentsDirectory().then((folder) {
+      getApplicationDocumentsDirectory()
+          .then((folder) {
         final directory = Directory(folder.path);
         if (directory.existsSync()) {
           for (final item in directory.listSync(recursive: true)) {
             if (item is File &&
-                (item.path.endsWith('.tmp') || item.path.endsWith('.meta'))) {
+                (item.path.endsWith('.tmp') ||
+                    item.path.endsWith('.meta'))) {
               if (item.existsSync()) {
                 item.deleteSync();
               }
             }
           }
         }
-      }).catchError((error) {
+      })
+          .catchError((error) {
         developer.log(
           'Purge error: $error',
           name: 'NetworkMiddlewareScreen.dispose',
