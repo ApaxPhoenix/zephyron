@@ -58,21 +58,21 @@ external int parity(Pointer<Void> config, int mode);
   symbol: 'sp_blocking_read',
 )
 external int recv(
-    Pointer<Void> port,
-    Pointer<Void> buffer,
-    int length,
-    int timeout,
-    );
+  Pointer<Void> port,
+  Pointer<Void> buffer,
+  int length,
+  int timeout,
+);
 
 @Native<Int32 Function(Pointer<Void>, Pointer<Void>, Size, Uint32)>(
   symbol: 'sp_blocking_write',
 )
 external int send(
-    Pointer<Void> port,
-    Pointer<Void> buffer,
-    int length,
-    int timeout,
-    );
+  Pointer<Void> port,
+  Pointer<Void> buffer,
+  int length,
+  int timeout,
+);
 
 @Native<Pointer<Utf8> Function()>(symbol: 'sp_last_error_message')
 external Pointer<Utf8> error();
@@ -98,32 +98,32 @@ final DynamicLibrary library = () {
   }
 
   return [
-    if (Platform.isWindows) ...['libserialport-0.dll', 'libserialport.dll'],
-    if (Platform.isLinux || Platform.isAndroid) ...[
-      'libserialport.so',
-      'libserialport.so.0',
-      '/usr/local/lib/libserialport.so',
-      '/usr/lib/x86_64-linux-gnu/libserialport.so.0',
-    ],
-    if (Platform.isMacOS) ...[
-      'libserialport.dylib',
-      '/opt/homebrew/lib/libserialport.dylib',
-      '/usr/local/lib/libserialport.dylib',
-    ],
-  ].fold<DynamicLibrary?>(null, (current, path) {
-    if (current != null) return current;
-    try {
-      return DynamicLibrary.open(path);
-    } catch (_) {
-      return null;
-    }
-  }) ??
-          () {
+        if (Platform.isWindows) ...['libserialport-0.dll', 'libserialport.dll'],
+        if (Platform.isLinux || Platform.isAndroid) ...[
+          'libserialport.so',
+          'libserialport.so.0',
+          '/usr/local/lib/libserialport.so',
+          '/usr/lib/x86_64-linux-gnu/libserialport.so.0',
+        ],
+        if (Platform.isMacOS) ...[
+          'libserialport.dylib',
+          '/opt/homebrew/lib/libserialport.dylib',
+          '/usr/local/lib/libserialport.dylib',
+        ],
+      ].fold<DynamicLibrary?>(null, (current, path) {
+        if (current != null) return current;
+        try {
+          return DynamicLibrary.open(path);
+        } catch (_) {
+          return null;
+        }
+      }) ??
+      () {
         final exception = StateError(
           'libserialport not found on ${Platform.operatingSystem}.\n'
-              '  Linux  : sudo apt install libserialport-dev\n'
-              '  macOS  : brew install libserialport\n'
-              '  Windows: https://sigrok.org/wiki/Libserialport',
+          '  Linux  : sudo apt install libserialport-dev\n'
+          '  macOS  : brew install libserialport\n'
+          '  Windows: https://sigrok.org/wiki/Libserialport',
         );
         developer.log(
           'Failed to locate or load libserialport dynamic library on host operating system',
@@ -241,9 +241,9 @@ class Serial {
     final matches = list()
         .where(
           (port) =>
-      port['name']!.toLowerCase().contains(name.toLowerCase()) ||
-          port['description']!.toLowerCase().contains(name.toLowerCase()),
-    )
+              port['name']!.toLowerCase().contains(name.toLowerCase()) ||
+              port['description']!.toLowerCase().contains(name.toLowerCase()),
+        )
         .toList();
 
     if (matches.isEmpty) {
