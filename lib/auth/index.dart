@@ -16,10 +16,7 @@ class AuthScreenState extends State<AuthScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final items = const <Widget>[
-      LogInPage(),
-      SignUpPage(),
-    ];
+    final items = const <Widget>[LogInPage(), SignUpPage()];
 
     try {
       return Scaffold(
@@ -72,8 +69,8 @@ class AuthScreenState extends State<AuthScreen> {
             Container(
               margin: EdgeInsets.symmetric(
                 vertical:
-                (MediaQuery.of(context).viewPadding.top > 0 ||
-                    MediaQuery.of(context).viewPadding.bottom > 0)
+                    (MediaQuery.of(context).viewPadding.top > 0 ||
+                        MediaQuery.of(context).viewPadding.bottom > 0)
                     ? 20.0
                     : 0.0,
               ),
@@ -82,7 +79,7 @@ class AuthScreenState extends State<AuthScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: List.generate(
                   items.length,
-                      (i) => AnimatedContainer(
+                  (i) => AnimatedContainer(
                     duration: const Duration(milliseconds: 300),
                     curve: Curves.easeInOut,
                     margin: const EdgeInsets.symmetric(horizontal: 4.0),

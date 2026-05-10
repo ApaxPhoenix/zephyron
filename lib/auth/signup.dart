@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:zephyron/models/identity.dart';
+import 'package:zephyron/sql/database.dart';
 import 'package:zephyron/sql/session.dart';
 import 'package:zephyron/wrappers/tor.dart';
 
@@ -22,6 +23,7 @@ class SignUpPage extends StatefulWidget {
 
 class SignUpPageState extends State<SignUpPage> {
   final GlobalKey<FormState> key = GlobalKey<FormState>();
+  final TextEditingController moniker = TextEditingController();
   final TextEditingController passphrase = TextEditingController();
   final TextEditingController confirmation = TextEditingController();
 
@@ -31,6 +33,7 @@ class SignUpPageState extends State<SignUpPage> {
   String? seed;
   String? warning;
   Timer? timer;
+  List<String> existing = [];
 
   @override
   void initState() {
@@ -38,14 +41,35 @@ class SignUpPageState extends State<SignUpPage> {
     try {
       seed = bip39.generateMnemonic();
       developer.log(
-        'Generated mnemonic seed phrase',
+        'Generated new mnemonic seed phrase for identity creation',
         name: 'SignUpPageState.initState',
         level: 800,
       );
     } catch (error) {
       developer.log(
-        'Failed to generate mnemonic seed phrase',
+        'Failed to generate random mnemonic seed phrase via BIP-39',
         name: 'SignUpPageState.initState',
+        level: 1000,
+        error: error,
+        stackTrace: StackTrace.current,
+      );
+    }
+    unawaited(hydrate());
+  }
+
+  Future<void> hydrate() async {
+    try {
+      final roster = await Session.sessions();
+      if (mounted) setState(() => existing = roster);
+      developer.log(
+        'Loaded existing identity roster for label uniqueness validation',
+        name: 'SignUpPageState.hydrate',
+        level: 800,
+      );
+    } catch (error) {
+      developer.log(
+        'Failed to load existing identity roster for label uniqueness validation',
+        name: 'SignUpPageState.hydrate',
         level: 1000,
         error: error,
         stackTrace: StackTrace.current,
@@ -54,25 +78,45 @@ class SignUpPageState extends State<SignUpPage> {
   }
 
   void copy(String text) {
-    Clipboard.setData(ClipboardData(text: text));
-    developer.log(
-      'Copied seed phrase to clipboard',
-      name: 'SignUpPageState.copy',
-      level: 800,
-    );
+    try {
+      Clipboard.setData(ClipboardData(text: text));
+      developer.log(
+        'Copied mnemonic seed phrase to system clipboard',
+        name: 'SignUpPageState.copy',
+        level: 800,
+      );
 
-    timer?.cancel();
-    timer = Timer(const Duration(seconds: 30), () async {
-      final data = await Clipboard.getData(Clipboard.kTextPlain);
-      if (data?.text == text) {
-        await Clipboard.setData(const ClipboardData(text: ''));
-        developer.log(
-          'Cleared seed phrase from clipboard',
-          name: 'SignUpPageState.copy',
-          level: 500,
-        );
-      }
-    });
+      timer?.cancel();
+      timer = Timer(const Duration(seconds: 30), () async {
+        try {
+          final data = await Clipboard.getData(Clipboard.kTextPlain);
+          if (data?.text == text) {
+            await Clipboard.setData(const ClipboardData(text: ''));
+            developer.log(
+              'Cleared copied mnemonic seed phrase from system clipboard after timeout',
+              name: 'SignUpPageState.copy',
+              level: 500,
+            );
+          }
+        } catch (error) {
+          developer.log(
+            'Failed to auto-clear mnemonic seed phrase from clipboard during timer execution',
+            name: 'SignUpPageState.copy',
+            level: 1000,
+            error: error,
+            stackTrace: StackTrace.current,
+          );
+        }
+      });
+    } catch (error) {
+      developer.log(
+        'Failed to copy mnemonic seed phrase to system clipboard',
+        name: 'SignUpPageState.copy',
+        level: 1000,
+        error: error,
+        stackTrace: StackTrace.current,
+      );
+    }
   }
 
   @override
@@ -104,6 +148,38 @@ class SignUpPageState extends State<SignUpPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
+                          'Identity Label',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: moniker,
+                          textInputAction: TextInputAction.next,
+                          decoration: const InputDecoration(
+                            hintText: 'e.g. Personal, Work, Alias One',
+                          ),
+                          autovalidateMode: AutovalidateMode.onUserInteraction,
+                          validator: (input) {
+                            final trimmed = input?.trim() ?? '';
+                            if (trimmed.isEmpty) {
+                              return 'Please enter a label for this identity';
+                            }
+                            if (trimmed.length > 64) {
+                              return 'Label must be 64 characters or fewer';
+                            }
+                            if (existing.contains(trimmed)) {
+                              return 'An identity with this label already exists on this device';
+                            }
+                            return null;
+                          },
+                          onChanged: (input) {
+                            if (warning != null) {
+                              setState(() => warning = null);
+                            }
+                          },
+                        ),
+                        const SizedBox(height: 24),
+                        Text(
                           'Recovery Seed Phrase',
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
@@ -127,9 +203,7 @@ class SignUpPageState extends State<SignUpPage> {
                           child: OutlinedButton.icon(
                             icon: const Icon(Icons.copy, size: 18),
                             label: const Text('Copy Seed to Clipboard'),
-                            onPressed: seed != null
-                                ? () => copy(seed!)
-                                : null,
+                            onPressed: seed != null ? () => copy(seed!) : null,
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -155,7 +229,7 @@ class SignUpPageState extends State<SignUpPage> {
                             ),
                           ),
                           autovalidateMode: AutovalidateMode.onUserInteraction,
-                          onChanged: (_) {
+                          onChanged: (input) {
                             if (warning != null) {
                               setState(() => warning = null);
                             }
@@ -164,8 +238,20 @@ class SignUpPageState extends State<SignUpPage> {
                             if (input == null || input.isEmpty) {
                               return 'Please enter a local passphrase';
                             }
-                            if (input.length < 8) {
-                              return 'Passphrase must be at least 8 characters';
+                            if (input.length < 12) {
+                              return 'Passphrase must be at least 12 characters';
+                            }
+                            if (!RegExp(r'[A-Z]').hasMatch(input)) {
+                              return 'Must contain at least one uppercase letter';
+                            }
+                            if (!RegExp(r'[a-z]').hasMatch(input)) {
+                              return 'Must contain at least one lowercase letter';
+                            }
+                            if (!RegExp(r'[0-9]').hasMatch(input)) {
+                              return 'Must contain at least one number';
+                            }
+                            if (!RegExp(r'[!@#$%^&*(),.?":{}|<>]').hasMatch(input)) {
+                              return 'Must contain at least one special character';
                             }
                             return null;
                           },
@@ -197,96 +283,160 @@ class SignUpPageState extends State<SignUpPage> {
                           child: ElevatedButton(
                             onPressed: agreed && !busy && seed != null
                                 ? () async {
+                              final navigator = Navigator.of(context);
                               try {
-                                if (key.currentState!.validate()) {
+                                if (!key.currentState!.validate()) {
                                   developer.log(
-                                    'Starting identity creation workflow',
-                                    name: 'SignUpPageState.createIdentity',
-                                    level: 800,
+                                    'Identity creation form validation failed due to invalid user input',
+                                    name: 'SignUpPageState.identity',
+                                    level: 900,
                                   );
+                                  return;
+                                }
 
-                                  final mnemonic = seed!;
+                                developer.log(
+                                  'Starting identity generation and network initialization workflow',
+                                  name: 'SignUpPageState.identity',
+                                  level: 800,
+                                );
 
-                                  setState(() {
-                                    busy = true;
-                                    warning = null;
-                                  });
+                                final mnemonic = seed!;
+                                final designation = moniker.text.trim();
 
-                                  final user = await compute(make, mnemonic);
+                                setState(() {
+                                  busy = true;
+                                  warning = null;
+                                });
 
-                                  if (user.private.length != 128) {
+                                const limit = 3;
+                                var round = 0;
+                                Object? cause;
+                                Identity? user;
+
+                                while (round < limit) {
+                                  round += 1;
+                                  try {
+                                    final generated = await compute(
+                                      make,
+                                      mnemonic,
+                                    );
+
+                                    if (generated.private.length != 128) {
+                                      throw StateError(
+                                        'Invalid key length: expected 128 hex chars',
+                                      );
+                                    }
+
+                                    await Session.compose(
+                                      designation,
+                                      passphrase.text,
+                                      generated,
+                                      mnemonic,
+                                    );
+
+                                    final folder =
+                                    await getApplicationSupportDirectory();
+                                    final path = '${folder.path}/tor';
+
+                                    final secret = generated.private;
+                                    final encoded = await compute(
+                                      pack,
+                                      secret,
+                                    );
+                                    final host =
+                                    await Sentinel.summon().publish(
+                                      path,
+                                      encoded,
+                                    );
+
+                                    final network = host.replaceAll('.onion', '');
+                                    final base = generated.address.replaceAll(
+                                      '.onion',
+                                      '',
+                                    );
+
+                                    if (network.length >= 50 &&
+                                        base.length >= 50 &&
+                                        network.substring(0, 50) !=
+                                            base.substring(0, 50)) {
+                                      throw StateError(
+                                        'Published address pubkey does not match identity '
+                                            '(network=$host expected=${generated.address}).',
+                                      );
+                                    }
+
                                     developer.log(
-                                      'Private key length validation failed',
-                                      name: 'SignUpPageState.createIdentity',
+                                      'Completed identity creation, session composition, and network publishing successfully',
+                                      name: 'SignUpPageState.identity',
+                                      level: 800,
+                                    );
+
+                                    user = generated;
+                                    cause = null;
+                                    break;
+                                  } catch (error) {
+                                    cause = error;
+                                    developer.log(
+                                      'Attempt $round of $limit failed during identity creation or network publishing',
+                                      name: 'SignUpPageState.identity',
                                       level: 1000,
+                                      error: error,
                                       stackTrace: StackTrace.current,
                                     );
-                                    throw StateError(
-                                      'Invalid key length: expected 128 hex chars',
-                                    );
+
+                                    await Session.dispose();
+
+                                    if (round < limit) {
+                                      if (mounted) {
+                                        setState(
+                                              () => warning =
+                                          'Attempt $round of $limit failed, retrying...',
+                                        );
+                                      }
+                                      await Future.delayed(
+                                        Duration(seconds: round * 2),
+                                      );
+                                    }
                                   }
+                                }
 
-                                  await Session.compose(
-                                    Session.label,
-                                    passphrase.text,
-                                    user,
-                                    mnemonic,
-                                  );
-
-                                  final folder = await getApplicationSupportDirectory();
-                                  final path = '${folder.path}/tor';
-
-                                  final rawKey = user.private;
-                                  final encoded = await compute(pack, rawKey);
-                                  final host = await publish(path, encoded);
-
-                                  final tor = host.replaceAll('.onion', '');
-                                  final base = user.address.replaceAll('.onion', '');
-
-                                  if (tor.length >= 50 && base.length >= 50 && tor.substring(0, 50) != base.substring(0, 50)) {
-                                    developer.log(
-                                      'Published Tor address public key mismatch: tor=$host expected=${user.address}',
-                                      name: 'SignUpPageState.createIdentity',
-                                      level: 1000,
-                                      stackTrace: StackTrace.current,
-                                    );
-                                    throw StateError(
-                                      'Published address pubkey does not match identity '
-                                          '(tor=$host expected=${user.address}).',
-                                    );
-                                  }
-
-                                  developer.log(
-                                    'Completed identity creation successfully',
-                                    name: 'SignUpPageState.createIdentity',
-                                    level: 800,
-                                  );
-
+                                if (cause == null && user != null) {
                                   if (mounted) {
-                                    Navigator.of(context).pushReplacementNamed(
+                                    navigator.pushReplacementNamed(
                                       '/dashboard',
                                       arguments: user,
                                     );
                                   }
-                                } else {
-                                  developer.log(
-                                    'Form validation failed',
-                                    name: 'SignUpPageState.createIdentity',
-                                    level: 900,
-                                  );
+                                  return;
                                 }
-                              } catch (error) {
+
                                 developer.log(
-                                  'Network or identity initialization failed',
-                                  name: 'SignUpPageState.createIdentity',
-                                  level: 1000,
-                                  error: error,
+                                  'Exhausted all retry attempts, deleting local database for safety',
+                                  name: 'SignUpPageState.identity',
+                                  level: 1200,
+                                  error: cause,
                                   stackTrace: StackTrace.current,
                                 );
 
-                                setState(
-                                      () => warning = 'Failed to initialize network or save identity credentials',
-                                );
+                                try {
+                                  await Database.wipe(designation);
+                                  await Session.erase(designation);
+                                } catch (error) {
+                                  developer.log(
+                                    'Failed to delete local database after exhausting retry attempts',
+                                    name: 'SignUpPageState.identity',
+                                    level: 1000,
+                                    error: error,
+                                    stackTrace: StackTrace.current,
+                                  );
+                                }
+
+                                if (mounted) {
+                                  setState(
+                                        () => warning =
+                                    'Failed after $limit attempts, your local data has been deleted for safety',
+                                  );
+                                }
                               } finally {
                                 if (mounted) {
                                   setState(() => busy = false);
@@ -352,6 +502,9 @@ class SignUpPageState extends State<SignUpPage> {
   void dispose() {
     timer?.cancel();
     try {
+      moniker.clear();
+      moniker.dispose();
+
       passphrase.clear();
       passphrase.dispose();
 
@@ -362,14 +515,14 @@ class SignUpPageState extends State<SignUpPage> {
       warning = null;
 
       developer.log(
-        'Disposed SignUpPageState controller and state resources',
+        'Disposed SignUpPageState input controllers, state resources, and clipboard timers',
         name: 'SignUpPageState.dispose',
         level: 500,
       );
       super.dispose();
     } catch (error) {
       developer.log(
-        'Failed to release input controllers cleanly during dispose',
+        'Failed to cleanly release input controllers or cancel timers during dispose',
         name: 'SignUpPageState.dispose',
         level: 1000,
         error: error,
