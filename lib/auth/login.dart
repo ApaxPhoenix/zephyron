@@ -1,5 +1,8 @@
-import 'package:flutter/material.dart';
 import 'dart:developer' as developer;
+import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:zephyron/sql/session.dart';
+import 'package:zephyron/wrappers/tor.dart';
 
 class LogInPage extends StatefulWidget {
   const LogInPage({super.key});
@@ -66,32 +69,14 @@ class LogInPageState extends State<LogInPage> {
                           ),
                           autovalidateMode: AutovalidateMode.onUserInteraction,
                           validator: (value) {
-                            try {
-                              if (value == null || value.isEmpty) {
-                                return 'Please enter your passphrase';
-                              }
-                              return warning;
-                            } catch (error) {
-                              developer.log(
-                                'Failed to evaluate passphrase rule validations: $error',
-                                error: error,
-                                stackTrace: StackTrace.current,
-                                name: 'LogInPage.validation',
-                              );
-                              return 'An unexpected error occurred.';
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter your passphrase';
                             }
+                            return warning;
                           },
                           onChanged: (_) {
-                            try {
-                              if (!mounted) return;
+                            if (warning != null) {
                               setState(() => warning = null);
-                            } catch (error) {
-                              developer.log(
-                                'Failed to reset warning on passphrase edit: $error',
-                                error: error,
-                                stackTrace: StackTrace.current,
-                                name: 'LogInPage.input',
-                              );
                             }
                           },
                         ),
@@ -102,57 +87,94 @@ class LogInPageState extends State<LogInPage> {
                             onPressed: loading
                                 ? null
                                 : () async {
-                                    try {
-                                      if (key.currentState!.validate()) {
-                                        setState(() {
-                                          loading = true;
-                                          warning = null;
-                                        });
-                                        try {
-                                          if (mounted) {
-                                            WidgetsBinding.instance
-                                                .addPostFrameCallback((_) {
-                                                  Navigator.pushNamedAndRemoveUntil(
-                                                    context,
-                                                    '/dashboard',
-                                                    (route) => false,
-                                                  );
-                                                });
-                                          }
-                                        } catch (error) {
-                                          setState(
-                                            () => warning =
-                                                'Failed to decrypt store with provided credentials',
-                                          );
-                                          developer.log(
-                                            'Keypair derivation or vault decryption failed: $error',
-                                            error: error,
-                                            stackTrace: StackTrace.current,
-                                            name: 'LogInPage.decrypt',
-                                          );
-                                        } finally {
-                                          if (mounted) {
-                                            setState(() => loading = false);
-                                          }
-                                        }
-                                      }
-                                    } catch (error) {
-                                      developer.log(
-                                        'Failed to process submit action workflow: $error',
-                                        error: error,
-                                        stackTrace: StackTrace.current,
-                                        name: 'LogInPage.submission',
-                                      );
-                                    }
-                                  },
+                              try {
+                                if (key.currentState!.validate()) {
+                                  developer.log(
+                                    'Starting database decryption workflow',
+                                    name: 'LogInPageState.unlockDatabase',
+                                    level: 800,
+                                  );
+
+                                  final navigator = Navigator.of(context);
+                                  setState(() {
+                                    loading = true;
+                                    warning = null;
+                                  });
+
+                                  final identity = await Session.open(
+                                    Session.label,
+                                    passphrase.text,
+                                  );
+
+                                  final folder = await getApplicationSupportDirectory();
+                                  final path = '${folder.path}/tor';
+                                  final address = await publish(
+                                    path,
+                                    blob(identity.private),
+                                  );
+
+                                  final tor = address.replaceAll('.onion', '');
+                                  final base = identity.address.replaceAll('.onion', '');
+
+                                  if (tor.length >= 50 && base.length >= 50 && tor.substring(0, 50) != base.substring(0, 50)) {
+                                    developer.log(
+                                      'Published Tor address public key mismatch: tor=$address expected=${identity.address}',
+                                      name: 'LogInPageState.unlockDatabase',
+                                      level: 1000,
+                                      stackTrace: StackTrace.current,
+                                    );
+                                    throw StateError(
+                                      'Published address pubkey does not match identity '
+                                          '(tor=$address expected=${identity.address}).',
+                                    );
+                                  }
+
+                                  developer.log(
+                                    'Completed database decryption and network publish successfully',
+                                    name: 'LogInPageState.unlockDatabase',
+                                    level: 800,
+                                  );
+
+                                  if (mounted) {
+                                    navigator.pushNamedAndRemoveUntil(
+                                      '/dashboard',
+                                          (route) => false,
+                                      arguments: identity,
+                                    );
+                                  }
+                                } else {
+                                  developer.log(
+                                    'Form validation failed',
+                                    name: 'LogInPageState.unlockDatabase',
+                                    level: 900,
+                                  );
+                                }
+                              } catch (error) {
+                                developer.log(
+                                  'Failed to decrypt store with provided credentials',
+                                  name: 'LogInPageState.unlockDatabase',
+                                  level: 1000,
+                                  error: error,
+                                  stackTrace: StackTrace.current,
+                                );
+
+                                setState(
+                                      () => warning = 'Failed to decrypt store with provided credentials',
+                                );
+                              } finally {
+                                if (mounted) {
+                                  setState(() => loading = false);
+                                }
+                              }
+                            },
                             child: loading
                                 ? const SizedBox(
-                                    height: 20,
-                                    width: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                              ),
+                            )
                                 : const Text('Decrypt Identity'),
                           ),
                         ),
@@ -167,10 +189,11 @@ class LogInPageState extends State<LogInPage> {
       );
     } catch (error) {
       developer.log(
-        'Failed to render log in view interface layout: $error',
+        'Failed to build LogInPage UI widget tree',
+        name: 'LogInPage.build',
+        level: 1000,
         error: error,
         stackTrace: StackTrace.current,
-        name: 'LogInPage.build',
       );
       return const SizedBox.shrink();
     }
@@ -179,14 +202,22 @@ class LogInPageState extends State<LogInPage> {
   @override
   void dispose() {
     try {
+      passphrase.clear();
       passphrase.dispose();
+
+      developer.log(
+        'Disposed LogInPageState controller and state resources',
+        name: 'LogInPageState.dispose',
+        level: 500,
+      );
       super.dispose();
     } catch (error) {
       developer.log(
-        'Failed to release input controllers: $error',
+        'Failed to release input controllers cleanly during dispose',
+        name: 'LogInPageState.dispose',
+        level: 1000,
         error: error,
         stackTrace: StackTrace.current,
-        name: 'LogInPage.dispose',
       );
     }
   }
