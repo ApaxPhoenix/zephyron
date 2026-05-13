@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 class Pallete {
@@ -16,104 +17,148 @@ class Pallete {
   static const success500 = Color.fromRGBO(56, 161, 105, 1);
   static const warning500 = Color.fromRGBO(214, 158, 46, 1);
 
+  static const String sans = 'Geist';
+  static const String mono = 'GeistMono';
+
   static ThemeData baseTheme(BuildContext context, Brightness brightness) {
+    final light = brightness == Brightness.light;
+    final background = light ? neutral000 : neutral800;
+    final surface = light ? neutral000 : neutral850;
+    final text = light ? neutral900 : neutral000;
+    final muted = light ? neutral700 : neutral000.withValues(alpha: 0.7);
+    final faint = light ? neutral500 : neutral000.withValues(alpha: 0.5);
+    final border = light ? neutral300 : neutral700.withValues(alpha: 0.5);
+    final hairline = light ? neutral100 : neutral700.withValues(alpha: 0.5);
+
+    final scheme = ColorScheme.fromSeed(
+      seedColor: brand100,
+      brightness: brightness,
+      primary: brand100,
+      secondary: brand200,
+      tertiary: warning500,
+      tertiaryContainer: warning500.withValues(alpha: light ? 0.15 : 0.25),
+      onTertiaryContainer: warning500,
+      error: error500,
+      surface: surface,
+      onSurface: text,
+      onPrimary: neutral000,
+      onSecondary: neutral000,
+      outline: border,
+      outlineVariant: hairline,
+    );
+
+    TextStyle type(double size, FontWeight weight) {
+      return TextStyle(
+        fontFamily: sans,
+        fontSize: size,
+        fontWeight: weight,
+        color: text,
+      );
+    }
+
+    final rounded = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(12.0),
+    );
+    final outline = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12.0),
+      borderSide: BorderSide(color: border),
+    );
+
     return ThemeData(
       useMaterial3: true,
       brightness: brightness,
-      fontFamily: 'SF Pro',
-      textTheme: TextTheme(
-        displayLarge: TextStyle(
-          fontFamily: 'SF Pro',
-          fontWeight: FontWeight.w400,
-        ),
-        displayMedium: TextStyle(
-          fontFamily: 'SF Pro',
-          fontWeight: FontWeight.w400,
-        ),
-        displaySmall: TextStyle(
-          fontFamily: 'SF Pro',
-          fontWeight: FontWeight.w400,
-        ),
-        headlineLarge: TextStyle(
-          fontFamily: 'SF Pro',
-          fontWeight: FontWeight.w500,
-        ),
-        headlineMedium: TextStyle(
-          fontFamily: 'SF Pro',
-          fontWeight: FontWeight.w500,
-        ),
-        headlineSmall: TextStyle(
-          fontFamily: 'SF Pro',
-          fontWeight: FontWeight.w500,
-        ),
-        titleLarge: TextStyle(
-          fontFamily: 'SF Pro',
-          fontWeight: FontWeight.w500,
-        ),
-        titleMedium: TextStyle(
-          fontFamily: 'SF Pro',
-          fontWeight: FontWeight.w500,
-        ),
-        titleSmall: TextStyle(
-          fontFamily: 'SF Pro',
-          fontWeight: FontWeight.w500,
-        ),
-        bodyLarge: TextStyle(fontFamily: 'SF Pro', fontWeight: FontWeight.w400),
-        bodyMedium: TextStyle(
-          fontFamily: 'SF Pro',
-          fontWeight: FontWeight.w400,
-        ),
-        bodySmall: TextStyle(fontFamily: 'SF Pro', fontWeight: FontWeight.w400),
-        labelLarge: TextStyle(
-          fontFamily: 'SF Pro',
-          fontWeight: FontWeight.w500,
-        ),
-        labelMedium: TextStyle(
-          fontFamily: 'SF Pro',
-          fontWeight: FontWeight.w500,
-        ),
-        labelSmall: TextStyle(
-          fontFamily: 'SF Pro',
-          fontWeight: FontWeight.w500,
-        ),
+      colorScheme: scheme,
+      fontFamily: sans,
+      scaffoldBackgroundColor: background,
+      dividerColor: hairline,
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: PredictiveBackPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+        },
       ),
+      textTheme: TextTheme(
+        displayLarge: type(57, FontWeight.w400),
+        displayMedium: type(45, FontWeight.w400),
+        displaySmall: type(36, FontWeight.w400),
+        headlineLarge: type(32, FontWeight.w500),
+        headlineMedium: type(28, FontWeight.w500),
+        headlineSmall: type(24, FontWeight.w500),
+        titleLarge: type(22, FontWeight.w500),
+        titleMedium: type(16, FontWeight.w500),
+        titleSmall: type(14, FontWeight.w500),
+        bodyLarge: type(16, FontWeight.w400),
+        bodyMedium: type(14, FontWeight.w400),
+        bodySmall: type(12, FontWeight.w400).copyWith(color: muted),
+        labelLarge: type(14, FontWeight.w500),
+        labelMedium: type(12, FontWeight.w500),
+        labelSmall: type(11, FontWeight.w500).copyWith(color: muted),
+      ),
+      appBarTheme: AppBarTheme(
+        backgroundColor: background,
+        foregroundColor: text,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0.0,
+        scrolledUnderElevation: 0.0,
+        centerTitle: false,
+        shape: Border(bottom: BorderSide(color: hairline)),
+        titleTextStyle: type(20.0, FontWeight.w600),
+        iconTheme: IconThemeData(color: text),
+        actionsIconTheme: const IconThemeData(color: brand100),
+      ),
+      iconTheme: const IconThemeData(color: brand100),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           minimumSize: const Size(double.infinity, 48.0),
           backgroundColor: brand100,
           foregroundColor: neutral000,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12.0),
-          ),
+          shape: rounded,
           elevation: 0.0,
-          textStyle: const TextStyle(
-            fontFamily: 'SF Pro',
-            fontWeight: FontWeight.w500,
-          ),
+          textStyle: type(14, FontWeight.w500),
+        ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(64.0, 48.0),
+          backgroundColor: brand100,
+          foregroundColor: neutral000,
+          shape: rounded,
+          textStyle: type(14, FontWeight.w500),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: brand100,
           elevation: 0.0,
-          textStyle: const TextStyle(
-            fontFamily: 'SF Pro',
-            fontWeight: FontWeight.w500,
-          ),
+          textStyle: type(14, FontWeight.w500),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
+          minimumSize: const Size(64.0, 48.0),
           foregroundColor: brand100,
           side: const BorderSide(color: brand100),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12.0),
-          ),
-          textStyle: const TextStyle(
-            fontFamily: 'SF Pro',
-            fontWeight: FontWeight.w500,
-          ),
+          shape: rounded,
+          textStyle: type(14, FontWeight.w500),
         ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: light ? neutral000 : neutral850,
+        border: outline,
+        enabledBorder: outline,
+        focusedBorder: outline.copyWith(
+          borderSide: const BorderSide(color: brand100, width: 2.0),
+        ),
+        errorBorder: outline.copyWith(
+          borderSide: const BorderSide(color: error500),
+        ),
+        focusedErrorBorder: outline.copyWith(
+          borderSide: const BorderSide(color: error500, width: 2.0),
+        ),
+        hintStyle: type(14, FontWeight.w400).copyWith(color: faint),
+        labelStyle: type(14, FontWeight.w400).copyWith(color: muted),
       ),
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith((states) {
@@ -135,295 +180,123 @@ class Pallete {
       ),
       radioTheme: RadioThemeData(
         fillColor: WidgetStateProperty.resolveWith((states) {
-          return states.contains(WidgetState.selected) ? brand100 : neutral100;
+          return states.contains(WidgetState.selected) ? brand100 : neutral300;
         }),
       ),
-      progressIndicatorTheme: ProgressIndicatorThemeData(
+      progressIndicatorTheme: const ProgressIndicatorThemeData(
         color: brand100,
         linearTrackColor: neutral100,
         circularTrackColor: neutral100,
       ),
-      iconTheme: IconThemeData(color: brand100),
       chipTheme: ChipThemeData(
-        backgroundColor: brightness == Brightness.light
-            ? neutral050
-            : neutral850,
-        selectedColor: brand100.withValues(
-          alpha: brightness == Brightness.light ? 0.15 : 0.3,
-        ),
-        labelStyle: TextStyle(
-          fontFamily: 'SF Pro',
-          fontWeight: FontWeight.w500,
-          color: brightness == Brightness.light ? neutral900 : neutral000,
-          fontSize: 12.0,
-        ),
-        secondaryLabelStyle: TextStyle(
-          fontFamily: 'SF Pro',
-          fontWeight: FontWeight.w500,
-          color: brand100,
-          fontSize: 12.0,
-        ),
-        side: BorderSide(
-          color: brightness == Brightness.light
-              ? neutral300
-              : neutral700.withValues(alpha: 0.5),
-          width: 1.0,
-        ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20.0),
-        ),
+        backgroundColor: light ? neutral050 : neutral850,
+        selectedColor: brand100.withValues(alpha: light ? 0.15 : 0.3),
+        labelStyle: type(12, FontWeight.w500),
+        secondaryLabelStyle: type(
+          12,
+          FontWeight.w500,
+        ).copyWith(color: brand100),
+        side: BorderSide(color: border),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
         showCheckmark: false,
       ),
       listTileTheme: ListTileThemeData(
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16.0,
-          vertical: 8.0,
-        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16.0),
+        selectedTileColor: brand100.withValues(alpha: light ? 0.15 : 0.25),
+        iconColor: muted,
+        textColor: text,
+      ),
+      dividerTheme: DividerThemeData(color: hairline, thickness: 1, space: 1),
+      cardTheme: CardThemeData(
+        color: surface,
+        elevation: 0,
+        margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12.0),
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: hairline),
         ),
-        tileColor: Colors.transparent,
-        selectedTileColor: brand100.withValues(
-          alpha: brightness == Brightness.light ? 0.15 : 0.25,
-        ),
-        iconColor: brightness == Brightness.light
-            ? neutral700
-            : neutral000.withValues(alpha: 0.7),
-        textColor: brightness == Brightness.light ? neutral900 : neutral000,
       ),
       bottomSheetTheme: BottomSheetThemeData(
-        backgroundColor: brightness == Brightness.light
-            ? neutral000
-            : neutral850,
+        backgroundColor: surface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0.0,
+        modalElevation: 0.0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(16.0)),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(16.0)),
+          side: BorderSide(color: hairline),
         ),
-        elevation: 8.0,
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: surface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: hairline),
+        ),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      badgeTheme: const BadgeThemeData(
+        backgroundColor: brand100,
+        textColor: neutral000,
       ),
       tabBarTheme: TabBarThemeData(
         labelColor: brand100,
-        unselectedLabelColor: brightness == Brightness.light
-            ? neutral700
-            : neutral000.withValues(alpha: 0.6),
+        unselectedLabelColor: muted,
         indicatorColor: brand100,
-        labelStyle: TextStyle(
-          fontFamily: 'SF Pro',
-          fontWeight: FontWeight.w600,
-          fontSize: 12.0,
+        labelStyle: type(12, FontWeight.w600),
+        unselectedLabelStyle: type(12, FontWeight.w500),
+      ),
+      textSelectionTheme: TextSelectionThemeData(
+        selectionColor: brand100.withValues(alpha: light ? 0.3 : 0.4),
+        cursorColor: brand100,
+        selectionHandleColor: brand100,
+      ),
+      navigationRailTheme: NavigationRailThemeData(
+        backgroundColor: surface,
+        elevation: 0.0,
+        indicatorColor: brand100.withValues(alpha: light ? 0.2 : 0.3),
+        labelType: NavigationRailLabelType.all,
+        selectedIconTheme: const IconThemeData(color: brand100),
+        unselectedIconTheme: IconThemeData(color: muted),
+        selectedLabelTextStyle: type(
+          12,
+          FontWeight.w500,
+        ).copyWith(color: brand100),
+        unselectedLabelTextStyle: type(
+          12,
+          FontWeight.w400,
+        ).copyWith(color: muted),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: background,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0.0,
+        indicatorColor: brand100.withValues(alpha: light ? 0.2 : 0.3),
+        labelTextStyle: WidgetStateProperty.resolveWith(
+          (states) => type(12, FontWeight.w500).copyWith(
+            color: states.contains(WidgetState.selected) ? brand100 : muted,
+          ),
         ),
-        unselectedLabelStyle: TextStyle(
-          fontFamily: 'SF Pro',
-          fontWeight: FontWeight.w500,
-          fontSize: 12.0,
+        iconTheme: WidgetStateProperty.resolveWith(
+          (states) => IconThemeData(
+            color: states.contains(WidgetState.selected) ? brand100 : muted,
+          ),
         ),
       ),
     );
   }
 
   static ThemeData lightTheme(BuildContext context) {
-    return baseTheme(context, Brightness.light).copyWith(
-      scaffoldBackgroundColor: neutral000,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: brand100,
-        brightness: Brightness.light,
-        primary: brand100,
-        secondary: brand200,
-        tertiary: warning500,
-        tertiaryContainer: warning500.withValues(alpha: 0.15),
-        onTertiaryContainer: warning500,
-        error: error500,
-        surface: neutral000,
-        onSurface: neutral900,
-        onPrimary: neutral000,
-        onSecondary: neutral000,
-      ),
-      textSelectionTheme: TextSelectionThemeData(
-        selectionColor: brand100.withValues(alpha: 0.3),
-        cursorColor: brand100,
-        selectionHandleColor: brand100,
-      ),
-      inputDecorationTheme: InputDecorationTheme(
-        filled: true,
-        fillColor: neutral000,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12.0),
-          borderSide: BorderSide(color: neutral300),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12.0),
-          borderSide: BorderSide(color: neutral300),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12.0),
-          borderSide: BorderSide(color: brand100, width: 2.0),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12.0),
-          borderSide: BorderSide(color: error500),
-        ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12.0),
-          borderSide: BorderSide(color: error500, width: 2.0),
-        ),
-        hintStyle: TextStyle(
-          fontFamily: 'SF Pro',
-          fontWeight: FontWeight.w400,
-          color: neutral500,
-        ),
-        labelStyle: TextStyle(
-          fontFamily: 'SF Pro',
-          fontWeight: FontWeight.w400,
-          color: neutral500,
-        ),
-      ),
-      appBarTheme: AppBarTheme(
-        backgroundColor: neutral000,
-        foregroundColor: neutral900,
-        elevation: 0.0,
-        centerTitle: false,
-        titleTextStyle: TextStyle(
-          fontFamily: 'SF Pro',
-          fontWeight: FontWeight.w500,
-          color: neutral900,
-          fontSize: 20.0,
-        ),
-      ),
-      navigationRailTheme: NavigationRailThemeData(
-        backgroundColor: neutral000,
-        elevation: 0.0,
-        indicatorColor: brand100.withValues(alpha: 0.2),
-        labelType: NavigationRailLabelType.all,
-        selectedIconTheme: IconThemeData(color: brand100),
-        unselectedIconTheme: IconThemeData(color: neutral700),
-        selectedLabelTextStyle: TextStyle(
-          fontFamily: 'SF Pro',
-          fontWeight: FontWeight.w500,
-          color: brand100,
-        ),
-        unselectedLabelTextStyle: TextStyle(
-          fontFamily: 'SF Pro',
-          fontWeight: FontWeight.w400,
-          color: neutral700,
-        ),
-      ),
-      navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: neutral000,
-        elevation: 0.0,
-        indicatorColor: brand100.withValues(alpha: 0.2),
-        labelTextStyle: WidgetStateProperty.all(
-          TextStyle(
-            fontFamily: 'SF Pro',
-            fontWeight: FontWeight.w500,
-            color: neutral700,
-          ),
-        ),
-        iconTheme: WidgetStateProperty.all(IconThemeData(color: brand100)),
-      ),
-    );
+    return baseTheme(context, Brightness.light);
   }
 
   static ThemeData darkTheme(BuildContext context) {
-    return baseTheme(context, Brightness.dark).copyWith(
-      scaffoldBackgroundColor: neutral800,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: brand100,
-        brightness: Brightness.dark,
-        primary: brand100,
-        secondary: brand200,
-        tertiary: warning500,
-        tertiaryContainer: warning500.withValues(alpha: 0.25),
-        onTertiaryContainer: warning500,
-        error: error500,
-        surface: neutral850,
-        onSurface: neutral000,
-        onPrimary: neutral000,
-        onSecondary: neutral000,
-      ),
-      textSelectionTheme: TextSelectionThemeData(
-        selectionColor: brand100.withValues(alpha: 0.4),
-        cursorColor: brand100,
-        selectionHandleColor: brand100,
-      ),
-      inputDecorationTheme: InputDecorationTheme(
-        filled: true,
-        fillColor: neutral850,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12.0),
-          borderSide: BorderSide(color: neutral700.withValues(alpha: 0.5)),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12.0),
-          borderSide: BorderSide(color: neutral700.withValues(alpha: 0.5)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12.0),
-          borderSide: BorderSide(color: brand100, width: 2.0),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12.0),
-          borderSide: BorderSide(color: error500),
-        ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12.0),
-          borderSide: BorderSide(color: error500, width: 2.0),
-        ),
-        hintStyle: TextStyle(
-          fontFamily: 'SF Pro',
-          fontWeight: FontWeight.w400,
-          color: neutral000.withValues(alpha: 0.5),
-        ),
-        labelStyle: TextStyle(
-          fontFamily: 'SF Pro',
-          fontWeight: FontWeight.w400,
-          color: neutral000.withValues(alpha: 0.7),
-        ),
-      ),
-      appBarTheme: AppBarTheme(
-        backgroundColor: neutral800,
-        foregroundColor: neutral000,
-        elevation: 0.0,
-        centerTitle: false,
-        titleTextStyle: TextStyle(
-          fontFamily: 'SF Pro',
-          fontWeight: FontWeight.w500,
-          color: neutral000,
-          fontSize: 20.0,
-        ),
-      ),
-      navigationRailTheme: NavigationRailThemeData(
-        backgroundColor: neutral850,
-        elevation: 0.0,
-        indicatorColor: brand100.withValues(alpha: 0.3),
-        labelType: NavigationRailLabelType.all,
-        selectedIconTheme: IconThemeData(color: brand100),
-        unselectedIconTheme: IconThemeData(
-          color: neutral000.withValues(alpha: 0.6),
-        ),
-        selectedLabelTextStyle: TextStyle(
-          fontFamily: 'SF Pro',
-          fontWeight: FontWeight.w500,
-          color: brand100,
-        ),
-        unselectedLabelTextStyle: TextStyle(
-          fontFamily: 'SF Pro',
-          fontWeight: FontWeight.w400,
-          color: neutral000.withValues(alpha: 0.6),
-        ),
-      ),
-      navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: Colors.transparent,
-        elevation: 0.0,
-        indicatorColor: brand100.withValues(alpha: 0.3),
-        labelTextStyle: WidgetStateProperty.all(
-          TextStyle(
-            fontFamily: 'SF Pro',
-            fontWeight: FontWeight.w500,
-            color: neutral000.withValues(alpha: 0.7),
-          ),
-        ),
-        iconTheme: WidgetStateProperty.all(IconThemeData(color: brand100)),
-      ),
-    );
+    return baseTheme(context, Brightness.dark);
   }
 }
