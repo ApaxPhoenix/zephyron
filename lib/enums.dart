@@ -1,5 +1,20 @@
-enum Menu { chats, peers, vault }
+/// Top level destinations of the dashboard navigation bar.
+enum Menu {
+  /// Conversation list.
+  chats,
 
+  /// People this identity knows, grouped by trust.
+  trustees,
+
+  /// Who is connected to your node, the Tor relays carrying your traffic and
+  /// the bridges used to reach Tor.
+  network,
+
+  /// Profile, preferences and vault security.
+  settings,
+}
+
+/// Quick filters shown above the conversation list.
 enum ChatFilters {
   all('All'),
   unread('Unread'),
@@ -13,6 +28,7 @@ enum ChatFilters {
   final String label;
 }
 
+/// Quick filters available for peer listings.
 enum PeerFilters {
   all('All'),
   online('Online'),
@@ -26,8 +42,134 @@ enum PeerFilters {
   final String label;
 }
 
+/// Categories of search results on the offline network map.
 enum Types { all, email, username }
 
-enum Status { sending, sent, delivered, read }
+/// Delivery lifecycle of a message. Persisted by index, so only append.
+enum Status {
+  /// Queued locally, not yet written to a peer.
+  sending,
 
+  /// Written to the peer's onion service, awaiting acknowledgement.
+  sent,
+
+  /// The peer acknowledged and stored the message.
+  delivered,
+
+  /// The peer opened the conversation and saw the message.
+  read,
+}
+
+/// Visual style of the offline network map.
 enum Appearance { light, dark, grayscale }
+
+/// Connectivity of the embedded Tor daemon as seen by the courier.
+enum Reach {
+  /// Tor is down or failed to bootstrap; retries run in the background.
+  offline,
+
+  /// Tor is bootstrapping circuits.
+  connecting,
+
+  /// Tor is bootstrapped and the onion service is reachable.
+  online,
+}
+
+/// How far a peer is trusted. Persisted by index, so only append.
+enum Trust {
+  /// An unknown sender whose request has not been answered yet.
+  stranger('Request'),
+
+  /// Someone you chose to trust. Only trustees see your profile.
+  trustee('Trustee'),
+
+  /// Everything from this address is silently dropped.
+  blocked('Blocked');
+
+  const Trust(this.label);
+  final String label;
+}
+
+/// Availability advertised to trustees. Persisted by index, so only append.
+enum Availability {
+  /// Reachable and happy to chat.
+  available('Available'),
+
+  /// Around, but replies may be slow.
+  away('Away'),
+
+  /// Do not disturb: in-app banners are muted on this device.
+  busy('Do not disturb'),
+
+  /// Appear offline: no pongs, typing hints or read receipts are sent.
+  invisible('Invisible');
+
+  const Availability(this.label);
+  final String label;
+}
+
+/// Payload carried by a message. Persisted by index, so only append.
+enum Kind {
+  /// Plain text.
+  text,
+
+  /// A photo, stored encrypted on this device.
+  image,
+
+  /// An animated GIF, usually picked from GIPHY.
+  gif,
+
+  /// Any other file, stored encrypted on this device.
+  file,
+
+  /// A shared trustee (onion address and display name).
+  card,
+}
+
+/// Frame types spoken over the onion wire protocol.
+enum Signal {
+  /// Announces the sender's profile revision when a channel opens.
+  hello,
+
+  /// Requests the full profile of the receiver.
+  whois,
+
+  /// Carries name, bio, status, availability and picture.
+  profile,
+
+  /// A text or trustee card message.
+  message,
+
+  /// Manifest that precedes the chunks of an attachment.
+  file,
+
+  /// Unsigned slice of an attachment, verified by the manifest hash.
+  chunk,
+
+  /// Acknowledges that a message or attachment was stored.
+  receipt,
+
+  /// Lists message ids the receiver has seen.
+  read,
+
+  /// The sender is composing a message.
+  typing,
+
+  /// Latency probe.
+  ping,
+
+  /// Answer to a latency probe.
+  pong,
+}
+
+/// Highest GIPHY content rating allowed in the GIF picker.
+enum Rating {
+  g('g', 'G'),
+  pg('pg', 'PG'),
+  pg13('pg-13', 'PG-13'),
+  r('r', 'R');
+
+  const Rating(this.code, this.label);
+  final String code;
+  final String label;
+}
