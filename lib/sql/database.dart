@@ -18,37 +18,59 @@ class Database {
   }
 
   static Future<Uint8List> salt(String path) async {
-    final file = File('$path.salt');
-    if (await file.exists()) {
-      return await file.readAsBytes();
+    try {
+      final file = File('$path.salt');
+      if (await file.exists()) {
+        return await file.readAsBytes();
+      }
+      final random = Random.secure();
+      final bytes = Uint8List.fromList(
+        List<int>.generate(16, (_) => random.nextInt(256)),
+      );
+      await file.writeAsBytes(bytes, flush: true);
+      return bytes;
+    } catch (error) {
+      developer.log(
+        'Failed to read or generate encryption salt file at path: $path.salt',
+        name: 'Database.salt',
+        level: 1000,
+        error: error,
+        stackTrace: StackTrace.current,
+      );
+      rethrow;
     }
-    final random = Random.secure();
-    final bytes = Uint8List.fromList(
-      List<int>.generate(16, (_) => random.nextInt(256)),
-    );
-    await file.writeAsBytes(bytes, flush: true);
-    return bytes;
   }
 
   static Future<String> key(String pass, Uint8List bytes) async {
-    final hasher = Argon2id(
-      parallelism: 2,
-      memory: 32768,
-      iterations: 3,
-      hashLength: 32,
-    );
+    try {
+      final hasher = Argon2id(
+        parallelism: 2,
+        memory: 32768,
+        iterations: 3,
+        hashLength: 32,
+      );
 
-    final secret = await hasher.deriveKeyFromPassword(
-      password: pass,
-      nonce: bytes,
-    );
+      final secret = await hasher.deriveKeyFromPassword(
+        password: pass,
+        nonce: bytes,
+      );
 
-    final array = Uint8List.fromList(await secret.extractBytes());
-    final hex = array.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+      final array = Uint8List.fromList(await secret.extractBytes());
+      final hex = array.map((bytes) => bytes.toRadixString(16).padLeft(2, '0')).join();
 
-    array.fillRange(0, array.length, 0);
+      array.fillRange(0, array.length, 0);
 
-    return "x'$hex'";
+      return "x'$hex'";
+    } catch (error) {
+      developer.log(
+        'Failed to derive database encryption key via Argon2id',
+        name: 'Database.key',
+        level: 1000,
+        error: error,
+        stackTrace: StackTrace.current,
+      );
+      rethrow;
+    }
   }
 
   static Future<sqlite.Database> open(String name, String pass) async {
@@ -92,11 +114,16 @@ class Database {
         },
       );
 
-      developer.log('Database opened successfully', level: 800);
+      developer.log(
+        'SQLCipher database instance opened successfully for target profile: $name',
+        name: 'Database.open',
+        level: 800,
+      );
       return instance!;
     } catch (error) {
       developer.log(
-        'Failed to open database',
+        'Failed to open or initialize SQLCipher encrypted database for profile: $name',
+        name: 'Database.open',
         level: 1000,
         error: error,
         stackTrace: StackTrace.current,
@@ -116,10 +143,15 @@ class Database {
         'seed': seed,
         'private': identity.private,
       }, conflictAlgorithm: sqlite.ConflictAlgorithm.replace);
-      developer.log('Saved identity record to database', level: 800);
+      developer.log(
+        'Successfully persisted identity record into local database table',
+        name: 'Database.save',
+        level: 800,
+      );
     } catch (error) {
       developer.log(
-        'Failed to save identity record to database',
+        'Failed to insert identity record into database table',
+        name: 'Database.save',
         level: 1000,
         error: error,
         stackTrace: StackTrace.current,
@@ -135,7 +167,8 @@ class Database {
       return null;
     } catch (error) {
       developer.log(
-        'Failed to fetch identity record from database',
+        'Failed to execute fetch query for identity record from database',
+        name: 'Database.fetch',
         level: 1000,
         error: error,
         stackTrace: StackTrace.current,
@@ -145,10 +178,24 @@ class Database {
   }
 
   static Future<void> dispose() async {
-    if (instance != null) {
-      await instance!.close();
-      instance = null;
-      developer.log('Disposed database instance', level: 500);
+    try {
+      if (instance != null) {
+        await instance!.close();
+        instance = null;
+        developer.log(
+          'Closed and cleared active SQLCipher database instance',
+          name: 'Database.dispose',
+          level: 500,
+        );
+      }
+    } catch (error) {
+      developer.log(
+        'Failed to cleanly close SQLCipher database connection during dispose',
+        name: 'Database.dispose',
+        level: 1000,
+        error: error,
+        stackTrace: StackTrace.current,
+      );
     }
   }
 }
