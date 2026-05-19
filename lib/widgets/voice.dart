@@ -4,6 +4,7 @@ import 'dart:math';
 import 'dart:typed_data';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
+import 'package:zephyron/theme.dart';
 import 'package:record/record.dart';
 import 'package:zephyron/models/message.dart';
 import 'package:zephyron/services/locker.dart';
@@ -19,7 +20,15 @@ class Recorder extends StatefulWidget {
   final ValueChanged<Recording> onDone;
   final VoidCallback onCancel;
 
-  const Recorder({super.key, required this.onDone, required this.onCancel});
+  /// Recording stops on its own at this length.
+  final Duration limit;
+
+  const Recorder({
+    super.key,
+    required this.onDone,
+    required this.onCancel,
+    this.limit = ceiling,
+  });
 
   @override
   State<Recorder> createState() => RecorderState();
@@ -72,7 +81,7 @@ class RecorderState extends State<Recorder> {
             });
           });
       ticker = Timer.periodic(const Duration(milliseconds: 250), (_) {
-        if (watch.elapsed >= Recorder.ceiling) finish();
+        if (watch.elapsed >= widget.limit) finish();
         if (mounted) setState(() {});
       });
       if (mounted) setState(() => live = true);
@@ -174,6 +183,7 @@ class RecorderState extends State<Recorder> {
         const SizedBox(width: 8),
         IconButton.filled(
           tooltip: 'Send voice message',
+          style: Pallete.solid(Theme.of(context).colorScheme),
           onPressed: live ? finish : null,
           icon: const Icon(Icons.arrow_upward_rounded),
         ),
