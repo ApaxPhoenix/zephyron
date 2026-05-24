@@ -65,10 +65,10 @@ class NetworkMiddlewareScreenState extends State<NetworkMiddlewareScreen>
               items.addAll(page.body!.objects);
               final next = page.body!.nextContinuationToken;
               token =
-              (page.body!.isTruncated == true &&
-                  next != null &&
-                  next.isNotEmpty &&
-                  next != token)
+                  (page.body!.isTruncated == true &&
+                      next != null &&
+                      next.isNotEmpty &&
+                      next != token)
                   ? next
                   : null;
             } else {
@@ -79,7 +79,7 @@ class NetworkMiddlewareScreenState extends State<NetworkMiddlewareScreen>
           if (items.isNotEmpty) {
             final total = items.fold<int>(
               0,
-                  (sum, item) => sum + ((item.size as int?) ?? 0),
+              (sum, item) => sum + ((item.size as int?) ?? 0),
             );
 
             var done = 0;
@@ -213,11 +213,11 @@ class NetworkMiddlewareScreenState extends State<NetworkMiddlewareScreen>
             }
 
             Future<bool> slice(
-                String key,
-                int size,
-                File draft,
-                File meta,
-                ) async {
+              String key,
+              int size,
+              File draft,
+              File meta,
+            ) async {
               try {
                 final completed = <int>{};
                 if (await meta.exists()) {
@@ -261,7 +261,7 @@ class NetworkMiddlewareScreenState extends State<NetworkMiddlewareScreen>
                 }
 
                 completed.removeWhere(
-                      (item) => item < 0 || item >= parts.length,
+                  (item) => item < 0 || item >= parts.length,
                 );
 
                 var busy = false;
@@ -479,10 +479,10 @@ class NetworkMiddlewareScreenState extends State<NetworkMiddlewareScreen>
                   .listSync(recursive: true)
                   .any(
                     (entity) =>
-                entity is File &&
-                    !entity.path.endsWith('.tmp') &&
-                    !entity.path.endsWith('.meta'),
-              );
+                        entity is File &&
+                        !entity.path.endsWith('.tmp') &&
+                        !entity.path.endsWith('.meta'),
+                  );
             } catch (error) {
               developer.log(
                 'Failed to inspect local directoryectory: $error',
@@ -497,7 +497,7 @@ class NetworkMiddlewareScreenState extends State<NetworkMiddlewareScreen>
             if (mounted) {
               Navigator.of(context).pushNamedAndRemoveUntil(
                 found ? '/network' : '/',
-                    (route) => false,
+                (route) => false,
               );
             }
           }
@@ -538,16 +538,16 @@ class NetworkMiddlewareScreenState extends State<NetworkMiddlewareScreen>
                       return Opacity(
                         opacity: tick >= 0.5
                             ? 1.0 -
-                            Curves.easeOut.transform(
-                              ((tick - 0.5) / 0.5).clamp(0.0, 1.0),
-                            )
+                                  Curves.easeOut.transform(
+                                    ((tick - 0.5) / 0.5).clamp(0.0, 1.0),
+                                  )
                             : 1.0,
                         child: Transform.scale(
                           scale: tick >= 0.3 && tick < 0.6
                               ? Curves.easeOut.transform(
-                            ((tick - 0.3) / 0.3).clamp(0.0, 1.0),
-                          ) *
-                              30
+                                      ((tick - 0.3) / 0.3).clamp(0.0, 1.0),
+                                    ) *
+                                    30
                               : tick >= 0.6
                               ? 30.0
                               : 1.0,
@@ -578,31 +578,31 @@ class NetworkMiddlewareScreenState extends State<NetworkMiddlewareScreen>
 
                           final double spread = tick < 0.15
                               ? Curves.easeOut.transform(
-                            (tick / 0.15).clamp(0.0, 1.0),
-                          )
+                                  (tick / 0.15).clamp(0.0, 1.0),
+                                )
                               : tick >= 0.55
                               ? 1.0 -
-                              Curves.easeIn.transform(
-                                ((tick - 0.55) / 0.15).clamp(0.0, 1.0),
-                              )
+                                    Curves.easeIn.transform(
+                                      ((tick - 0.55) / 0.15).clamp(0.0, 1.0),
+                                    )
                               : 1.0;
                           final double orbit = tick >= 0.15 && tick < 0.5
                               ? Curves.easeInOut.transform(
-                            ((tick - 0.15) / 0.35).clamp(0.0, 1.0),
-                          )
+                                  ((tick - 0.15) / 0.35).clamp(0.0, 1.0),
+                                )
                               : 0.0;
                           final double bounce = tick >= 0.55 && tick < 0.65
                               ? Curves.elasticOut.transform(
-                            ((tick - 0.55) / 0.1).clamp(0.0, 1.0),
-                          )
+                                  ((tick - 0.55) / 0.1).clamp(0.0, 1.0),
+                                )
                               : tick >= 0.65
                               ? 1.0
                               : 0.0;
 
                           final double size =
                               16.0 +
-                                  16.0 * (1.0 - spread) +
-                                  8.0 * (1.0 - spread) * bounce;
+                              16.0 * (1.0 - spread) +
+                              8.0 * (1.0 - spread) * bounce;
 
                           return Transform.translate(
                             offset: Offset(
@@ -673,28 +673,28 @@ class NetworkMiddlewareScreenState extends State<NetworkMiddlewareScreen>
       rate.dispose();
       getApplicationDocumentsDirectory()
           .then((folder) {
-        final directory = Directory(folder.path);
-        if (directory.existsSync()) {
-          for (final item in directory.listSync(recursive: true)) {
-            if (item is File &&
-                (item.path.endsWith('.tmp') ||
-                    item.path.endsWith('.meta'))) {
-              if (item.existsSync()) {
-                item.deleteSync();
+            final directory = Directory(folder.path);
+            if (directory.existsSync()) {
+              for (final item in directory.listSync(recursive: true)) {
+                if (item is File &&
+                    (item.path.endsWith('.tmp') ||
+                        item.path.endsWith('.meta'))) {
+                  if (item.existsSync()) {
+                    item.deleteSync();
+                  }
+                }
               }
             }
-          }
-        }
-      })
+          })
           .catchError((error) {
-        developer.log(
-          'Purge error: $error',
-          name: 'NetworkMiddlewareScreen.dispose',
-          error: error,
-          stackTrace: StackTrace.current,
-          level: 1000,
-        );
-      });
+            developer.log(
+              'Purge error: $error',
+              name: 'NetworkMiddlewareScreen.dispose',
+              error: error,
+              stackTrace: StackTrace.current,
+              level: 1000,
+            );
+          });
     } catch (error) {
       developer.log(
         'Cleanup error: $error',

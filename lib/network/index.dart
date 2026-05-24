@@ -38,116 +38,116 @@ class NetworkScreenState extends State<NetworkScreen> {
     () async {
       try {
         if (await Geolocator.isLocationServiceEnabled()) {
-    var status = await Geolocator.checkPermission();
-    if (status == LocationPermission.denied) {
-    status = await Geolocator.requestPermission();
-    }
-    if (status != LocationPermission.denied &&
-    status != LocationPermission.deniedForever) {
-    final loc = await Geolocator.getCurrentPosition(
-    locationSettings: const LocationSettings(
-    accuracy: LocationAccuracy.high,
-    ),
-    );
-    telemetry = LatLng(loc.latitude, loc.longitude);
-    }
-    }
-    } catch (error) {
-    developer.log(
-    'Failed to setup geolocation telemetry: $error',
-    error: error,
-    stackTrace: StackTrace.current,
-    level: 1000,
-    name: 'NetworkScreen.telemetry',
-    );
-    }
+          var status = await Geolocator.checkPermission();
+          if (status == LocationPermission.denied) {
+            status = await Geolocator.requestPermission();
+          }
+          if (status != LocationPermission.denied &&
+              status != LocationPermission.deniedForever) {
+            final loc = await Geolocator.getCurrentPosition(
+              locationSettings: const LocationSettings(
+                accuracy: LocationAccuracy.high,
+              ),
+            );
+            telemetry = LatLng(loc.latitude, loc.longitude);
+          }
+        }
+      } catch (error) {
+        developer.log(
+          'Failed to setup geolocation telemetry: $error',
+          error: error,
+          stackTrace: StackTrace.current,
+          level: 1000,
+          name: 'NetworkScreen.telemetry',
+        );
+      }
 
-    try {
-    final path = (await getApplicationDocumentsDirectory()).path;
-    final mode = notifier.value.appearance == Appearance.dark
-    ? 'dark'
-        : 'light';
-    final schema = File('$path/styles/$mode.json');
+      try {
+        final path = (await getApplicationDocumentsDirectory()).path;
+        final mode = notifier.value.appearance == Appearance.dark
+            ? 'dark'
+            : 'light';
+        final schema = File('$path/styles/$mode.json');
 
-    if (await schema.exists()) {
-    final Map<String, dynamic> config = jsonDecode(
-    await schema.readAsString(),
-    );
-    config['sprite'] = Uri.file('$path/sprites/v4/$mode').toString();
-    config['glyphs'] =
-    '${Uri.file('$path/fonts')}/{fontstack}/{range}.pbf';
+        if (await schema.exists()) {
+          final Map<String, dynamic> config = jsonDecode(
+            await schema.readAsString(),
+          );
+          config['sprite'] = Uri.file('$path/sprites/v4/$mode').toString();
+          config['glyphs'] =
+              '${Uri.file('$path/fonts')}/{fontstack}/{range}.pbf';
 
-    final tileExists = await File(
-    '$path/tiles/protomaps.pmtiles',
-    ).exists();
-    if (config['sources'] is Map && tileExists) {
-    final pmtilesUrl =
-    'pmtiles://${Uri.file('$path/tiles/protomaps.pmtiles')}';
-    for (final entry in (config['sources'] as Map).entries) {
-    final key = entry.key.toString().toLowerCase();
-    final source = entry.value;
-    if (source is Map &&
-    (source['type'] == 'vector' ||
-    key.contains('protomaps') ||
-    key.contains('vector'))) {
-    source.remove('tiles');
-    source.remove('url');
-    source['url'] = pmtilesUrl;
-    }
-    }
-    } else {
-    if (!tileExists) {
-    developer.log(
-    'Could not find tile file at path: $path/tiles/protomaps.pmtiles',
-    stackTrace: StackTrace.current,
-    level: 1000,
-    name: 'NetworkScreen.setup',
-    );
-    }
-    if (config['sources'] != null) {
-    config['sources'] = {};
-    config['layers'] = [
-    {
-    'id': 'background',
-    'type': 'background',
-    'paint': {'background-color': '#121212'},
-    },
-    ];
-    }
-    }
-    style = jsonEncode(config);
-    } else {
-    developer.log(
-    'Could not find schema file at path: ${schema.path}',
-    stackTrace: StackTrace.current,
-    level: 1000,
-    name: 'NetworkScreen.setup',
-    );
-    }
-    } catch (error) {
-    developer.log(
-    'Failed to initialize network screen setup: $error',
-    error: error,
-    stackTrace: StackTrace.current,
-    level: 1000,
-    name: 'NetworkScreen.setup',
-    );
-    }
+          final tileExists = await File(
+            '$path/tiles/protomaps.pmtiles',
+          ).exists();
+          if (config['sources'] is Map && tileExists) {
+            final pmtilesUrl =
+                'pmtiles://${Uri.file('$path/tiles/protomaps.pmtiles')}';
+            for (final entry in (config['sources'] as Map).entries) {
+              final key = entry.key.toString().toLowerCase();
+              final source = entry.value;
+              if (source is Map &&
+                  (source['type'] == 'vector' ||
+                      key.contains('protomaps') ||
+                      key.contains('vector'))) {
+                source.remove('tiles');
+                source.remove('url');
+                source['url'] = pmtilesUrl;
+              }
+            }
+          } else {
+            if (!tileExists) {
+              developer.log(
+                'Could not find tile file at path: $path/tiles/protomaps.pmtiles',
+                stackTrace: StackTrace.current,
+                level: 1000,
+                name: 'NetworkScreen.setup',
+              );
+            }
+            if (config['sources'] != null) {
+              config['sources'] = {};
+              config['layers'] = [
+                {
+                  'id': 'background',
+                  'type': 'background',
+                  'paint': {'background-color': '#121212'},
+                },
+              ];
+            }
+          }
+          style = jsonEncode(config);
+        } else {
+          developer.log(
+            'Could not find schema file at path: ${schema.path}',
+            stackTrace: StackTrace.current,
+            level: 1000,
+            name: 'NetworkScreen.setup',
+          );
+        }
+      } catch (error) {
+        developer.log(
+          'Failed to initialize network screen setup: $error',
+          error: error,
+          stackTrace: StackTrace.current,
+          level: 1000,
+          name: 'NetworkScreen.setup',
+        );
+      }
 
-    style ??= jsonEncode({
-    'version': 8,
-    'sources': {},
-    'layers': [
-    {
-    'id': 'background',
-    'type': 'background',
-    'paint': {'background-color': '#121212'},
-    },
-    ],
-    });
+      style ??= jsonEncode({
+        'version': 8,
+        'sources': {},
+        'layers': [
+          {
+            'id': 'background',
+            'type': 'background',
+            'paint': {'background-color': '#121212'},
+          },
+        ],
+      });
 
-    if (mounted) setState(() {});
-  }();
+      if (mounted) setState(() {});
+    }();
   }
 
   void _moveToLocation(LatLng target, {double? newZoom}) {
@@ -419,11 +419,12 @@ class NetworkScreenState extends State<NetworkScreen> {
                                     CircleAvatar(
                                       radius: 20,
                                       backgroundColor:
-                                      theme.colorScheme.primaryContainer,
+                                          theme.colorScheme.primaryContainer,
                                       child: Icon(
                                         Icons.directions_rounded,
                                         color: theme
-                                            .colorScheme.onPrimaryContainer,
+                                            .colorScheme
+                                            .onPrimaryContainer,
                                         size: 20,
                                       ),
                                     ),
@@ -432,9 +433,9 @@ class NetworkScreenState extends State<NetworkScreen> {
                                       'Directions',
                                       style: theme.textTheme.labelMedium
                                           ?.copyWith(
-                                        color: theme.colorScheme.primary,
-                                        fontWeight: FontWeight.w600,
-                                      ),
+                                            color: theme.colorScheme.primary,
+                                            fontWeight: FontWeight.w600,
+                                          ),
                                     ),
                                   ],
                                 ),
@@ -454,11 +455,12 @@ class NetworkScreenState extends State<NetworkScreen> {
                                     CircleAvatar(
                                       radius: 20,
                                       backgroundColor:
-                                      theme.colorScheme.primaryContainer,
+                                          theme.colorScheme.primaryContainer,
                                       child: Icon(
                                         Icons.bookmark_border_rounded,
                                         color: theme
-                                            .colorScheme.onPrimaryContainer,
+                                            .colorScheme
+                                            .onPrimaryContainer,
                                         size: 20,
                                       ),
                                     ),
@@ -467,9 +469,9 @@ class NetworkScreenState extends State<NetworkScreen> {
                                       'Save',
                                       style: theme.textTheme.labelMedium
                                           ?.copyWith(
-                                        color: theme.colorScheme.primary,
-                                        fontWeight: FontWeight.w600,
-                                      ),
+                                            color: theme.colorScheme.primary,
+                                            fontWeight: FontWeight.w600,
+                                          ),
                                     ),
                                   ],
                                 ),
@@ -489,11 +491,12 @@ class NetworkScreenState extends State<NetworkScreen> {
                                     CircleAvatar(
                                       radius: 20,
                                       backgroundColor:
-                                      theme.colorScheme.primaryContainer,
+                                          theme.colorScheme.primaryContainer,
                                       child: Icon(
                                         Icons.share_rounded,
                                         color: theme
-                                            .colorScheme.onPrimaryContainer,
+                                            .colorScheme
+                                            .onPrimaryContainer,
                                         size: 20,
                                       ),
                                     ),
@@ -502,9 +505,9 @@ class NetworkScreenState extends State<NetworkScreen> {
                                       'Share',
                                       style: theme.textTheme.labelMedium
                                           ?.copyWith(
-                                        color: theme.colorScheme.primary,
-                                        fontWeight: FontWeight.w600,
-                                      ),
+                                            color: theme.colorScheme.primary,
+                                            fontWeight: FontWeight.w600,
+                                          ),
                                     ),
                                   ],
                                 ),
