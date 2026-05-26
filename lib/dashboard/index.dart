@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:zephyron/dashboard/chats/index.dart';
 import 'package:zephyron/dashboard/peers/index.dart';
@@ -117,6 +118,8 @@ class DashboardScreenState extends State<DashboardScreen> {
       },
       child: Scaffold(
         backgroundColor: scheme.surface,
+        // Pages scroll underneath the frosted navigation bar.
+        extendBody: true,
         body: Stack(
           children: [
             for (final item in Menu.values)
@@ -154,56 +157,64 @@ class DashboardScreenState extends State<DashboardScreen> {
             final requests = Courier.instance.roster.values
                 .where((item) => item.stranger)
                 .length;
-            return DecoratedBox(
-              decoration: BoxDecoration(
-                border: Border(top: BorderSide(color: scheme.outline)),
-              ),
-              child: NavigationBar(
-                selectedIndex: screen.index,
-                onDestinationSelected: (index) =>
-                    setState(() => screen = Menu.values[index]),
-                destinations: [
-                  NavigationDestination(
-                    icon: Badge(
-                      isLabelVisible: unread > 0,
-                      label: Text(unread > 99 ? '99+' : '$unread'),
-                      child: const Icon(Icons.chat_bubble_outline),
+            return ClipRect(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    border: Border(
+                      top: BorderSide(color: scheme.outlineVariant),
                     ),
-                    selectedIcon: Badge(
-                      isLabelVisible: unread > 0,
-                      label: Text(unread > 99 ? '99+' : '$unread'),
-                      child: const Icon(Icons.chat_bubble),
-                    ),
-                    label: 'Chats',
                   ),
-                  NavigationDestination(
-                    icon: Badge(
-                      isLabelVisible: requests > 0,
-                      label: Text('$requests'),
-                      child: const Icon(Icons.people_outline),
-                    ),
-                    selectedIcon: Badge(
-                      isLabelVisible: requests > 0,
-                      label: Text('$requests'),
-                      child: const Icon(Icons.people),
-                    ),
-                    label: 'Trustees',
+                  child: NavigationBar(
+                    backgroundColor: scheme.surface.withValues(alpha: 0.72),
+                    selectedIndex: screen.index,
+                    onDestinationSelected: (index) =>
+                        setState(() => screen = Menu.values[index]),
+                    destinations: [
+                      NavigationDestination(
+                        icon: Badge(
+                          isLabelVisible: unread > 0,
+                          label: Text(unread > 99 ? '99+' : '$unread'),
+                          child: const Icon(Icons.chat_bubble_outline),
+                        ),
+                        selectedIcon: Badge(
+                          isLabelVisible: unread > 0,
+                          label: Text(unread > 99 ? '99+' : '$unread'),
+                          child: const Icon(Icons.chat_bubble),
+                        ),
+                        label: 'Chats',
+                      ),
+                      NavigationDestination(
+                        icon: Badge(
+                          isLabelVisible: requests > 0,
+                          label: Text('$requests'),
+                          child: const Icon(Icons.people_outline),
+                        ),
+                        selectedIcon: Badge(
+                          isLabelVisible: requests > 0,
+                          label: Text('$requests'),
+                          child: const Icon(Icons.people),
+                        ),
+                        label: 'Trustees',
+                      ),
+                      NavigationDestination(
+                        icon: Badge(
+                          isLabelVisible: Courier.instance.live.isNotEmpty,
+                          label: Text('${Courier.instance.live.length}'),
+                          child: const Icon(Icons.hub_outlined),
+                        ),
+                        selectedIcon: const Icon(Icons.hub),
+                        label: 'Network',
+                      ),
+                      const NavigationDestination(
+                        icon: Icon(Icons.settings_outlined),
+                        selectedIcon: Icon(Icons.settings),
+                        label: 'Settings',
+                      ),
+                    ],
                   ),
-                  NavigationDestination(
-                    icon: Badge(
-                      isLabelVisible: Courier.instance.live.isNotEmpty,
-                      label: Text('${Courier.instance.live.length}'),
-                      child: const Icon(Icons.hub_outlined),
-                    ),
-                    selectedIcon: const Icon(Icons.hub),
-                    label: 'Network',
-                  ),
-                  const NavigationDestination(
-                    icon: Icon(Icons.settings_outlined),
-                    selectedIcon: Icon(Icons.settings),
-                    label: 'Settings',
-                  ),
-                ],
+                ),
               ),
             );
           },
