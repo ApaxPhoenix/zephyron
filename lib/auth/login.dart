@@ -247,7 +247,16 @@ class LogInPageState extends State<LogInPage> {
                   children: [
                     // Image.asset('assets/logo.png', width: 100, height: 100),
                     // SizedBox(height: MediaQuery.of(context).size.height * 0.05),
-                    Text('Welcome back', style: theme.textTheme.headlineSmall),
+                    // A long press starts the panic wipe countdown, for when
+                    // someone takes the phone before it is unlocked.
+                    GestureDetector(
+                      onLongPress: () =>
+                          Navigator.of(context).pushNamed('/panic'),
+                      child: Text(
+                        'Welcome back',
+                        style: theme.textTheme.headlineSmall,
+                      ),
+                    ),
                     const SizedBox(height: 8),
                     Text(
                       'Enter your passphrase to unlock your identity and messages on this phone.',
