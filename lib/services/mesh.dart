@@ -48,6 +48,10 @@ class Mesh extends ChangeNotifier {
   final Map<String, Community> communities = {};
   final Map<String, List<Post>> posts = {};
   final Set<String> known = {};
+  final Map<String, Standing> tallies = {};
+
+  /// Communities waiting to rotate their key after a removal, by id.
+  final Map<String, Timer> rotations = {};
   int ticks = 0;
 
   Courier get courier => Courier.instance;
@@ -56,6 +60,7 @@ class Mesh extends ChangeNotifier {
     communities.clear();
     posts.clear();
     known.clear();
+    tallies.clear();
     for (final community in await Ledger.communities()) {
       communities[community.id] = community;
     }
@@ -67,6 +72,11 @@ class Mesh extends ChangeNotifier {
 
   void stop() {
     Stage.instance.reset();
+    for (final timer in rotations.values) {
+      timer.cancel();
+    }
+    rotations.clear();
+    tallies.clear();
     communities.clear();
     posts.clear();
     known.clear();
@@ -76,6 +86,7 @@ class Mesh extends ChangeNotifier {
 
   void index(Post post) {
     if (!known.add(post.id)) return;
+    tallies.remove(post.community);
     final list = posts.putIfAbsent(post.community, () => []);
     var at = list.length;
     while (at > 0 && list[at - 1].time.isAfter(post.time)) {
@@ -118,49 +129,116 @@ class Mesh extends ChangeNotifier {
       ..sort((alpha, beta) => alpha.created.compareTo(beta.created));
   }
 
+  /// Who is in [community] right now, who was voted out, and the votes
+  /// still open, worked out from the posts alone so every phone with the
+  /// same posts agrees.
+  Standing standing(String community) =>
+      tallies[community] ??= tally(community);
+
+  Standing tally(String community) {
+    final group = communities[community];
+    final found = <String, Member>{};
+    final removed = <String, DateTime>{};
+    final votes = <String, Set<String>>{};
+    if (group == null) return Standing(found, removed, votes);
+    found[group.founder] = Member(
+      address: group.founder,
+      name: '',
+      since: group.created,
+    );
+
+    void settle(DateTime when) {
+      var changed = true;
+      while (changed) {
+        changed = false;
+        for (final target in votes.keys.toList()) {
+          final electorate = found.keys.where((item) => item != target).toSet();
+          final yes = votes[target]!.intersection(electorate).length;
+          if (electorate.isNotEmpty && yes * 2 > electorate.length) {
+            removed[target] = when;
+            found.remove(target);
+            votes.remove(target);
+            for (final ballots in votes.values) {
+              ballots.remove(target);
+            }
+            changed = true;
+          }
+        }
+      }
+    }
+
+    for (final post in posts[community] ?? const <Post>[]) {
+      switch (post.note) {
+        case Note.join:
+          if (removed.containsKey(post.author)) continue;
+          final avatar = post.meta['avatar'];
+          final picture = avatar is String && avatar.isNotEmpty
+              ? base64.decode(avatar)
+              : null;
+          final existing = found[post.author];
+          if (existing == null) {
+            found[post.author] = Member(
+              address: post.author,
+              name: post.text,
+              since: post.time,
+              avatar: picture,
+            );
+          } else {
+            existing.name = post.text;
+            if (picture != null) existing.avatar = picture;
+          }
+        case Note.vote:
+          final target = post.meta['target'];
+          if (target is! String || target == post.author) continue;
+          if (!found.containsKey(post.author) || !found.containsKey(target)) {
+            continue;
+          }
+          final ballots = votes.putIfAbsent(target, () => {});
+          if (post.meta['withdraw'] == true) {
+            ballots.remove(post.author);
+          } else {
+            ballots.add(post.author);
+          }
+          if (ballots.isEmpty) votes.remove(target);
+          settle(post.time);
+        default:
+          break;
+      }
+    }
+    return Standing(found, removed, votes);
+  }
+
   /// Members by seniority: the founder, then everyone in the order they
   /// joined. That order is the only thing that sets anyone apart.
   List<Member> members(String community) {
     final group = communities[community];
     if (group == null) return const [];
-    final found = <String, Member>{
-      group.founder: Member(
-        address: group.founder,
-        name: '',
-        since: group.created,
-      ),
-    };
-    for (final post in posts[community] ?? const <Post>[]) {
-      if (post.note != Note.join) continue;
-      final avatar = post.meta['avatar'];
-      final existing = found[post.author];
-      if (existing == null) {
-        found[post.author] = Member(
-          address: post.author,
-          name: post.text,
-          since: post.time,
-          avatar: avatar is String && avatar.isNotEmpty
-              ? base64.decode(avatar)
-              : null,
-        );
-      } else {
-        existing.name = post.text;
-        if (avatar is String && avatar.isNotEmpty) {
-          existing.avatar = base64.decode(avatar);
-        }
-      }
-    }
-    final list = found.values.toList()
-      ..sort((alpha, beta) {
-        if (alpha.address == group.founder) return -1;
-        if (beta.address == group.founder) return 1;
-        return alpha.since.compareTo(beta.since);
-      });
-    return list;
+    return standing(community).members.values.toList()..sort((alpha, beta) {
+      if (alpha.address == group.founder) return -1;
+      if (beta.address == group.founder) return 1;
+      return alpha.since.compareTo(beta.since);
+    });
   }
 
   bool member(String community, String address) =>
-      members(community).any((item) => item.address == address);
+      standing(community).members.containsKey(address);
+
+  /// People voted out of [community], with when it happened.
+  Map<String, DateTime> removed(String community) =>
+      standing(community).removed;
+
+  /// Who has voted to remove each member, for votes still short of a
+  /// majority.
+  Map<String, Set<String>> ballots(String community) =>
+      standing(community).votes;
+
+  /// How many votes removing [target] needs: more than half of everyone else.
+  int needed(String community, String target) {
+    final others = standing(
+      community,
+    ).members.keys.where((item) => item != target);
+    return others.length ~/ 2 + 1;
+  }
 
   /// A member's display name: what you call them if they are a trustee,
   /// otherwise the name they gave the community.
@@ -177,10 +255,17 @@ class Mesh extends ChangeNotifier {
     return address.substring(0, 10);
   }
 
+  /// Whether [post] came from someone after they were voted out.
+  bool silenced(Post post) {
+    final out = removed(post.community)[post.author];
+    return out != null && !post.time.isBefore(out);
+  }
+
   List<Post> messages(String community, String channel) => [
     for (final post in posts[community] ?? const <Post>[])
       if (post.note == Note.text &&
           post.channel == channel &&
+          !silenced(post) &&
           courier.roster[post.author]?.blocked != true)
         post,
   ];
@@ -231,13 +316,21 @@ class Mesh extends ChangeNotifier {
         frame['a'],
         frame['s'],
         frame['t'],
+        if (frame['e'] != null) frame['e'],
         frame['x'],
       ].join('\n'),
     ),
   );
 
   static List<int> associated(Map<String, dynamic> frame) => utf8.encode(
-    [frame['c'], frame['i'], frame['a'], frame['s'], frame['t']].join('\n'),
+    [
+      frame['c'],
+      frame['i'],
+      frame['a'],
+      frame['s'],
+      frame['t'],
+      if (frame['e'] != null) frame['e'],
+    ].join('\n'),
   );
 
   static Future<Uint8List> material(Uint8List key, String id) =>
@@ -262,6 +355,7 @@ class Mesh extends ChangeNotifier {
       'k': self.public,
       's': mine + 1,
       't': DateTime.now().millisecondsSinceEpoch,
+      'e': community.epoch,
     };
     final keys = await material(community.key, frame['i'] as String);
     final box = await AesGcm.with256bits().encrypt(
@@ -306,18 +400,31 @@ class Mesh extends ChangeNotifier {
         return null;
       }
 
-      final keys = await material(community.key, id);
       final bytes = base64.decode(sealed);
       if (bytes.length < 16) return null;
-      final clear = await AesGcm.with256bits().decrypt(
-        SecretBox(
-          bytes.sublist(0, bytes.length - 16),
-          nonce: keys.sublist(32),
-          mac: Mac(bytes.sublist(bytes.length - 16)),
-        ),
-        secretKey: SecretKey(keys.sublist(0, 32)),
-        aad: associated(frame),
-      );
+      final epoch = frame['e'];
+      final candidates = epoch is String
+          ? [?community.keys[epoch]]
+          : community.keys.values.toList();
+      List<int>? clear;
+      for (final secret in candidates) {
+        try {
+          final keys = await material(secret, id);
+          clear = await AesGcm.with256bits().decrypt(
+            SecretBox(
+              bytes.sublist(0, bytes.length - 16),
+              nonce: keys.sublist(32),
+              mac: Mac(bytes.sublist(bytes.length - 16)),
+            ),
+            secretKey: SecretKey(keys.sublist(0, 32)),
+            aad: associated(frame),
+          );
+          break;
+        } on SecretBoxAuthenticationError {
+          continue;
+        }
+      }
+      if (clear == null) return null;
       final body =
           jsonDecode(utf8.decode(Ratchet.unpad(Uint8List.fromList(clear))))
               as Map<String, dynamic>;
@@ -349,15 +456,100 @@ class Mesh extends ChangeNotifier {
   /// Stores a verified post and applies what it changes.
   Future<bool> accept(Post post) async {
     if (known.contains(post.id)) return false;
+    final before = removed(post.community).keys.toSet();
     if (!await Ledger.publish(post)) {
       known.add(post.id);
       return false;
     }
     index(post);
     if (post.note == Note.about) await revise(post);
+    if (post.note == Note.vote) {
+      final fresh = removed(post.community).keys.toSet().difference(before);
+      if (fresh.isNotEmpty) settle(post);
+    }
     notifyListeners();
     return true;
   }
+
+  /// After someone is voted out, makes sure a key they never saw takes over.
+  /// Whoever cast the deciding vote rotates at once; everyone else waits a
+  /// little, so the key usually changes once, and steps in only if nothing
+  /// newer arrived. A second key is harmless: everyone keeps both.
+  void settle(Post decider) {
+    final group = communities[decider.community];
+    if (group == null || group.rotated > decider.time.millisecondsSinceEpoch) {
+      return;
+    }
+    if (decider.author == courier.self?.address) {
+      unawaited(rotate(group));
+      return;
+    }
+    rotations[group.id]?.cancel();
+    rotations[group.id] = Timer(
+      Duration(seconds: 20 + Random.secure().nextInt(70)),
+      () {
+        rotations.remove(group.id);
+        final latest = removed(group.id).values.fold<int>(
+          0,
+          (top, when) => max(top, when.millisecondsSinceEpoch),
+        );
+        if (group.rotated <= latest) unawaited(rotate(group));
+      },
+    );
+  }
+
+  /// Starts a new community key and hands it to every remaining member,
+  /// end-to-end encrypted, so whoever was removed cannot read what follows.
+  Future<void> rotate(Community group) async {
+    group.rekey(Ratchet.random(32), DateTime.now().millisecondsSinceEpoch);
+    await Ledger.gather(group);
+    notifyListeners();
+    final self = courier.self?.address;
+    for (final peer in members(group.id).map((item) => item.address)) {
+      if (peer == self) continue;
+      unawaited(hand(group, peer, group.epoch));
+    }
+  }
+
+  /// Sends [peer] the community key [id] inside an end-to-end session.
+  Future<void> hand(Community group, String peer, String id) async {
+    final secret = group.keys[id];
+    if (secret == null || !member(group.id, peer)) return;
+    try {
+      final channel = await courier.dial(peer);
+      final sealed = await courier.whisper(
+        peer,
+        channel,
+        utf8.encode(
+          jsonEncode({
+            'id': id,
+            'key': base64.encode(secret),
+            'at': id == group.epoch ? group.rotated : 0,
+          }),
+        ),
+      );
+      send(channel, peer, {'op': 'rekey', 'c': group.id, 'k': sealed});
+    } catch (error) {
+      developer.log(
+        'Could not hand a community key to a member yet',
+        name: 'Mesh.hand',
+        level: 800,
+        error: error,
+      );
+    }
+  }
+
+  /// Votes to remove [target], or takes the vote back with [withdraw].
+  Future<void> vote(
+    Community community,
+    String target, {
+    bool withdraw = false,
+  }) => post(
+    community,
+    channel: community.general,
+    note: Note.vote,
+    meta: {'target': target, if (withdraw) 'withdraw': true},
+  );
 
   /// Applies a description post when it is the newest one.
   Future<void> revise(Post post) async {
@@ -524,6 +716,10 @@ class Mesh extends ChangeNotifier {
     'name': community.name,
     'about': community.about,
     'key': base64.encode(community.key),
+    'keys': {
+      for (final entry in community.keys.entries)
+        entry.key: base64.encode(entry.value),
+    },
     'founder': community.founder,
     'created': community.created.millisecondsSinceEpoch,
   };
@@ -555,12 +751,24 @@ class Mesh extends ChangeNotifier {
     if (key is! String || created is! int || !Identity.valid(founder)) {
       return null;
     }
+    final ring = <String, String>{};
     try {
       if (base64.decode(key).length != 32) return null;
+      final keys = meta['keys'];
+      if (keys is Map) {
+        for (final entry in keys.entries.take(64)) {
+          final secret = base64.decode(entry.value as String);
+          if (secret.length == 32 &&
+              Community.fingerprint(secret) == entry.key) {
+            ring[entry.key as String] = entry.value as String;
+          }
+        }
+      }
     } catch (_) {
       return null;
     }
     return {
+      'keys': ring,
       'community': id,
       'name': Profile.clip(meta['name'], Community.names),
       'about': Profile.clip(meta['about'], Community.abouts),
@@ -576,11 +784,18 @@ class Mesh extends ChangeNotifier {
     final id = invitation['community'] as String;
     final existing = communities[id];
     if (existing != null) return existing;
+    final current = base64.decode(invitation['key'] as String);
+    final ring = <String, Uint8List>{
+      for (final entry in (invitation['keys'] as Map? ?? const {}).entries)
+        entry.key as String: base64.decode(entry.value as String),
+    };
     final community = Community(
       id: id,
       name: invitation['name'] as String? ?? 'Community',
       about: invitation['about'] as String? ?? '',
-      key: base64.decode(invitation['key'] as String),
+      key: current,
+      keys: {...ring, Community.fingerprint(current): current},
+      epoch: Community.fingerprint(current),
       founder: invitation['founder'] as String,
       created: DateTime.fromMillisecondsSinceEpoch(
         invitation['created'] as int,
@@ -602,6 +817,8 @@ class Mesh extends ChangeNotifier {
   }
 
   Future<void> leave(String id) async {
+    rotations.remove(id)?.cancel();
+    tallies.remove(id);
     communities.remove(id);
     for (final post in posts.remove(id) ?? const <Post>[]) {
       known.remove(post.id);
@@ -643,6 +860,7 @@ class Mesh extends ChangeNotifier {
         'op': 'have',
         'c': community.id,
         'clock': clock(community.id),
+        'keys': community.keys.keys.toList(),
         'proof': proof(community.id),
         'reply': reply,
       });
@@ -728,6 +946,12 @@ class Mesh extends ChangeNotifier {
           }
         }
         if (!member(community.id, from)) return;
+        final held = data['keys'];
+        if (held is List) {
+          for (final id in community.keys.keys) {
+            if (!held.contains(id)) unawaited(hand(community, from, id));
+          }
+        }
         final theirs = <String, int>{};
         final raw = data['clock'];
         if (raw is Map) {
@@ -772,9 +996,31 @@ class Mesh extends ChangeNotifier {
             'op': 'have',
             'c': community.id,
             'clock': ours,
+            'keys': community.keys.keys.toList(),
             'reply': true,
           });
         }
+      case 'rekey':
+        if (!member(community.id, from)) return;
+        final sealed = data['k'];
+        if (sealed is! String) return;
+        final inner = await courier.reveal(from, channel, sealed);
+        if (inner == null) return;
+        final given = jsonDecode(inner) as Map;
+        final secret = base64.decode(given['key'] as String);
+        final id = given['id'];
+        final at = given['at'];
+        if (secret.length != 32 || id != Community.fingerprint(secret)) return;
+        if (community.keys.containsKey(id)) return;
+        community.keys[id as String] = secret;
+        if (at is int && at > community.rotated) {
+          community
+            ..epoch = id
+            ..rotated = at;
+          rotations.remove(community.id)?.cancel();
+        }
+        await Ledger.gather(community);
+        notifyListeners();
       case 'posts':
         final items = data['items'];
         if (items is! List) return;
@@ -793,4 +1039,13 @@ class Mesh extends ChangeNotifier {
         }
     }
   }
+}
+
+/// What the posts of a community add up to.
+class Standing {
+  final Map<String, Member> members;
+  final Map<String, DateTime> removed;
+  final Map<String, Set<String>> votes;
+
+  const Standing(this.members, this.removed, this.votes);
 }
