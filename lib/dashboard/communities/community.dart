@@ -80,35 +80,95 @@ class CommunityPageState extends State<CommunityPage> {
 
   Future<void> add(Community community) async {
     final field = TextEditingController();
+    var kind = Space.text;
     final name = await showDialog<String>(
       context: context,
-      builder: (dialog) => AlertDialog(
-        title: const Text('New Channel'),
-        content: TextField(
-          controller: field,
-          autofocus: true,
-          maxLength: 32,
-          decoration: const InputDecoration(
-            hintText: 'announcements',
-            prefixText: '# ',
+      builder: (dialog) => StatefulBuilder(
+        builder: (dialog, refresh) => AlertDialog(
+          title: const Text('New Channel'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  for (final option in Space.values) ...[
+                    if (option != Space.values.first) const SizedBox(width: 8),
+                    Expanded(
+                      child: Material(
+                        color: option == kind
+                            ? Theme.of(
+                                dialog,
+                              ).colorScheme.primary.withValues(alpha: 0.08)
+                            : Colors.transparent,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(
+                            color: option == kind
+                                ? Theme.of(dialog).colorScheme.primary
+                                : Theme.of(dialog).colorScheme.outline,
+                          ),
+                        ),
+                        clipBehavior: Clip.antiAlias,
+                        child: InkWell(
+                          onTap: () => refresh(() => kind = option),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            child: Column(
+                              children: [
+                                Mark(
+                                  kind: option,
+                                  color: option == kind
+                                      ? Theme.of(dialog).colorScheme.primary
+                                      : null,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  option.label,
+                                  style: Theme.of(dialog).textTheme.labelMedium,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: field,
+                autofocus: true,
+                maxLength: 32,
+                decoration: InputDecoration(
+                  hintText: switch (kind) {
+                    Space.text => 'announcements',
+                    Space.podcast => 'weekly-show',
+                    Space.voice => 'lounge',
+                  },
+                  prefixText: kind == Space.text ? '# ' : null,
+                ),
+                onSubmitted: (value) => Navigator.pop(dialog, value),
+              ),
+            ],
           ),
-          onSubmitted: (value) => Navigator.pop(dialog, value),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialog),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialog, field.text),
+              child: const Text('Create'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialog),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialog, field.text),
-            child: const Text('Create'),
-          ),
-        ],
       ),
     );
     field.dispose();
     if (name == null || name.trim().isEmpty) return;
-    final room = await mesh.channel(community, name, Space.text);
+    final room = await mesh.channel(community, name, kind);
     if (!mounted) return;
     Navigator.pushNamed(
       context,

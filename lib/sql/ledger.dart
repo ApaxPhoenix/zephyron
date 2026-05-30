@@ -65,7 +65,10 @@ class Ledger {
           joined INTEGER NOT NULL,
           pinned INTEGER NOT NULL DEFAULT 0,
           muted INTEGER NOT NULL DEFAULT 0,
-          revised INTEGER NOT NULL DEFAULT 0
+          revised INTEGER NOT NULL DEFAULT 0,
+          keys TEXT,
+          epoch TEXT,
+          rotated INTEGER NOT NULL DEFAULT 0
         )
       ''');
       await base.execute('''
@@ -98,6 +101,9 @@ class Ledger {
         ('trustees', 'fuse', 'INTEGER NOT NULL DEFAULT 0'),
         ('trustees', 'fused', 'INTEGER NOT NULL DEFAULT 0'),
         ('trustees', 'banner', 'BLOB'),
+        ('communities', 'keys', 'TEXT'),
+        ('communities', 'epoch', 'TEXT'),
+        ('communities', 'rotated', 'INTEGER NOT NULL DEFAULT 0'),
       ]) {
         final columns = await base.rawQuery('PRAGMA table_info($table)');
         if (!columns.any((row) => row['name'] == name)) {

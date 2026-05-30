@@ -297,6 +297,15 @@ class Pallete {
     );
   }
 
+  /// A solid round button. The theme tints icons brand blue, so a filled
+  /// button has to say its icon is white or it vanishes into its fill.
+  static ButtonStyle solid(ColorScheme scheme) => IconButton.styleFrom(
+    backgroundColor: scheme.primary,
+    foregroundColor: scheme.onPrimary,
+    disabledBackgroundColor: scheme.surfaceContainerHigh,
+    disabledForegroundColor: scheme.onSurfaceVariant,
+  );
+
   static ThemeData lightTheme(BuildContext context) {
     return baseTheme(context, Brightness.light);
   }
