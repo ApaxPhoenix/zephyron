@@ -40,6 +40,7 @@ class ChatsPageState extends State<ChatsPage> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final inset = MediaQuery.paddingOf(context).bottom;
 
     return Scaffold(
       backgroundColor: scheme.surface,
@@ -96,7 +97,7 @@ class ChatsPageState extends State<ChatsPage> {
             content = Center(
               key: const ValueKey('welcome'),
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(32.0),
+                padding: EdgeInsets.fromLTRB(32, 32, 32, 32 + inset),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -145,7 +146,7 @@ class ChatsPageState extends State<ChatsPage> {
             content = Center(
               key: ValueKey('empty:${filter.name}'),
               child: Padding(
-                padding: const EdgeInsets.all(32.0),
+                padding: EdgeInsets.fromLTRB(32, 32, 32, 32 + inset),
                 child: Text(
                   search.text.isNotEmpty
                       ? 'No chats match "${search.text}"'
@@ -159,11 +160,11 @@ class ChatsPageState extends State<ChatsPage> {
           } else {
             content = ListView.separated(
               key: ValueKey('list:${filter.name}'),
-              padding: const EdgeInsets.only(bottom: 16),
+              padding: EdgeInsets.only(top: 4, bottom: 16 + inset),
               itemCount: list.length,
               separatorBuilder: (context, index) => Divider(
                 height: 1,
-                indent: 80,
+                indent: 84,
                 color: scheme.outlineVariant.withAlpha(50),
               ),
               itemBuilder: (context, index) {
@@ -214,7 +215,7 @@ class ChatsPageState extends State<ChatsPage> {
                   },
                   child: ListTile(
                     contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16.0,
+                      horizontal: 20.0,
                       vertical: 4.0,
                     ),
                     leading: Hero(
@@ -485,7 +486,7 @@ class ChatsPageState extends State<ChatsPage> {
             children: [
               if (courier.roster.isNotEmpty) ...[
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
                   child: TextField(
                     controller: search,
                     decoration: InputDecoration(
@@ -510,10 +511,7 @@ class ChatsPageState extends State<ChatsPage> {
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16.0,
-                    vertical: 4.0,
-                  ),
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
                   child: Row(
                     children: [
                       for (final item in [

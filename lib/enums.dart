@@ -93,19 +93,20 @@ enum Trust {
 /// Availability advertised to trustees. Persisted by index, so only append.
 enum Availability {
   /// Reachable and happy to chat.
-  available('Available'),
+  available('Available', 'Reachable and happy to chat'),
 
   /// Around, but replies may be slow.
-  away('Away'),
+  away('Away', 'Around, but replies may be slow'),
 
   /// Do not disturb: in-app banners are muted on this device.
-  busy('Do not disturb'),
+  busy('Do not disturb', 'Mutes in-app banners on this phone'),
 
   /// Appear offline: no pongs, typing hints or read receipts are sent.
-  invisible('Invisible');
+  invisible('Invisible', 'Appear offline to everyone');
 
-  const Availability(this.label);
+  const Availability(this.label, this.hint);
   final String label;
+  final String hint;
 }
 
 /// Payload carried by a message. Persisted by index, so only append.
@@ -160,6 +161,31 @@ enum Signal {
 
   /// Answer to a latency probe.
   pong,
+
+  /// Sets the disappearing message timer for both sides of a chat.
+  timer,
+}
+
+/// How long messages last before both phones delete them.
+enum Fuse {
+  off(0, 'Off'),
+  minutes(300, '5 minutes'),
+  hour(3600, '1 hour'),
+  day(86400, '1 day'),
+  week(604800, '1 week');
+
+  const Fuse(this.seconds, this.label);
+  final int seconds;
+  final String label;
+
+  /// Longest timer a peer may ask for.
+  static const int ceiling = 4 * 604800;
+
+  /// The closest choice to a timer set on the other phone.
+  static Fuse of(int seconds) => values.lastWhere(
+    (item) => item.seconds <= seconds,
+    orElse: () => Fuse.off,
+  );
 }
 
 /// Highest GIPHY content rating allowed in the GIF picker.

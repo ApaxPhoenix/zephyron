@@ -179,10 +179,10 @@ class NodePageState extends State<NodePage> {
             ],
           ),
           body: SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.all(20.0),
             child: Column(
               children: [
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 Hero(
                   tag: 'avatar:$address',
                   child: Portrait(address: address, size: 80),
@@ -313,6 +313,30 @@ class NodePageState extends State<NodePage> {
                         ],
                       ),
                     ),
+                  ListTile(
+                    leading: Icon(Icons.timer_outlined, color: scheme.primary),
+                    title: const Text('Disappearing Messages'),
+                    subtitle: Text(
+                      trustee.fuse > 0
+                          ? 'New messages are deleted after ${Fuse.of(trustee.fuse).label}'
+                          : 'Off. Messages stay until you delete them',
+                    ),
+                    trailing: Icon(
+                      Icons.chevron_right,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                    onTap: trustee.blocked
+                        ? null
+                        : () async {
+                            final picked = await Sheets.fuse(
+                              context,
+                              current: Fuse.of(trustee.fuse),
+                            );
+                            if (picked != null) {
+                              await courier.fuse(address, picked.seconds);
+                            }
+                          },
+                  ),
                   ListTile(
                     leading: Icon(Icons.speed, color: scheme.primary),
                     title: const Text('Latency'),
