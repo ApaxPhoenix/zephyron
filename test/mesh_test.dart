@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zephyron/enums.dart';
@@ -215,5 +216,142 @@ void main() {
     for (final pause in pauses) {
       expect(pause.inMilliseconds, inInclusiveRange(150, 1200));
     }
+  });
+
+  group('removal by vote', () {
+    late Community community;
+    late Identity dana;
+
+    Future<void> joins(Identity who, String name) async {
+      await mesh.accept(
+        (await mesh.verify(
+          await as(who, community, note: Note.join, text: name),
+        ))!,
+      );
+    }
+
+    Future<void> ballot(
+      Identity voter,
+      Identity target, {
+      bool back = false,
+    }) async {
+      await mesh.accept(
+        (await mesh.verify(
+          await as(
+            voter,
+            community,
+            note: Note.vote,
+            meta: {'target': target.address, if (back) 'withdraw': true},
+          ),
+        ))!,
+      );
+    }
+
+    setUp(() async {
+      dana = Identity.fromInput(
+        'dana vote ${DateTime.now().microsecondsSinceEpoch}',
+      );
+      community = await founded();
+      await joins(alice, 'Alice');
+      await joins(carol, 'Carol');
+      await joins(dana, 'Dana');
+    });
+
+    test('it takes more than half of everyone else', () async {
+      expect(mesh.needed(community.id, carol.address), 2);
+      await ballot(alice, carol);
+      expect(mesh.member(community.id, carol.address), isTrue);
+      expect(mesh.ballots(community.id)[carol.address], {alice.address});
+      await ballot(dana, carol);
+      expect(mesh.member(community.id, carol.address), isFalse);
+      expect(mesh.removed(community.id).keys, [carol.address]);
+      expect(mesh.ballots(community.id), isEmpty);
+    });
+
+    test('votes can be taken back, and nobody votes on themselves', () async {
+      await ballot(alice, carol);
+      await ballot(alice, carol, back: true);
+      expect(mesh.ballots(community.id), isEmpty);
+      await ballot(carol, carol);
+      expect(mesh.ballots(community.id), isEmpty);
+    });
+
+    test(
+      'the deciding vote rotates the key and history stays readable',
+      () async {
+        final before = community.epoch;
+        final old = await as(alice, community, text: 'before the vote');
+        await ballot(alice, carol);
+        await mesh.vote(community, carol.address);
+        expect(mesh.member(community.id, carol.address), isFalse);
+        await until(() => community.epoch != before);
+        expect(community.keys.keys, containsAll([before, community.epoch]));
+        expect((await mesh.verify(old))?.text, 'before the vote');
+        final fresh = await as(alice, community, text: 'after the vote');
+        expect(fresh['e'], community.epoch);
+      },
+    );
+
+    test(
+      'someone removed gets nothing and their new posts are hidden',
+      () async {
+        await ballot(alice, carol);
+        await ballot(dana, carol);
+        await mesh.accept(
+          (await mesh.verify(await as(carol, community, text: 'still here?')))!,
+        );
+        expect(
+          mesh
+              .messages(community.id, community.general)
+              .map((post) => post.text),
+          isNot(contains('still here?')),
+        );
+        final wire = await Wire.open();
+        wire.send(
+          sealed(
+            carol,
+            Signal.mesh,
+            body: jsonEncode({'op': 'have', 'c': community.id, 'clock': {}}),
+          ),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 400));
+        expect(wire.replies.where((frame) => frame['kind'] == 'mesh'), isEmpty);
+        await wire.close();
+      },
+    );
+
+    test('a key handed over by a member is adopted', () async {
+      final next = Uint8List.fromList(List.generate(32, (index) => index + 7));
+      final id = Community.fingerprint(next);
+      final wire = await Wire.open();
+      wire.send(
+        sealed(
+          alice,
+          Signal.mesh,
+          body: jsonEncode({
+            'op': 'rekey',
+            'c': community.id,
+            'k': await confide(alice, {
+              'id': id,
+              'key': base64.encode(next),
+              'at': DateTime.now().millisecondsSinceEpoch,
+            }),
+          }),
+        ),
+      );
+      await until(() => community.epoch == id);
+      expect(community.key, next);
+      await wire.close();
+    });
+
+    test('invitations carry every key so new members can read history', () {
+      final invitation = Mesh.valid(mesh.invitation(community), alice.address)!;
+      expect((invitation['keys'] as Map).keys, contains(community.epoch));
+      final forged = Mesh.valid({
+        ...mesh.invitation(community),
+        'keys': {'0000000000000000': base64.encode(List.filled(32, 3))},
+      }, alice.address)!;
+      expect(forged['keys'], isEmpty);
+    });
   });
 }
