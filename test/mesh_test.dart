@@ -354,4 +354,91 @@ void main() {
       expect(forged['keys'], isEmpty);
     });
   });
+
+  group('keeping bots out', () {
+    test('proof of work is checked bit for bit', () {
+      // Sixteen bits, so a nonce that happens to work elsewhere too is a
+      // one-in-65,536 accident rather than a flaky test.
+      final work = Mesh.labor('room', alice.address, 16);
+      expect(Mesh.proven('room', alice.address, work, 16), isTrue);
+      expect(Mesh.proven('room', carol.address, work, 16), isFalse);
+      expect(Mesh.proven('elsewhere', alice.address, work, 16), isFalse);
+      expect(
+        Mesh.proven('room', alice.address, work, Mesh.difficulty - 1),
+        isFalse,
+      );
+      expect(Mesh.zeros([0, 0x20]), 10);
+    });
+
+    test('a join without real work does not make anyone a member', () async {
+      final community = await founded();
+      final lazy = await as(
+        alice,
+        community,
+        note: Note.join,
+        text: 'Bot',
+        meta: {'work': 'nope', 'bits': Mesh.difficulty},
+      );
+      await mesh.accept((await mesh.verify(lazy))!);
+      expect(mesh.member(community.id, alice.address), isFalse);
+
+      final honest = await as(carol, community, note: Note.join, text: 'Carol');
+      await mesh.accept((await mesh.verify(honest))!);
+      expect(mesh.member(community.id, carol.address), isTrue);
+    });
+
+    test(
+      'new members cannot swing a vote until they have been here a while',
+      () async {
+        final saved = Mesh.seasoning;
+        Mesh.seasoning = const Duration(hours: 1);
+        addTearDown(() => Mesh.seasoning = saved);
+        final community = await founded();
+        final dana = Identity.fromInput(
+          'dana season ${DateTime.now().microsecondsSinceEpoch}',
+        );
+        for (final (who, name) in [
+          (alice, 'Alice'),
+          (carol, 'Carol'),
+          (dana, 'Dana'),
+        ]) {
+          await mesh.accept(
+            (await mesh.verify(
+              await as(who, community, note: Note.join, text: name),
+            ))!,
+          );
+        }
+        for (final voter in [alice, dana]) {
+          await mesh.accept(
+            (await mesh.verify(
+              await as(
+                voter,
+                community,
+                note: Note.vote,
+                meta: {'target': carol.address},
+              ),
+            ))!,
+          );
+        }
+        expect(mesh.member(community.id, carol.address), isTrue);
+        await mesh.vote(community, carol.address);
+        expect(mesh.member(community.id, carol.address), isFalse);
+      },
+    );
+
+    test('a flood of posts is cut off after thirty a minute', () async {
+      final community = await founded();
+      await mesh.accept(
+        (await mesh.verify(
+          await as(alice, community, note: Note.join, text: 'Alice'),
+        ))!,
+      );
+      var kept = 0;
+      for (var index = 0; index < Mesh.burst + 10; index++) {
+        final frame = await as(alice, community, text: 'spam $index');
+        if (await mesh.accept((await mesh.verify(frame))!)) kept++;
+      }
+      expect(kept, Mesh.burst - 1);
+    });
+  });
 }
