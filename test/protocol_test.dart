@@ -9,6 +9,7 @@ import 'package:zephyron/models/trustee.dart';
 import 'package:zephyron/services/courier.dart';
 import 'package:zephyron/services/locker.dart';
 import 'package:zephyron/services/ratchet.dart';
+import 'package:zephyron/services/still.dart';
 import 'package:zephyron/sql/ledger.dart';
 import 'support.dart';
 
@@ -494,6 +495,40 @@ void main() {
       expect(message.kind, kind);
       expect(message.duration, const Duration(milliseconds: 4200));
       expect(message.attachment, isTrue);
+      await wire.close();
+    }
+  });
+
+  test('a video brings its thumbnail, nothing else may', () async {
+    final picture = base64.encode(
+      List<int>.generate(900, (index) => index % 251),
+    );
+    for (final (kind, thumb, kept) in [
+      (Kind.video, picture, true),
+      (Kind.file, picture, false),
+      (Kind.video, 'x' * (Still.ceiling * 2), false),
+    ]) {
+      final wire = await Wire.open();
+      final payload = pattern(500);
+      final key = Ratchet.random(32);
+      final manifest = sealed(
+        alice,
+        Signal.file,
+        body: await confide(alice, {
+          'key': base64.encode(key),
+          'kind': kind.name,
+          'name': 'clip.mp4',
+          'size': payload.length,
+          'thumb': thumb,
+          'sha': sha256.convert(payload).toString(),
+        }),
+      );
+      final id = manifest['id'] as String;
+      wire.send(manifest);
+      wire.send(await piece(id, key, 0, payload));
+      await wire.reply('receipt', id);
+      final message = courier.threads[alice.address]!.last;
+      expect(message.meta.containsKey('thumb'), kept);
       await wire.close();
     }
   });
