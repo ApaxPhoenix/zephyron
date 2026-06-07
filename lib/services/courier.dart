@@ -14,6 +14,8 @@ import 'package:zephyron/models/message.dart';
 import 'package:zephyron/models/profile.dart';
 import 'package:zephyron/models/trustee.dart';
 import 'package:zephyron/services/locker.dart';
+import 'package:zephyron/services/ratchet.dart';
+import 'package:zephyron/services/shield.dart';
 import 'package:zephyron/sql/ledger.dart';
 import 'package:zephyron/sql/session.dart';
 import 'package:zephyron/wrappers/tor.dart';
@@ -86,6 +88,9 @@ class Transfer {
   final int height;
   final int time;
   final int fuse;
+
+  /// Key that seals each chunk, carried inside the encrypted manifest.
+  final Uint8List key;
   final BytesBuilder buffer = BytesBuilder(copy: false);
   int next = 0;
 
@@ -102,6 +107,7 @@ class Transfer {
     required this.width,
     required this.height,
     required this.time,
+    required this.key,
     this.fuse = 0,
   });
 
@@ -118,6 +124,9 @@ class Courier extends ChangeNotifier {
   static const int line = 512 * 1024;
   static const int slice = 48 * 1024;
   static const int portrait = 256 * 1024;
+
+  /// Largest banner, so its frame stays under [line] once base64 encoded.
+  static const int banner = 360 * 1024;
   static const String protocol = 'zephyron/1';
   static const Duration horizon = Duration(seconds: 90);
 
@@ -125,6 +134,9 @@ class Courier extends ChangeNotifier {
   final ValueNotifier<ThemeMode> theme = ValueNotifier<ThemeMode>(
     ThemeMode.system,
   );
+
+  /// Whether screen security is on; it stays on while the vault is locked.
+  final ValueNotifier<bool> shielded = ValueNotifier<bool>(true);
   final StreamController<Message> arrivals =
       StreamController<Message>.broadcast();
 
@@ -144,6 +156,12 @@ class Courier extends ChangeNotifier {
   final Map<String, Channel> channels = {};
   final Map<String, Future<Channel>> dialing = {};
   final Map<String, Completer<void>> waiting = {};
+
+  /// Peers we are waiting on to agree an end-to-end session.
+  final Map<String, Completer<void>> pairing = {};
+
+  /// When each peer was last asked to repair a broken session.
+  final Map<String, DateTime> mended = {};
   final Map<String, Transfer> transfers = {};
   final Map<String, double> progress = {};
   final Map<String, DateTime> hinted = {};
@@ -176,6 +194,8 @@ class Courier extends ChangeNotifier {
       me = profile;
       prefs = chosen == null ? Preferences() : Preferences.fromJson(chosen);
       theme.value = prefs.theme;
+      shielded.value = prefs.shield;
+      unawaited(Shield.apply(prefs.shield));
 
       roster
         ..clear()
@@ -264,17 +284,21 @@ class Courier extends ChangeNotifier {
     hinted.clear();
     transfers.clear();
     progress.clear();
-    for (final pending in waiting.values) {
+    for (final pending in [...waiting.values, ...pairing.values]) {
       if (!pending.isCompleted) {
         pending.completeError(StateError('Courier stopped'));
       }
     }
     waiting.clear();
+    pairing.clear();
+    mended.clear();
     roster.clear();
     threads.clear();
     presence.clear();
     reach.value = Reach.offline;
     theme.value = ThemeMode.system;
+    shielded.value = true;
+    unawaited(Shield.apply(true));
     await Locker.sweep();
 
     if (address != null) await Sentinel.summon().retract(address);
@@ -400,14 +424,124 @@ class Courier extends ChangeNotifier {
     }
     channel.greeted = true;
     final known = roster[peer]!;
+    final identity = self!;
+    unawaited(() async {
+      channel.send(
+        seal(
+          Signal.hello,
+          peer,
+          body: jsonEncode({
+            'revision': me.revision,
+            'fuse': known.fuse,
+            'fused': known.fused,
+            'bundle': await Ratchet.bundle(identity),
+          }),
+        ),
+      );
+    }());
+  }
+
+  /// Makes sure an end-to-end session with [peer] exists or can be started.
+  Future<void> pair(String peer, Channel channel) async {
+    final identity = self!;
+    if (await Ratchet.paired(identity, peer)) return;
+    if (Ratchet.lead(identity, peer) &&
+        await Ledger.read('bundle:$peer') != null) {
+      return;
+    }
+    final waiter = pairing.putIfAbsent(peer, Completer<void>.new);
     channel.send(
       seal(
-        Signal.hello,
+        Signal.session,
         peer,
         body: jsonEncode({
-          'revision': me.revision,
-          'fuse': known.fuse,
-          'fused': known.fused,
+          'bundle': await Ratchet.bundle(identity),
+          'want': true,
+        }),
+      ),
+    );
+    try {
+      await waiter.future.timeout(const Duration(seconds: 30));
+    } finally {
+      if (identical(pairing[peer], waiter)) pairing.remove(peer);
+    }
+  }
+
+  void settle(String peer) {
+    final waiter = pairing.remove(peer);
+    if (waiter != null && !waiter.isCompleted) waiter.complete();
+  }
+
+  /// Encrypts [clear] for [peer], agreeing a session first when needed.
+  Future<String> whisper(String peer, Channel channel, List<int> clear) async {
+    await pair(peer, channel);
+    try {
+      return jsonEncode(await Ratchet.seal(self!, peer, clear));
+    } on Unpaired {
+      await Ratchet.forget(self!, peer);
+      await pair(peer, channel);
+      return jsonEncode(await Ratchet.seal(self!, peer, clear));
+    }
+  }
+
+  /// Decrypts a frame body from [peer], or asks for the session to be
+  /// repaired and returns null when it cannot be read.
+  Future<String?> reveal(String peer, Channel channel, String body) async {
+    try {
+      final envelope = jsonDecode(body);
+      if (envelope is! Map<String, dynamic>) return null;
+      final clear = await Ratchet.open(self!, peer, envelope);
+      return utf8.decode(clear);
+    } catch (error) {
+      developer.log(
+        'Could not open an end-to-end encrypted frame, asking for a fresh session',
+        name: 'Courier.reveal',
+        level: 900,
+        error: error,
+      );
+      await mend(peer, channel);
+      return null;
+    }
+  }
+
+  /// Restarts a session that no longer lines up on both sides.
+  Future<void> mend(String peer, Channel channel) async {
+    final last = mended[peer];
+    final now = DateTime.now();
+    if (last != null && now.difference(last) < const Duration(seconds: 10)) {
+      return;
+    }
+    mended[peer] = now;
+    final identity = self!;
+    if (Ratchet.lead(identity, peer) &&
+        await Ledger.read('bundle:$peer') != null) {
+      await Ratchet.forget(identity, peer);
+      await open(peer, channel);
+      return;
+    }
+    channel.send(
+      seal(
+        Signal.session,
+        peer,
+        body: jsonEncode({
+          'bundle': await Ratchet.bundle(identity),
+          'want': true,
+        }),
+      ),
+    );
+  }
+
+  /// As the lead, starts a fresh session and sends its opening.
+  Future<void> open(String peer, Channel channel) async {
+    final identity = self!;
+    final opening = await Ratchet.seal(identity, peer, utf8.encode('{}'));
+    channel.send(
+      seal(
+        Signal.session,
+        peer,
+        body: jsonEncode({
+          'bundle': await Ratchet.bundle(identity),
+          'init': opening,
         }),
       ),
     );
@@ -490,7 +624,14 @@ class Courier extends ChangeNotifier {
           transfers.remove(transfer.id);
           return;
         }
-        transfer.buffer.add(base64.decode(data));
+        try {
+          transfer.buffer.add(
+            await Ratchet.unchunk(transfer.key, seq, base64.decode(data)),
+          );
+        } catch (_) {
+          transfers.remove(transfer.id);
+          return;
+        }
         transfer.next += 1;
         if (transfer.buffer.length > transfer.size) {
           transfers.remove(transfer.id);
@@ -566,11 +707,18 @@ class Courier extends ChangeNotifier {
             channel.send(seal(Signal.whois, from));
           }
           await adjust(from, greeting['fuse'], greeting['fused']);
+          await Ratchet.learn(from, greeting['bundle']);
+          if (Ratchet.lead(self!, from)) settle(from);
         case Signal.whois:
           if (roster[from]?.trusted == true) {
             channel.send(
-              seal(Signal.profile, from, body: jsonEncode(me.toJson())),
+              seal(
+                Signal.profile,
+                from,
+                body: jsonEncode(me.toJson(banner: false)),
+              ),
             );
+            channel.send(seal(Signal.banner, from, body: cover()));
           }
         case Signal.profile:
           final known = roster[from];
@@ -589,12 +737,18 @@ class Courier extends ChangeNotifier {
             ..revision = profile.revision;
           await Ledger.keep(known);
         case Signal.message:
+          if (await Ledger.exists(id)) {
+            channel.send(seal(Signal.receipt, from, id: id));
+            break;
+          }
+          final inner = await reveal(from, channel, body);
+          if (inner == null) break;
           var kind = Kind.text;
-          var words = body;
+          var words = inner;
           var meta = <String, dynamic>{};
           var fuse = 0;
           try {
-            final envelope = jsonDecode(body);
+            final envelope = jsonDecode(inner);
             if (envelope is Map<String, dynamic>) {
               kind = Kind.values.firstWhere(
                 (item) => item.name == envelope['kind'],
@@ -636,7 +790,17 @@ class Courier extends ChangeNotifier {
           }
           channel.send(seal(Signal.receipt, from, id: id));
         case Signal.file:
-          final data = Map<String, dynamic>.from(jsonDecode(body) as Map);
+          if (await Ledger.exists(id)) {
+            channel.send(seal(Signal.receipt, from, id: id));
+            break;
+          }
+          final inner = await reveal(from, channel, body);
+          if (inner == null) break;
+          final data = Map<String, dynamic>.from(jsonDecode(inner) as Map);
+          final secret = data['key'];
+          if (secret is! String) break;
+          final key = base64.decode(secret);
+          if (key.length != 32) break;
           final kind = Kind.values.firstWhere(
             (item) => item.name == data['kind'],
             orElse: () => Kind.text,
@@ -650,10 +814,6 @@ class Courier extends ChangeNotifier {
           if (!RegExp(r'^[0-9a-f]{64}$').hasMatch(sha)) break;
           if (!await admit(from)) break;
 
-          if (await Ledger.exists(id)) {
-            channel.send(seal(Signal.receipt, from, id: id));
-            break;
-          }
           final active = transfers.values
               .where((item) => item.peer == from)
               .length;
@@ -679,6 +839,7 @@ class Courier extends ChangeNotifier {
             height: dimension(data['height']),
             time: stamp.millisecondsSinceEpoch,
             fuse: clamp(data['fuse']),
+            key: key,
           );
         case Signal.chunk:
           break;
@@ -701,6 +862,42 @@ class Courier extends ChangeNotifier {
         case Signal.timer:
           final choice = jsonDecode(body) as Map;
           await adjust(from, choice['fuse'], choice['fused']);
+        case Signal.session:
+          final exchange = jsonDecode(body) as Map;
+          await Ratchet.learn(from, exchange['bundle']);
+          final opening = exchange['init'];
+          if (opening is Map<String, dynamic>) {
+            if (!Ratchet.lead(self!, from)) {
+              try {
+                await Ratchet.open(self!, from, opening);
+              } catch (_) {}
+            }
+            settle(from);
+          } else if (Ratchet.lead(self!, from)) {
+            if (exchange['want'] == true ||
+                !await Ratchet.paired(self!, from)) {
+              await Ratchet.forget(self!, from);
+              await open(from, channel);
+            }
+            settle(from);
+          } else if (exchange['want'] == true) {
+            channel.send(
+              seal(
+                Signal.session,
+                from,
+                body: jsonEncode({'bundle': await Ratchet.bundle(self!)}),
+              ),
+            );
+          }
+        case Signal.banner:
+          final known = roster[from];
+          if (known == null || known.blocked) break;
+          final picture = (jsonDecode(body) as Map)['banner'];
+          if (picture is! String) break;
+          final bytes = picture.isEmpty ? null : base64.decode(picture);
+          if ((bytes?.length ?? 0) > banner) break;
+          known.banner = bytes;
+          await Ledger.keep(known);
       }
 
       if (epoch != generation) return;
@@ -931,13 +1128,12 @@ class Courier extends ChangeNotifier {
 
         if (message.attachment) {
           final clear = await Locker.load(message);
-          final opened = await channel.send(
-            seal(
-              Signal.file,
-              peer,
-              id: message.id,
-              time: message.time,
-              body: jsonEncode({
+          final key = Ratchet.random(32);
+          final manifest = await whisper(
+            peer,
+            channel,
+            utf8.encode(
+              jsonEncode({
                 'kind': message.kind.name,
                 'text': message.text,
                 'name': message.name,
@@ -947,7 +1143,17 @@ class Courier extends ChangeNotifier {
                 'height': message.height,
                 'sha': hashing.sha256.convert(clear).toString(),
                 'fuse': message.fuse,
+                'key': base64.encode(key),
               }),
+            ),
+          );
+          final opened = await channel.send(
+            seal(
+              Signal.file,
+              peer,
+              id: message.id,
+              time: message.time,
+              body: manifest,
             ),
           );
           if (!opened) throw const SocketException('Channel closed');
@@ -960,7 +1166,9 @@ class Courier extends ChangeNotifier {
               'kind': Signal.chunk.name,
               'id': message.id,
               'seq': seq,
-              'data': base64.encode(clear.sublist(offset, end)),
+              'data': base64.encode(
+                await Ratchet.chunk(key, seq, clear.sublist(offset, end)),
+              ),
             });
             if (!written) {
               throw const SocketException('Channel closed mid transfer');
@@ -970,12 +1178,11 @@ class Courier extends ChangeNotifier {
             if (seq % 4 == 0 || end == clear.length) notifyListeners();
           }
         } else {
-          final written = await channel.send(
-            seal(
-              Signal.message,
-              peer,
-              id: message.id,
-              body: jsonEncode({
+          final body = await whisper(
+            peer,
+            channel,
+            utf8.encode(
+              jsonEncode({
                 'kind': message.kind.name,
                 'text': message.text,
                 'meta': message.kind == Kind.card
@@ -983,9 +1190,17 @@ class Courier extends ChangeNotifier {
                         'address': message.meta['address'],
                         'name': message.meta['name'],
                       }
-                    : message.meta,
+                    : const {},
                 'fuse': message.fuse,
               }),
+            ),
+          );
+          final written = await channel.send(
+            seal(
+              Signal.message,
+              peer,
+              id: message.id,
+              body: body,
               time: message.time,
             ),
           );
@@ -1079,21 +1294,34 @@ class Courier extends ChangeNotifier {
     } catch (_) {}
   }
 
+  /// The banner frame body for this identity's profile.
+  String cover() => jsonEncode({
+    'banner': me.banner == null || me.banner!.length > banner
+        ? ''
+        : base64.encode(me.banner!),
+  });
+
   Future<void> publish(Profile profile) async {
     profile.revision = DateTime.now().millisecondsSinceEpoch;
     me = profile;
     await Ledger.write('profile', profile.toJson());
     notifyListeners();
-    final body = jsonEncode(profile.toJson());
+    final body = jsonEncode(profile.toJson(banner: false));
+    final picture = cover();
     for (final entry in channels.entries.toList()) {
       if (!entry.value.alive || roster[entry.key]?.trusted != true) continue;
       entry.value.send(seal(Signal.profile, entry.key, body: body));
+      entry.value.send(seal(Signal.banner, entry.key, body: picture));
     }
   }
 
   Future<void> configure(Preferences preferences) async {
     prefs = preferences;
     theme.value = preferences.theme;
+    if (shielded.value != preferences.shield) {
+      shielded.value = preferences.shield;
+      unawaited(Shield.apply(preferences.shield));
+    }
     await Ledger.write('preferences', preferences.toJson());
     notifyListeners();
   }

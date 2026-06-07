@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:zephyron/auth/panic.dart';
 import 'package:zephyron/dashboard/chats/compose.dart';
 import 'package:zephyron/enums.dart';
 import 'package:zephyron/models/profile.dart';
@@ -179,19 +180,7 @@ class VaultPageState extends State<VaultPage> {
                       height: 128,
                       child: Stack(
                         children: [
-                          Container(
-                            height: 72,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [
-                                  scheme.primary,
-                                  scheme.secondary.withValues(alpha: 0.75),
-                                ],
-                              ),
-                            ),
-                          ),
+                          Cover(banner: me.banner, height: 72),
                           Positioned(
                             left: 16,
                             top: 32,
@@ -332,6 +321,15 @@ class VaultPageState extends State<VaultPage> {
                     value: prefs.strangers,
                     onChanged: (value) =>
                         tune((next) => next.strangers = value),
+                  ),
+                  SwitchListTile(
+                    secondary: const Icon(Icons.screenshot_monitor_outlined),
+                    title: const Text('Screen Security'),
+                    subtitle: const Text(
+                      'Block screenshots and screen recording, and hide chats in the app switcher',
+                    ),
+                    value: prefs.shield,
+                    onChanged: (value) => tune((next) => next.shield = value),
                   ),
                   ListTile(
                     leading: const Icon(Icons.block),
@@ -490,10 +488,24 @@ class VaultPageState extends State<VaultPage> {
                     subtitle: Text('Ed25519, bound to your discovery key'),
                   ),
                   ListTile(
+                    leading: Icon(Icons.enhanced_encryption_outlined),
+                    title: Text('End-to-End Encryption'),
+                    subtitle: Text(
+                      'X3DH and the Double Ratchet with AES-256-GCM, inside Tor. Every message and file has its own key',
+                    ),
+                  ),
+                  ListTile(
                     leading: Icon(Icons.gpp_maybe_outlined),
                     title: Text('Unlock Protection'),
                     subtitle: Text(
                       '${Warden.lockout} wrong passphrases across identities lock them all. Attempts that look like an attack erase every identity on this phone.',
+                    ),
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.crisis_alert_outlined),
+                    title: Text('Panic Wipe'),
+                    subtitle: Text(
+                      'Long-press the app icon or the unlock screen title to erase everything after a ${PanicPage.grace} second countdown',
                     ),
                   ),
                   ListTile(
@@ -513,6 +525,16 @@ class VaultPageState extends State<VaultPage> {
                 onPressed: lock,
                 icon: const Icon(Icons.lock_outlined),
                 label: const Text('Lock Vault'),
+              ),
+              const SizedBox(height: 8),
+              TextButton.icon(
+                style: TextButton.styleFrom(
+                  foregroundColor: scheme.error,
+                  minimumSize: const Size.fromHeight(48),
+                ),
+                onPressed: () => Navigator.pushNamed(context, '/panic'),
+                icon: const Icon(Icons.delete_forever_outlined),
+                label: const Text('Erase Everything'),
               ),
               const SizedBox(height: 16),
               Text(
