@@ -17,6 +17,7 @@ import 'package:zephyron/services/locker.dart';
 import 'package:zephyron/services/mesh.dart';
 import 'package:zephyron/services/ratchet.dart';
 import 'package:zephyron/services/shield.dart';
+import 'package:zephyron/services/still.dart';
 import 'package:zephyron/sql/ledger.dart';
 import 'package:zephyron/sql/session.dart';
 import 'package:zephyron/wrappers/tor.dart';
@@ -91,6 +92,9 @@ class Transfer {
   final int fuse;
   final int duration;
 
+  /// A video's thumbnail, as base64 JPEG.
+  final String? thumb;
+
   /// Key that seals each chunk, carried inside the encrypted manifest.
   final Uint8List key;
   final BytesBuilder buffer = BytesBuilder(copy: false);
@@ -112,6 +116,7 @@ class Transfer {
     required this.key,
     this.fuse = 0,
     this.duration = 0,
+    this.thumb,
   });
 
   double get progress => size == 0 ? 0 : buffer.length / size;
@@ -686,6 +691,7 @@ class Courier extends ChangeNotifier {
             'width': transfer.width,
             'height': transfer.height,
             if (transfer.duration > 0) 'duration': transfer.duration,
+            'thumb': ?transfer.thumb,
           },
         );
         if (!await Ledger.record(message)) return;
@@ -876,6 +882,13 @@ class Courier extends ChangeNotifier {
               final int value when value > 0 && value < 24 * 3600 * 1000 =>
                 value,
               _ => 0,
+            },
+            thumb: switch (data['thumb']) {
+              final String value
+                  when kind == Kind.video &&
+                      value.length <= Still.ceiling * 4 ~/ 3 + 4 =>
+                value,
+              _ => null,
             },
           );
         case Signal.chunk:
@@ -1099,6 +1112,7 @@ class Courier extends ChangeNotifier {
     int width = 0,
     int height = 0,
     int duration = 0,
+    Uint8List? thumb,
     String caption = '',
   }) async {
     if (self == null) return;
@@ -1125,6 +1139,8 @@ class Courier extends ChangeNotifier {
           'width': width,
           'height': height,
           if (duration > 0) 'duration': duration,
+          if (thumb != null && thumb.length <= Still.ceiling)
+            'thumb': base64.encode(thumb),
         },
       ),
     );
@@ -1195,6 +1211,7 @@ class Courier extends ChangeNotifier {
                 'width': message.width,
                 'height': message.height,
                 'duration': message.duration.inMilliseconds,
+                'thumb': ?message.meta['thumb'],
                 'sha': hashing.sha256.convert(clear).toString(),
                 'fuse': message.fuse,
                 'key': base64.encode(key),
