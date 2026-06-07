@@ -167,6 +167,9 @@ enum Signal {
 
   /// Carries the profile banner, too large to share the profile frame.
   banner,
+
+  /// Exchanges encryption bundles and opens end-to-end sessions.
+  session,
 }
 
 /// How long messages last before both phones delete them.
