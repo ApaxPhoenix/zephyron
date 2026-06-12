@@ -2,6 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Zephyron records voice messages and lets you talk in voice rooms. Audio is encrypted before it leaves your phone.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Zephyron uses the camera for photos and videos you choose to send, end-to-end encrypted.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Zephyron lets you pick photos and videos to send, and pictures for your profile and communities.</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>

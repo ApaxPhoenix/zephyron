@@ -14,6 +14,7 @@ import 'package:zephyron/models/message.dart';
 import 'package:zephyron/models/profile.dart';
 import 'package:zephyron/models/trustee.dart';
 import 'package:zephyron/services/locker.dart';
+import 'package:zephyron/services/mesh.dart';
 import 'package:zephyron/services/ratchet.dart';
 import 'package:zephyron/services/shield.dart';
 import 'package:zephyron/sql/ledger.dart';
@@ -88,6 +89,7 @@ class Transfer {
   final int height;
   final int time;
   final int fuse;
+  final int duration;
 
   /// Key that seals each chunk, carried inside the encrypted manifest.
   final Uint8List key;
@@ -109,6 +111,7 @@ class Transfer {
     required this.time,
     required this.key,
     this.fuse = 0,
+    this.duration = 0,
   });
 
   double get progress => size == 0 ? 0 : buffer.length / size;
@@ -204,6 +207,7 @@ class Courier extends ChangeNotifier {
       for (final message in history) {
         threads.putIfAbsent(message.peer, () => []).add(message);
       }
+      await Mesh.instance.start();
       notifyListeners();
     } catch (error) {
       developer.log(
@@ -295,6 +299,7 @@ class Courier extends ChangeNotifier {
     roster.clear();
     threads.clear();
     presence.clear();
+    Mesh.instance.stop();
     reach.value = Reach.offline;
     theme.value = ThemeMode.system;
     shielded.value = true;
@@ -330,6 +335,7 @@ class Courier extends ChangeNotifier {
 
   void heartbeat() {
     if (reach.value != Reach.online || self == null) return;
+    Mesh.instance.heartbeat();
     final now = DateTime.now();
     for (final trustee in roster.values.toList()) {
       if (trustee.blocked) continue;
@@ -423,6 +429,7 @@ class Courier extends ChangeNotifier {
       return;
     }
     channel.greeted = true;
+    Mesh.instance.greet(peer);
     final known = roster[peer]!;
     final identity = self!;
     unawaited(() async {
@@ -665,6 +672,7 @@ class Courier extends ChangeNotifier {
             'size': transfer.size,
             'width': transfer.width,
             'height': transfer.height,
+            if (transfer.duration > 0) 'duration': transfer.duration,
           },
         );
         if (!await Ledger.record(message)) return;
@@ -761,7 +769,12 @@ class Courier extends ChangeNotifier {
             }
           } catch (_) {}
 
-          if (kind == Kind.card) {
+          if (kind == Kind.invite) {
+            final invitation = Mesh.valid(meta, from);
+            if (invitation == null) break;
+            meta = invitation;
+            words = '';
+          } else if (kind == Kind.card) {
             final address = '${meta['address'] ?? ''}'.toLowerCase();
             if (!Identity.valid(address)) break;
             meta = {'address': address, 'name': Profile.clip(meta['name'], 64)};
@@ -805,7 +818,13 @@ class Courier extends ChangeNotifier {
             (item) => item.name == data['kind'],
             orElse: () => Kind.text,
           );
-          if (kind != Kind.image && kind != Kind.gif && kind != Kind.file) {
+          if (!const {
+            Kind.image,
+            Kind.gif,
+            Kind.file,
+            Kind.voice,
+            Kind.video,
+          }.contains(kind)) {
             break;
           }
           final size = data['size'];
@@ -840,6 +859,11 @@ class Courier extends ChangeNotifier {
             time: stamp.millisecondsSinceEpoch,
             fuse: clamp(data['fuse']),
             key: key,
+            duration: switch (data['duration']) {
+              final int value when value > 0 && value < 24 * 3600 * 1000 =>
+                value,
+              _ => 0,
+            },
           );
         case Signal.chunk:
           break;
@@ -859,6 +883,8 @@ class Courier extends ChangeNotifier {
           }
         case Signal.pong:
           waiting.remove(id)?.complete();
+        case Signal.mesh:
+          await Mesh.instance.receive(from, channel, body);
         case Signal.timer:
           final choice = jsonDecode(body) as Map;
           await adjust(from, choice['fuse'], choice['fused']);
@@ -1049,6 +1075,7 @@ class Courier extends ChangeNotifier {
     String? mime,
     int width = 0,
     int height = 0,
+    int duration = 0,
     String caption = '',
   }) async {
     if (self == null) return;
@@ -1074,6 +1101,7 @@ class Courier extends ChangeNotifier {
           'size': bytes.length,
           'width': width,
           'height': height,
+          if (duration > 0) 'duration': duration,
         },
       ),
     );
@@ -1141,6 +1169,7 @@ class Courier extends ChangeNotifier {
                 'size': clear.length,
                 'width': message.width,
                 'height': message.height,
+                'duration': message.duration.inMilliseconds,
                 'sha': hashing.sha256.convert(clear).toString(),
                 'fuse': message.fuse,
                 'key': base64.encode(key),
@@ -1185,12 +1214,24 @@ class Courier extends ChangeNotifier {
               jsonEncode({
                 'kind': message.kind.name,
                 'text': message.text,
-                'meta': message.kind == Kind.card
-                    ? {
-                        'address': message.meta['address'],
-                        'name': message.meta['name'],
-                      }
-                    : const {},
+                'meta': switch (message.kind) {
+                  Kind.card => {
+                    'address': message.meta['address'],
+                    'name': message.meta['name'],
+                  },
+                  Kind.invite => {
+                    for (final key in [
+                      'community',
+                      'name',
+                      'about',
+                      'key',
+                      'founder',
+                      'created',
+                    ])
+                      key: message.meta[key],
+                  },
+                  _ => const <String, dynamic>{},
+                },
                 'fuse': message.fuse,
               }),
             ),

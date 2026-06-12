@@ -3,6 +3,9 @@ enum Menu {
   /// Conversation list.
   chats,
 
+  /// Communities this identity belongs to, with their channels.
+  communities,
+
   /// People this identity knows, grouped by trust.
   trustees,
 
@@ -125,6 +128,35 @@ enum Kind {
 
   /// A shared trustee (onion address and display name).
   card,
+
+  /// An invitation to a community, carrying its key.
+  invite,
+}
+
+/// What a community post is. Persisted by index, so only append.
+enum Note {
+  /// A message in a channel.
+  text,
+
+  /// A member introducing themselves on joining.
+  join,
+
+  /// A new channel.
+  channel,
+
+  /// A new name, description, icon or banner for the community.
+  about,
+}
+
+/// The kinds of channel a community can have. Persisted by name.
+enum Space {
+  text('Text', '#'),
+  podcast('Podcast', ''),
+  voice('Voice', '');
+
+  const Space(this.label, this.mark);
+  final String label;
+  final String mark;
 }
 
 /// Frame types spoken over the onion wire protocol.
@@ -170,6 +202,9 @@ enum Signal {
 
   /// Exchanges encryption bundles and opens end-to-end sessions.
   session,
+
+  /// Community posts and the sync that passes them between members.
+  mesh,
 }
 
 /// How long messages last before both phones delete them.
