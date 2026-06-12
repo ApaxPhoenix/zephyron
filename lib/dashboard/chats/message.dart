@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:zephyron/dashboard/communities/invite.dart';
+import 'package:zephyron/widgets/video.dart';
+import 'package:zephyron/widgets/voice.dart';
 import 'package:flutter/services.dart';
 import 'package:zephyron/dashboard/chats/attach.dart';
 import 'package:zephyron/dashboard/chats/index.dart';
@@ -29,6 +31,7 @@ class MessagePageState extends State<MessagePage> {
   final Set<String> settled = {};
   bool primed = false;
   bool away = false;
+  bool recording = false;
 
   Courier get courier => Courier.instance;
   String get peer => widget.id ?? '';
@@ -52,6 +55,27 @@ class MessagePageState extends State<MessagePage> {
     scroll.dispose();
     focus.dispose();
     super.dispose();
+  }
+
+  Future<void> voice(Recording take) async {
+    setState(() => recording = false);
+    try {
+      await courier.attach(
+        peer,
+        take.bytes,
+        kind: Kind.voice,
+        name: 'voice-${DateTime.now().millisecondsSinceEpoch}.m4a',
+        mime: 'audio/mp4',
+        duration: take.duration.inMilliseconds,
+      );
+      if (courier.prefs.haptics) HapticFeedback.lightImpact();
+      bottom();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not send that voice message.')),
+      );
+    }
   }
 
   void bottom() {
@@ -473,6 +497,69 @@ class MessagePageState extends State<MessagePage> {
                                         ),
                                     ],
                                   ),
+                                ),
+                              ),
+                            );
+                          } else if (message.kind == Kind.video) {
+                            final limit = (width * 0.68).clamp(180.0, 300.0);
+                            body = ClipRRect(
+                              borderRadius: radius,
+                              child: DecoratedBox(
+                                decoration: decoration,
+                                child: SizedBox(
+                                  width: limit,
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      Reel(message: message, width: limit),
+                                      Padding(
+                                        padding: const EdgeInsets.fromLTRB(
+                                          12,
+                                          8,
+                                          10,
+                                          6,
+                                        ),
+                                        child: Wrap(
+                                          alignment: WrapAlignment.end,
+                                          crossAxisAlignment:
+                                              WrapCrossAlignment.end,
+                                          spacing: 8,
+                                          children: [
+                                            if (message.text.isNotEmpty)
+                                              Text(
+                                                message.text,
+                                                style: TextStyle(
+                                                  color: foreground,
+                                                  fontSize: 15.5,
+                                                  height: 1.3,
+                                                ),
+                                              ),
+                                            footer,
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          } else if (message.kind == Kind.voice) {
+                            body = DecoratedBox(
+                              decoration: decoration,
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(6, 8, 12, 6),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    VoiceNote(
+                                      message: message,
+                                      foreground: foreground,
+                                    ),
+                                    footer,
+                                  ],
                                 ),
                               ),
                             );
@@ -946,77 +1033,103 @@ class MessagePageState extends State<MessagePage> {
                 child: Container(
                   padding: const EdgeInsets.all(8.0),
                   color: scheme.surface,
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      IconButton(
-                        tooltip: 'Attach',
-                        icon: Icon(
-                          Icons.add_circle_outline,
-                          color: scheme.primary,
+                  child: recording
+                      ? Recorder(
+                          onDone: voice,
+                          onCancel: () => setState(() => recording = false),
+                        )
+                      : Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            IconButton(
+                              tooltip: 'Attach',
+                              icon: Icon(
+                                Icons.add_circle_outline,
+                                color: scheme.primary,
+                              ),
+                              onPressed: () => Attach.menu(context, peer),
+                            ),
+                            Expanded(
+                              child: TextField(
+                                controller: input,
+                                focusNode: focus,
+                                minLines: 1,
+                                maxLines: 6,
+                                textCapitalization:
+                                    TextCapitalization.sentences,
+                                keyboardType: TextInputType.multiline,
+                                style: TextStyle(color: scheme.onSurface),
+                                onChanged: (_) => courier.typing(peer),
+                                decoration: InputDecoration(
+                                  hintText: 'Message…',
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(22),
+                                    borderSide: BorderSide(
+                                      color: scheme.outline,
+                                    ),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(22),
+                                    borderSide: BorderSide(
+                                      color: scheme.outline,
+                                    ),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(22),
+                                    borderSide: BorderSide(
+                                      color: scheme.onSurface,
+                                    ),
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 10,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            AnimatedScale(
+                              scale: ready ? 1 : 0.9,
+                              duration: const Duration(milliseconds: 200),
+                              curve: Curves.easeOutBack,
+                              child: !ready
+                                  ? IconButton.filledTonal(
+                                      tooltip: 'Record voice message',
+                                      icon: const Icon(Icons.mic_none_rounded),
+                                      onPressed: () {
+                                        if (courier.prefs.haptics) {
+                                          HapticFeedback.selectionClick();
+                                        }
+                                        setState(() => recording = true);
+                                      },
+                                    )
+                                  : IconButton.filled(
+                                      tooltip: 'Send',
+                                      style: IconButton.styleFrom(
+                                        backgroundColor: scheme.primary,
+                                        foregroundColor: scheme.onPrimary,
+                                        disabledBackgroundColor:
+                                            scheme.surfaceContainerHigh,
+                                        disabledForegroundColor:
+                                            scheme.onSurfaceVariant,
+                                      ),
+                                      icon: const Icon(
+                                        Icons.arrow_upward_rounded,
+                                      ),
+                                      onPressed: ready
+                                          ? () {
+                                              if (courier.prefs.haptics) {
+                                                HapticFeedback.lightImpact();
+                                              }
+                                              courier.send(peer, input.text);
+                                              input.clear();
+                                              bottom();
+                                            }
+                                          : null,
+                                    ),
+                            ),
+                          ],
                         ),
-                        onPressed: () => Attach.menu(context, peer),
-                      ),
-                      Expanded(
-                        child: TextField(
-                          controller: input,
-                          focusNode: focus,
-                          minLines: 1,
-                          maxLines: 6,
-                          textCapitalization: TextCapitalization.sentences,
-                          keyboardType: TextInputType.multiline,
-                          style: TextStyle(color: scheme.onSurface),
-                          onChanged: (_) => courier.typing(peer),
-                          decoration: InputDecoration(
-                            hintText: 'Message…',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(22),
-                              borderSide: BorderSide(color: scheme.outline),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(22),
-                              borderSide: BorderSide(color: scheme.outline),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(22),
-                              borderSide: BorderSide(color: scheme.onSurface),
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 10,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      AnimatedScale(
-                        scale: ready ? 1 : 0.9,
-                        duration: const Duration(milliseconds: 200),
-                        curve: Curves.easeOutBack,
-                        child: IconButton.filled(
-                          tooltip: 'Send',
-                          style: IconButton.styleFrom(
-                            backgroundColor: scheme.primary,
-                            foregroundColor: scheme.onPrimary,
-                            disabledBackgroundColor:
-                                scheme.surfaceContainerHigh,
-                            disabledForegroundColor: scheme.onSurfaceVariant,
-                          ),
-                          icon: const Icon(Icons.arrow_upward_rounded),
-                          onPressed: ready
-                              ? () {
-                                  if (courier.prefs.haptics) {
-                                    HapticFeedback.lightImpact();
-                                  }
-                                  courier.send(peer, input.text);
-                                  input.clear();
-                                  bottom();
-                                }
-                              : null,
-                        ),
-                      ),
-                    ],
-                  ),
                 ),
               ),
             ],
