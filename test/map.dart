@@ -77,12 +77,13 @@ class MapsPageState extends State<MapsPage> with TickerProviderStateMixin {
           final received = List<int>.filled(items.length, 0);
 
           void update() {
-            if (mounted)
+            if (mounted) {
               setState(
                 () => progress =
                     0.1 +
                     (received.fold<int>(0, (sum, b) => sum + b) / total) * 0.8,
               );
+            }
           }
 
           Future<void> download(int i) async {

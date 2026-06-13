@@ -93,10 +93,13 @@ class SplashScreenState extends State<SplashScreen> {
                         ),
                         onPressed: () {
                           try {
-                            Navigator.pushReplacementNamed(context, '/map');
+                            Navigator.pushReplacementNamed(
+                              context,
+                              '/map/assets',
+                            );
                           } catch (error, stackTrace) {
                             developer.log(
-                              'Failed to navigate to authentication screen',
+                              'Failed to navigate to map screen',
                               error: error,
                               stackTrace: stackTrace,
                               name: 'SplashScreen.navigation',
