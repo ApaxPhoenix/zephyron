@@ -203,9 +203,10 @@ class Pallete {
       ),
       listTileTheme: ListTileThemeData(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16.0),
+        titleTextStyle: type(15, FontWeight.w500),
+        subtitleTextStyle: type(13, FontWeight.w400).copyWith(color: muted),
         selectedTileColor: brand100.withValues(alpha: light ? 0.15 : 0.25),
         iconColor: muted,
-        textColor: text,
       ),
       dividerTheme: DividerThemeData(color: hairline, thickness: 1, space: 1),
       cardTheme: CardThemeData(

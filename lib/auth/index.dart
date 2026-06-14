@@ -16,7 +16,16 @@ class AuthScreenState extends State<AuthScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final items = const <Widget>[LogInPage(), SignUpPage()];
+    void show(int page) => controller.animateToPage(
+      page,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
+
+    final items = <Widget>[
+      SignUpPage(onLogin: () => show(1)),
+      LogInPage(onSignUp: () => show(0)),
+    ];
 
     try {
       return Scaffold(
