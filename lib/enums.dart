@@ -131,6 +131,12 @@ enum Kind {
 
   /// An invitation to a community, carrying its key.
   invite,
+
+  /// A recorded voice message, stored encrypted on this device.
+  voice,
+
+  /// A video clip, stored encrypted on this device.
+  video,
 }
 
 /// What a community post is. Persisted by index, so only append.
