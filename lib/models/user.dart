@@ -26,7 +26,7 @@ class User {
   }
 
   Map<String, dynamic> toMap() {
-    return {'email': email, 'name': name, if (phone != null) 'phone': phone!};
+    return {'email': email, 'name': name, 'phone': ?phone};
   }
 
   factory User.fromMap(Map<String, dynamic> map) {
