@@ -87,21 +87,32 @@ class Locker {
     };
   }
 
-  static Future<Uint8List> load(Message message) async {
-    final hit = cache.remove(message.id);
+  static Future<Uint8List> load(Message message) =>
+      read(message.id, message.meta);
+
+  /// Opens what [store] sealed under [id], with the keys it handed back.
+  static Future<Uint8List> read(String id, Map<String, dynamic> meta) async {
+    final hit = cache.remove(id);
     if (hit != null) {
-      cache[message.id] = hit;
+      cache[id] = hit;
       return hit;
     }
-    final key = base64.decode(message.meta['key'] as String);
-    final nonce = base64.decode(message.meta['nonce'] as String);
+    final key = base64.decode(meta['key'] as String);
+    final nonce = base64.decode(meta['nonce'] as String);
     final directory = await folder();
-    final sealed = await File(
-      '${directory.path}/${slot(message.id)}',
-    ).readAsBytes();
+    final sealed = await File('${directory.path}/${slot(id)}').readAsBytes();
     final clear = await Isolate.run(() => decrypt(sealed, key, nonce));
-    remember(message.id, clear);
+    remember(id, clear);
     return clear;
+  }
+
+  /// Writes [clear] somewhere other apps cannot see, for a player to open.
+  static Future<File> stage(String id, String name, Uint8List clear) async {
+    final directory = await outbox();
+    final safe = name.replaceAll(RegExp(r'[^\w.\- ]'), '_');
+    final file = File('${directory.path}/$id-$safe');
+    if (!await file.exists()) await file.writeAsBytes(clear, flush: true);
+    return file;
   }
 
   static void remember(String id, Uint8List clear) {

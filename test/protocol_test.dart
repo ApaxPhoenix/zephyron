@@ -463,4 +463,38 @@ void main() {
     expect(utf8.decode(clear), 'for carol only');
     await wire.close();
   });
+
+  test('voice messages and videos arrive with their length', () async {
+    for (final (kind, name) in [
+      (Kind.voice, 'voice-1.m4a'),
+      (Kind.video, 'clip.mp4'),
+    ]) {
+      final wire = await Wire.open();
+      final payload = pattern(3000);
+      final key = Ratchet.random(32);
+      final manifest = sealed(
+        alice,
+        Signal.file,
+        body: await confide(alice, {
+          'key': base64.encode(key),
+          'kind': kind.name,
+          'name': name,
+          'size': payload.length,
+          'duration': 4200,
+          'width': 640,
+          'height': 360,
+          'sha': sha256.convert(payload).toString(),
+        }),
+      );
+      final id = manifest['id'] as String;
+      wire.send(manifest);
+      wire.send(await piece(id, key, 0, payload));
+      await wire.reply('receipt', id);
+      final message = courier.threads[alice.address]!.last;
+      expect(message.kind, kind);
+      expect(message.duration, const Duration(milliseconds: 4200));
+      expect(message.attachment, isTrue);
+      await wire.close();
+    }
+  });
 }
