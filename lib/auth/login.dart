@@ -109,7 +109,7 @@ class LogInPageState extends State<LogInPage> {
                                 try {
                                   await Navigator.pushReplacementNamed(
                                     context,
-                                    '/auth/reset',
+                                    '/auth/account-recovery',
                                   );
                                 } catch (error) {
                                   developer.log(

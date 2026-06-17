@@ -182,7 +182,7 @@ class DiscussionScreenState extends State<DiscussionScreen> {
               ),
               child: CircleAvatar(
                 radius: 20,
-                backgroundColor: AppTheme.neutral100,
+                backgroundColor: Pallete.neutral100,
                 backgroundImage: avatar != null && avatar!.isNotEmpty
                     ? NetworkImage(avatar!)
                     : null,
@@ -192,7 +192,7 @@ class DiscussionScreenState extends State<DiscussionScreen> {
                             ? PhosphorIconsRegular.usersThree
                             : PhosphorIconsRegular.user,
                         size: 18,
-                        color: AppTheme.neutral500,
+                        color: Pallete.neutral500,
                       )
                     : null,
               ),
@@ -204,7 +204,7 @@ class DiscussionScreenState extends State<DiscussionScreen> {
                       height: 14,
                       width: 80,
                       decoration: BoxDecoration(
-                        color: AppTheme.neutral100,
+                        color: Pallete.neutral100,
                         borderRadius: BorderRadius.circular(4),
                       ),
                     )
@@ -259,7 +259,7 @@ class DiscussionScreenState extends State<DiscussionScreen> {
                                 'Something went wrong'
                           : 'Something went wrong',
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: AppTheme.neutral500,
+                        color: Pallete.neutral500,
                       ),
                     ),
                   );
@@ -271,7 +271,7 @@ class DiscussionScreenState extends State<DiscussionScreen> {
                     child: Text(
                       'No messages yet',
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: AppTheme.neutral500,
+                        color: Pallete.neutral500,
                       ),
                     ),
                   );
@@ -294,7 +294,7 @@ class DiscussionScreenState extends State<DiscussionScreen> {
                           children: [
                             CircleAvatar(
                               radius: 16,
-                              backgroundColor: AppTheme.neutral100,
+                              backgroundColor: Pallete.neutral100,
                               backgroundImage:
                                   avatar != null && avatar!.isNotEmpty
                                   ? NetworkImage(avatar!)
@@ -303,7 +303,7 @@ class DiscussionScreenState extends State<DiscussionScreen> {
                                   ? const Icon(
                                       PhosphorIconsRegular.user,
                                       size: 14,
-                                      color: AppTheme.neutral500,
+                                      color: Pallete.neutral500,
                                     )
                                   : null,
                             ),
@@ -347,7 +347,7 @@ class DiscussionScreenState extends State<DiscussionScreen> {
                           if (!mine) ...[
                             CircleAvatar(
                               radius: 16,
-                              backgroundColor: AppTheme.neutral100,
+                              backgroundColor: Pallete.neutral100,
                               backgroundImage:
                                   avatar != null && avatar!.isNotEmpty
                                   ? NetworkImage(avatar!)
@@ -356,7 +356,7 @@ class DiscussionScreenState extends State<DiscussionScreen> {
                                   ? const Icon(
                                       PhosphorIconsRegular.user,
                                       size: 14,
-                                      color: AppTheme.neutral500,
+                                      color: Pallete.neutral500,
                                     )
                                   : null,
                             ),

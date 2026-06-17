@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-class AppTheme {
+class Pallete {
   static const brand100 = Color.fromRGBO(48, 94, 231, 1);
   static const brand200 = Color.fromRGBO(58, 118, 240, 1);
   static const neutral000 = Color.fromRGBO(255, 255, 255, 1);

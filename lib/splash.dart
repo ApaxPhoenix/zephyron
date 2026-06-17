@@ -95,7 +95,7 @@ class SplashScreenState extends State<SplashScreen> {
                           try {
                             Navigator.pushReplacementNamed(
                               context,
-                              '/map/assets',
+                              '/network/middleware',
                             );
                           } catch (error, stackTrace) {
                             developer.log(
@@ -106,7 +106,7 @@ class SplashScreenState extends State<SplashScreen> {
                             );
                           }
                         },
-                        child: const Text('Offline Mode'),
+                        child: const Text('Decentralized Network'),
                       ),
                     ],
                   ),

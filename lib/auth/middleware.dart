@@ -3,14 +3,14 @@ import 'package:zephyron/main.dart';
 import 'dart:developer' as developer;
 import 'dart:async';
 
-class MiddlewareScreen extends StatefulWidget {
-  const MiddlewareScreen({super.key});
+class AuthMiddlewareScreen extends StatefulWidget {
+  const AuthMiddlewareScreen({super.key});
 
   @override
-  State<MiddlewareScreen> createState() => MiddlewareScreenState();
+  State<AuthMiddlewareScreen> createState() => AuthMiddlewareScreenState();
 }
 
-class MiddlewareScreenState extends State<MiddlewareScreen> {
+class AuthMiddlewareScreenState extends State<AuthMiddlewareScreen> {
   Timer? timer;
   Timer? countdown;
   String? email;
@@ -43,14 +43,14 @@ class MiddlewareScreenState extends State<MiddlewareScreen> {
                     .then((_) {
                       developer.log(
                         'Verification email sent',
-                        name: 'MiddlewareScreen.send',
+                        name: 'AuthMiddlewareScreen.send',
                       );
                     })
                     .catchError((error) {
                       developer.log(
                         'Error sending verification: $error',
                         error: error,
-                        name: 'MiddlewareScreen.send',
+                        name: 'AuthMiddlewareScreen.send',
                       );
                     });
 
@@ -77,14 +77,14 @@ class MiddlewareScreenState extends State<MiddlewareScreen> {
                           developer.log(
                             'Error polling: $error',
                             error: error,
-                            name: 'MiddlewareScreen.poll',
+                            name: 'AuthMiddlewareScreen.poll',
                           );
                         });
                   } catch (error) {
                     developer.log(
                       'Error: $error',
                       error: error,
-                      name: 'MiddlewareScreen.timer',
+                      name: 'AuthMiddlewareScreen.timer',
                     );
                     time.cancel();
                   }
@@ -96,7 +96,7 @@ class MiddlewareScreenState extends State<MiddlewareScreen> {
             developer.log(
               'Error: $error',
               error: error,
-              name: 'MiddlewareScreen.init',
+              name: 'AuthMiddlewareScreen.init',
             );
             if (mounted) {
               WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -108,7 +108,7 @@ class MiddlewareScreenState extends State<MiddlewareScreen> {
       developer.log(
         'Error: $error',
         error: error,
-        name: 'MiddlewareScreen.init',
+        name: 'AuthMiddlewareScreen.init',
       );
       if (mounted) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -169,14 +169,14 @@ class MiddlewareScreenState extends State<MiddlewareScreen> {
                               .then((_) {
                                 developer.log(
                                   'Verification email resent',
-                                  name: 'MiddlewareScreen.resend',
+                                  name: 'AuthMiddlewareScreen.resend',
                                 );
                               })
                               .catchError((error) {
                                 developer.log(
                                   'Error resending verification: $error',
                                   error: error,
-                                  name: 'MiddlewareScreen.resend',
+                                  name: 'AuthMiddlewareScreen.resend',
                                 );
                               });
 
@@ -198,7 +198,7 @@ class MiddlewareScreenState extends State<MiddlewareScreen> {
                                 developer.log(
                                   'Error: $error',
                                   error: error,
-                                  name: 'MiddlewareScreen.countdown',
+                                  name: 'AuthMiddlewareScreen.countdown',
                                 );
                                 timer.cancel();
                               }
@@ -227,7 +227,7 @@ class MiddlewareScreenState extends State<MiddlewareScreen> {
       developer.log(
         'Error: $error',
         error: error,
-        name: 'MiddlewareScreen.dispose',
+        name: 'AuthMiddlewareScreen.dispose',
       );
     }
   }

@@ -4,14 +4,15 @@ import 'package:appwrite/appwrite.dart';
 import 'package:zephyron/main.dart';
 import 'dart:developer' as developer;
 
-class AccountResetScreen extends StatefulWidget {
-  const AccountResetScreen({super.key});
+class AuthAccountRecoveryPage extends StatefulWidget {
+  const AuthAccountRecoveryPage({super.key});
 
   @override
-  State<AccountResetScreen> createState() => AccountResetScreenState();
+  State<AuthAccountRecoveryPage> createState() =>
+      AuthAccountRecoveryPageState();
 }
 
-class AccountResetScreenState extends State<AccountResetScreen> {
+class AuthAccountRecoveryPageState extends State<AuthAccountRecoveryPage> {
   final GlobalKey<FormState> key = GlobalKey<FormState>();
   final TextEditingController email = TextEditingController();
   String? warning;
@@ -79,7 +80,7 @@ class AccountResetScreenState extends State<AccountResetScreen> {
                                 'Error validating email: $error',
                                 error: error,
                                 stackTrace: StackTrace.current,
-                                name: 'AccountRecoveryScreen.emailValidator',
+                                name: 'AuthAccountRecoveryPage.emailValidator',
                               );
                               return 'An unexpected error occurred.';
                             }
@@ -93,7 +94,7 @@ class AccountResetScreenState extends State<AccountResetScreen> {
                                 'Error in onChanged callback: $error',
                                 error: error,
                                 stackTrace: StackTrace.current,
-                                name: 'AccountRecoveryScreen.onChanged',
+                                name: 'AuthAccountRecoveryPage.onChanged',
                               );
                             }
                           },
@@ -139,7 +140,7 @@ class AccountResetScreenState extends State<AccountResetScreen> {
                                           error: error,
                                           stackTrace: StackTrace.current,
                                           name:
-                                              'AccountRecoveryScreen.timerCallback',
+                                              'AuthAccountRecoveryPage.timerCallback',
                                         );
                                         timer.cancel();
                                       }
@@ -162,7 +163,8 @@ class AccountResetScreenState extends State<AccountResetScreen> {
                                     'Appwrite Auth Error: ${error.type} - ${error.message}',
                                     error: error,
                                     stackTrace: StackTrace.current,
-                                    name: 'AccountRecoveryScreen.appwriteAuth',
+                                    name:
+                                        'AuthAccountRecoveryPage.appwriteAuth',
                                   );
                                 } catch (error) {
                                   setState(
@@ -174,7 +176,7 @@ class AccountResetScreenState extends State<AccountResetScreen> {
                                     error: error,
                                     stackTrace: StackTrace.current,
                                     name:
-                                        'AccountRecoveryScreen.accountRecovery',
+                                        'AuthAccountRecoveryPage.accountRecovery',
                                   );
                                 }
                               }
@@ -183,7 +185,7 @@ class AccountResetScreenState extends State<AccountResetScreen> {
                                 'Error in button press handler: $error',
                                 error: error,
                                 stackTrace: StackTrace.current,
-                                name: 'AccountRecoveryScreen.buttonPress',
+                                name: 'AuthAccountRecoveryPage.buttonPress',
                               );
                             }
                           },
@@ -202,7 +204,7 @@ class AccountResetScreenState extends State<AccountResetScreen> {
         'Error building widget: $error',
         error: error,
         stackTrace: StackTrace.current,
-        name: 'AccountRecoveryScreen.build',
+        name: 'AuthAccountRecoveryPage.build',
       );
       return const SizedBox.shrink();
     }
@@ -219,7 +221,7 @@ class AccountResetScreenState extends State<AccountResetScreen> {
         'Error during dispose: $error',
         error: error,
         stackTrace: StackTrace.current,
-        name: 'AccountRecoveryScreen.dispose',
+        name: 'AuthAccountRecoveryPage.dispose',
       );
     }
   }

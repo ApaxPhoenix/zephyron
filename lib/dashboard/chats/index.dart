@@ -53,13 +53,13 @@ class ChatsPageState extends State<ChatsPage> {
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(
-                      color: AppTheme.neutral100,
+                      color: Pallete.neutral100,
                       borderRadius: BorderRadius.circular(16),
                     ),
                     child: const Icon(
                       PhosphorIconsRegular.user,
                       size: 20,
-                      color: AppTheme.neutral500,
+                      color: Pallete.neutral500,
                     ),
                   ),
           ),

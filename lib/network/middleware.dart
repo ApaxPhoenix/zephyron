@@ -1,35 +1,36 @@
 import 'package:flutter/material.dart';
 import 'dart:developer' as developer;
 import 'dart:io';
-import 'dart:typed_data';
-import 'package:path_provider/path_provider.dart';
 import 'dart:async';
-import 'package:crypto/crypto.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:minio/minio.dart';
 
-class AssetsScreen extends StatefulWidget {
-  const AssetsScreen({super.key});
+class NetworkMiddlewareScreen extends StatefulWidget {
+  const NetworkMiddlewareScreen({super.key});
 
   @override
-  State<AssetsScreen> createState() => AssetsScreenState();
+  State<NetworkMiddlewareScreen> createState() =>
+      NetworkMiddlewareScreenState();
 }
 
-class AssetsScreenState extends State<AssetsScreen>
+class NetworkMiddlewareScreenState extends State<NetworkMiddlewareScreen>
     with TickerProviderStateMixin {
-  late AnimationController animation;
+  late final AnimationController animation;
   double progress = 0.0;
   String root = '';
 
   @override
   void initState() {
     super.initState();
+
     animation = AnimationController(
       duration: const Duration(seconds: 5),
       vsync: this,
     )..repeat();
 
-    () async {
+    unawaited(() async {
       if (progress > 0.0) return;
+
       try {
         root = (await getApplicationDocumentsDirectory()).path;
         await Directory('$root/map').create(recursive: true);
@@ -44,17 +45,17 @@ class AssetsScreenState extends State<AssetsScreen>
 
         final items = <({String key, String name, int size, String? hash})>[];
 
-        await for (final result in client.listObjectsV2(
-          'appwrite',
-          prefix: 'map/',
-          recursive: true,
-        )) {
+        final stream = client
+            .listObjectsV2('appwrite', prefix: 'map/', recursive: true)
+            .timeout(const Duration(seconds: 4));
+
+        await for (final result in stream) {
           for (final object in result.objects) {
             if (object.key != null && !object.key!.endsWith('/')) {
               final name = object.key!.substring('map/'.length);
               developer.log(
-                'Found item: $name (${object.size ?? 0} bytes)',
-                name: 'AssetsScreen',
+                'Found $name with ${object.size ?? 0} bytes',
+                name: 'NetworkMiddlewareScreen',
               );
               items.add((
                 key: object.key!,
@@ -72,143 +73,155 @@ class AssetsScreenState extends State<AssetsScreen>
           final total = items.fold<int>(0, (sum, item) => sum + item.size);
           final received = List<int>.filled(items.length, 0);
 
-          void update() {
-            if (mounted) {
-              setState(
-                () => progress =
-                    0.1 +
-                    (received.fold<int>(0, (sum, types) => sum + types) /
-                            total) *
-                        0.8,
-              );
+          int pointer = 0;
+
+          Future<void> worker() async {
+            while (true) {
+              final int current = pointer++;
+              if (current >= items.length) break;
+
+              final item = items[current];
+              try {
+                final file = File('$root/map/${item.name}');
+
+                if (await file.exists() &&
+                    (item.size == 0 || await file.length() == item.size)) {
+                  received[current] = item.size;
+                  if (mounted) {
+                    setState(
+                      () => progress =
+                          0.1 +
+                          ((received.fold<int>(0, (sum, bytes) => sum + bytes) /
+                                  (total > 0 ? total : 1)) *
+                              0.8),
+                    );
+                  }
+                  developer.log(
+                    'Skipping matching file ${item.name}',
+                    name: 'NetworkMiddlewareScreen',
+                  );
+                  continue;
+                }
+
+                int start = 0;
+                if (await file.exists()) {
+                  final length = await file.length();
+                  if (length < item.size) {
+                    start = length;
+                    developer.log(
+                      'Resuming ${item.name} from byte $start',
+                      name: 'NetworkMiddlewareScreen',
+                    );
+                  } else {
+                    await file.delete();
+                  }
+                }
+
+                await file.parent.create(recursive: true);
+                received[current] = start;
+
+                final data = start > 0
+                    ? await client.getPartialObject('appwrite', item.key, start)
+                    : await client.getObject('appwrite', item.key);
+
+                final writer = file.openWrite(
+                  mode: start > 0 ? FileMode.append : FileMode.write,
+                );
+
+                try {
+                  await for (final chunk in data) {
+                    writer.add(chunk);
+                    received[current] += chunk.length;
+                    if (mounted) {
+                      setState(
+                        () => progress =
+                            0.1 +
+                            ((received.fold<int>(
+                                      0,
+                                      (sum, bytes) => sum + bytes,
+                                    ) /
+                                    (total > 0 ? total : 1)) *
+                                0.8),
+                      );
+                    }
+                  }
+                  await writer.flush();
+                } finally {
+                  await writer.close();
+                }
+
+                received[current] = item.size;
+                if (mounted) {
+                  setState(
+                    () => progress =
+                        0.1 +
+                        ((received.fold<int>(0, (sum, bytes) => sum + bytes) /
+                                (total > 0 ? total : 1)) *
+                            0.8),
+                  );
+                }
+              } catch (error, trace) {
+                developer.log(
+                  'Sync failed for ${item.name} due to $error',
+                  error: error,
+                  stackTrace: trace,
+                  name: 'NetworkMiddlewareScreen',
+                  level: 1000,
+                );
+              }
             }
           }
 
-          Future<void> download(int i) async {
-            final item = items[i];
-            try {
-              // Updated target file path to use 'map' folder
-              final file = File('$root/map/${item.name}');
+          await Future.wait([worker(), worker(), worker()]);
+        }
 
-              final tag = (item.hash ?? '')
-                  .replaceAll('"', '')
-                  .replaceAll("'", '')
-                  .toLowerCase();
-              final has = tag.isNotEmpty && tag.length == 32;
+        if (mounted) {
+          setState(() => progress = 1.0);
+          Navigator.of(
+            context,
+          ).pushReplacementNamed('/network', arguments: root);
+        }
+      } catch (error, trace) {
+        developer.log(
+          'Operational network failure from $error',
+          error: error,
+          stackTrace: trace,
+          name: 'NetworkMiddlewareScreen',
+          level: 1000,
+        );
 
-              if (await file.exists() &&
-                  (item.size == 0 || await file.length() == item.size)) {
-                if (tag.isNotEmpty && tag.length == 32) {
-                  final sink = Collector<Digest>();
-                  final hasher = md5.startChunkedConversion(sink);
-                  await for (final chunk in file.openRead()) {
-                    hasher.add(chunk);
-                  }
-                  hasher.close();
-
-                  if (sink.events.isNotEmpty &&
-                      sink.events.first.toString() == tag) {
-                    received[i] = item.size;
-                    update();
-                    developer.log(
-                      'Match found for ${item.name} (Skipping download).',
-                      name: 'AssetsScreen',
-                    );
-                    return;
-                  }
-                } else if (item.size > 0) {
-                  received[i] = item.size;
-                  update();
+        try {
+          if (root.isNotEmpty) {
+            final directory = Directory('$root/map');
+            if (await directory.exists()) {
+              final entities = await directory.list(recursive: true).toList();
+              if (entities.any((entity) => entity is File)) {
+                developer.log(
+                  'Routing to network view with local assets',
+                  name: 'NetworkMiddlewareScreen',
+                );
+                if (mounted) {
+                  Navigator.of(
+                    context,
+                  ).pushReplacementNamed('/network', arguments: root);
                   return;
                 }
               }
-
-              if (await file.exists()) await file.delete();
-              await file.parent.create(recursive: true);
-
-              final writer = await file.open(mode: FileMode.write);
-              try {
-                final buffer = BytesBuilder(copy: false);
-                await for (final chunk in await client.getObject(
-                  'appwrite',
-                  item.key,
-                )) {
-                  buffer.add(chunk);
-                  received[i] += chunk.length;
-                  if (buffer.length >= 5 * 1024 * 1024) {
-                    await writer.writeFrom(buffer.takeBytes());
-                  }
-                  update();
-                }
-                if (buffer.length > 0) {
-                  await writer.writeFrom(buffer.takeBytes());
-                }
-                await writer.flush();
-              } finally {
-                await writer.close();
-              }
-
-              if (has) {
-                final sink = Collector<Digest>();
-                final hasher = md5.startChunkedConversion(sink);
-                await for (final chunk in file.openRead()) {
-                  hasher.add(chunk);
-                }
-                hasher.close();
-                if (sink.events.isEmpty ||
-                    sink.events.first.toString() != tag) {
-                  await file.delete();
-                  throw Exception(
-                    'Corrupt file dynamic check failed: ${item.name}',
-                  );
-                }
-              }
-
-              received[i] = item.size;
-              update();
-            } catch (error, trace) {
-              developer.log(
-                'Sync failure on item ${item.name}: $error',
-                error: error,
-                stackTrace: trace,
-                name: 'AssetsScreen',
-                level: 1000,
-              );
             }
           }
+        } catch (_) {}
 
-          final pool = <Future<void>>[];
-          for (var i = 0; i < items.length; i++) {
-            pool.add(download(i));
-            if (pool.length == 3 || i == items.length - 1) {
-              await Future.wait(pool..clear());
-            }
-          }
+        if (mounted) {
+          Navigator.of(context).pushReplacementNamed('/');
         }
-
-        if (!mounted || progress >= 1.0) return;
-
-        while (progress < 1.0) {
-          await Future.delayed(const Duration(milliseconds: 16));
-          if (!mounted || progress >= 1.0) break;
-          setState(() => progress = (progress + 0.02).clamp(0.0, 1.0));
-        }
-
-        if (!mounted) return;
-
-        Navigator.of(context).pushReplacementNamed('/map');
-      } catch (error, trace) {
-        developer.log(
-          'Assets operational error: $error',
-          error: error,
-          stackTrace: trace,
-          name: 'AssetsScreen',
-          level: 1000,
-        );
-        if (!mounted || progress >= 1.0) return;
-        Navigator.of(context).pushReplacementNamed('/');
       }
-    }();
+    }());
+  }
+
+  @override
+  void dispose() {
+    animation.dispose();
+    super.dispose();
   }
 
   @override
@@ -327,20 +340,4 @@ class AssetsScreenState extends State<AssetsScreen>
       ),
     );
   }
-
-  @override
-  void dispose() {
-    animation.dispose();
-    super.dispose();
-  }
-}
-
-class Collector<T> implements Sink<T> {
-  final List<T> events = [];
-
-  @override
-  void add(T event) => events.add(event);
-
-  @override
-  void close() {}
 }

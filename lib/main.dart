@@ -98,8 +98,8 @@ class MyAppState extends State<MyApp> with WidgetsBindingObserver {
         DefaultWidgetsLocalizations.delegate,
       ],
       theme: MediaQuery.of(context).platformBrightness == Brightness.light
-          ? AppTheme.lightTheme(context)
-          : AppTheme.darkTheme(context),
+          ? Pallete.lightTheme(context)
+          : Pallete.darkTheme(context),
       home:
           builder?.call(context) ??
           const Scaffold(body: Center(child: CircularProgressIndicator())),
