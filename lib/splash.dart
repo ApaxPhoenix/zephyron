@@ -95,7 +95,7 @@ class SplashScreenState extends State<SplashScreen> {
                           try {
                             Navigator.pushReplacementNamed(
                               context,
-                              '/network/middleware',
+                              '/network/middleware', // TODO: FIX THE BUG ON WHERE MIDDLEWARE ISN'T RIGHTFULLY MANAGING THE LINEAR PROGRESS BAR
                             );
                           } catch (error, stackTrace) {
                             developer.log(
