@@ -124,7 +124,7 @@ class VaultPageState extends State<VaultPage> {
           }
 
           return ListView(
-            padding: EdgeInsets.fromLTRB(16, 16, 16, 24 + inset),
+            padding: EdgeInsets.fromLTRB(20, 20, 20, 32 + inset),
             children: [
               Card(
                 clipBehavior: Clip.antiAlias,
@@ -167,7 +167,7 @@ class VaultPageState extends State<VaultPage> {
                             ),
                           ),
                           Positioned(
-                            right: 12,
+                            right: 16,
                             top: 86,
                             child: OutlinedButton(
                               style: OutlinedButton.styleFrom(
@@ -421,7 +421,7 @@ class VaultPageState extends State<VaultPage> {
                     leading: Icon(Icons.storage_outlined),
                     title: Text('Local Storage'),
                     subtitle: Text(
-                      'SQLCipher with an Argon2id key; attachments sealed with AES-256-GCM',
+                      "SQLCipher with an Argon2id key bound to this phone's secure hardware; attachments sealed with AES-256-GCM",
                     ),
                   ),
                   ListTile(

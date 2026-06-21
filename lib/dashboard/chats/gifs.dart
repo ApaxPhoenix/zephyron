@@ -187,7 +187,7 @@ class GifsState extends State<Gifs> {
           const SizedBox(height: 12),
           Sheets.grabber(context),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
             child: TextField(
               controller: search,
               enabled: Giphy.ready,

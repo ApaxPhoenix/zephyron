@@ -16,6 +16,12 @@ class Trustee {
   Uint8List? avatar;
   int revision;
 
+  /// Seconds until messages in this chat disappear, or 0 to keep them.
+  int fuse;
+
+  /// When the timer last changed, so the newer choice wins on both sides.
+  int fused;
+
   Trustee({
     required this.address,
     this.nickname = '',
@@ -29,6 +35,8 @@ class Trustee {
     this.availability = Availability.available,
     this.avatar,
     this.revision = 0,
+    this.fuse = 0,
+    this.fused = 0,
   }) : created = created ?? DateTime.now();
 
   factory Trustee.fromRow(Map<String, dynamic> row) {
@@ -50,6 +58,8 @@ class Trustee {
           .values[index(row['availability'], Availability.values.length)],
       avatar: picture is Uint8List && picture.isNotEmpty ? picture : null,
       revision: row['revision'] as int? ?? 0,
+      fuse: row['fuse'] as int? ?? 0,
+      fused: row['fused'] as int? ?? 0,
     );
   }
 
@@ -67,6 +77,8 @@ class Trustee {
       'availability': availability.index,
       'avatar': avatar,
       'revision': revision,
+      'fuse': fuse,
+      'fused': fused,
     };
   }
 
