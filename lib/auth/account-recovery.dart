@@ -77,10 +77,10 @@ class AuthAccountRecoveryPageState extends State<AuthAccountRecoveryPage> {
                               return null;
                             } catch (error) {
                               developer.log(
-                                'Error validating email: $error',
+                                'Failed to validate user email input: $error',
                                 error: error,
                                 stackTrace: StackTrace.current,
-                                name: 'AuthAccountRecoveryPage.emailValidator',
+                                name: 'AuthAccountRecoveryPage.validation',
                               );
                               return 'An unexpected error occurred.';
                             }
@@ -91,10 +91,10 @@ class AuthAccountRecoveryPageState extends State<AuthAccountRecoveryPage> {
                               setState(() => warning = null);
                             } catch (error) {
                               developer.log(
-                                'Error in onChanged callback: $error',
+                                'Failed to process email field changes: $error',
                                 error: error,
                                 stackTrace: StackTrace.current,
-                                name: 'AuthAccountRecoveryPage.onChanged',
+                                name: 'AuthAccountRecoveryPage.input',
                               );
                             }
                           },
@@ -114,6 +114,11 @@ class AuthAccountRecoveryPageState extends State<AuthAccountRecoveryPage> {
                                     email: email.text,
                                     url: 'http://localhost:8000/reset-password',
                                   );
+
+                                  if (mounted) {
+                                    Navigator.pop(context);
+                                    return;
+                                  }
 
                                   setState(() {
                                     countdown = 60;
@@ -136,11 +141,10 @@ class AuthAccountRecoveryPageState extends State<AuthAccountRecoveryPage> {
                                         }
                                       } catch (error) {
                                         developer.log(
-                                          'Error in timer callback: $error',
+                                          'Failed during cooldown timer execution: $error',
                                           error: error,
                                           stackTrace: StackTrace.current,
-                                          name:
-                                              'AuthAccountRecoveryPage.timerCallback',
+                                          name: 'AuthAccountRecoveryPage.timer',
                                         );
                                         timer.cancel();
                                       }
@@ -160,11 +164,10 @@ class AuthAccountRecoveryPageState extends State<AuthAccountRecoveryPage> {
                                     };
                                   });
                                   developer.log(
-                                    'Appwrite Auth Error: ${error.type} - ${error.message}',
+                                    'Appwrite server rejected recovery request: [${error.type}] ${error.message}',
                                     error: error,
                                     stackTrace: StackTrace.current,
-                                    name:
-                                        'AuthAccountRecoveryPage.appwriteAuth',
+                                    name: 'AuthAccountRecoveryPage.recovery',
                                   );
                                 } catch (error) {
                                   setState(
@@ -172,20 +175,19 @@ class AuthAccountRecoveryPageState extends State<AuthAccountRecoveryPage> {
                                         'An unexpected error occurred.',
                                   );
                                   developer.log(
-                                    'Unexpected error during account recovery: $error',
+                                    'Unexpected internal exception during authentication recovery: $error',
                                     error: error,
                                     stackTrace: StackTrace.current,
-                                    name:
-                                        'AuthAccountRecoveryPage.accountRecovery',
+                                    name: 'AuthAccountRecoveryPage.recovery',
                                   );
                                 }
                               }
                             } catch (error) {
                               developer.log(
-                                'Error in button press handler: $error',
+                                'Failed to process authentication form submission: $error',
                                 error: error,
                                 stackTrace: StackTrace.current,
-                                name: 'AuthAccountRecoveryPage.buttonPress',
+                                name: 'AuthAccountRecoveryPage.submission',
                               );
                             }
                           },
@@ -201,7 +203,7 @@ class AuthAccountRecoveryPageState extends State<AuthAccountRecoveryPage> {
       );
     } catch (error) {
       developer.log(
-        'Error building widget: $error',
+        'Failed to render account recovery user interface layout: $error',
         error: error,
         stackTrace: StackTrace.current,
         name: 'AuthAccountRecoveryPage.build',
@@ -218,7 +220,7 @@ class AuthAccountRecoveryPageState extends State<AuthAccountRecoveryPage> {
       super.dispose();
     } catch (error) {
       developer.log(
-        'Error during dispose: $error',
+        'Failed to cleanly release widget layout resources: $error',
         error: error,
         stackTrace: StackTrace.current,
         name: 'AuthAccountRecoveryPage.dispose',

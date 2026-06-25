@@ -28,12 +28,13 @@ class AuthMiddlewareScreenState extends State<AuthMiddlewareScreen> {
             if (!mounted) return;
             if (user.emailVerification) {
               WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted)
+                if (mounted) {
                   Navigator.pushNamedAndRemoveUntil(
                     context,
                     '/dashboard',
                     (route) => false,
                   );
+                }
               });
             } else {
               setState(() {
@@ -44,8 +45,8 @@ class AuthMiddlewareScreenState extends State<AuthMiddlewareScreen> {
                   .createEmailVerification(url: 'https://example.com')
                   .catchError((error) {
                     developer.log(
-                      'Error sending verification: $error',
-                      name: 'AuthMiddlewareScreen.send',
+                      'Failed to dispatch automatic verification challenge email: $error',
+                      name: 'AuthMiddlewareScreen.verification',
                       error: error,
                     );
                     throw error;
@@ -70,15 +71,15 @@ class AuthMiddlewareScreenState extends State<AuthMiddlewareScreen> {
                       })
                       .catchError((error) {
                         developer.log(
-                          'Error polling: $error',
-                          name: 'AuthMiddlewareScreen.poll',
+                          'Failed to evaluate remote user verification status during sync polling: $error',
+                          name: 'AuthMiddlewareScreen.polling',
                           error: error,
                         );
                         throw error;
                       });
                 } catch (error) {
                   developer.log(
-                    'Error in timer: $error',
+                    'Failed during verification status engine loop: $error',
                     name: 'AuthMiddlewareScreen.timer',
                     error: error,
                   );
@@ -89,21 +90,27 @@ class AuthMiddlewareScreenState extends State<AuthMiddlewareScreen> {
           })
           .catchError((error) {
             developer.log(
-              'Initialization error: $error',
-              name: 'AuthMiddlewareScreen.init',
+              'Failed to retrieve active session parameters during startup profiling: $error',
+              name: 'AuthMiddlewareScreen.session',
               error: error,
             );
             if (mounted) {
               WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted) Navigator.pushReplacementNamed(context, '/');
+                if (mounted) {
+                  Navigator.pushNamedAndRemoveUntil(
+                    context,
+                    '/',
+                    (route) => false,
+                  );
+                }
               });
             }
             throw error;
           });
     } catch (error) {
       developer.log(
-        'Global init error: $error',
-        name: 'AuthMiddlewareScreen.init',
+        'Unexpected structural fault during layout controller initialization: $error',
+        name: 'AuthMiddlewareScreen.setup',
         error: error,
       );
     }
@@ -128,7 +135,7 @@ class AuthMiddlewareScreenState extends State<AuthMiddlewareScreen> {
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 12),
-                  Text(
+                  const Text(
                     'Please check your email for the verification link.',
                     textAlign: TextAlign.center,
                   ),
@@ -156,8 +163,8 @@ class AuthMiddlewareScreenState extends State<AuthMiddlewareScreen> {
                                 )
                                 .catchError((error) {
                                   developer.log(
-                                    'Resend error: $error',
-                                    name: 'AuthMiddlewareScreen.resend',
+                                    'Failed to dispatch manual user-requested confirmation challenge: $error',
+                                    name: 'AuthMiddlewareScreen.verification',
                                     error: error,
                                   );
                                   throw error;
@@ -190,7 +197,7 @@ class AuthMiddlewareScreenState extends State<AuthMiddlewareScreen> {
       );
     } catch (error) {
       developer.log(
-        'Build error: $error',
+        'Failed to render verification state fallback user interface: $error',
         name: 'AuthMiddlewareScreen.build',
         error: error,
       );
@@ -206,7 +213,7 @@ class AuthMiddlewareScreenState extends State<AuthMiddlewareScreen> {
       super.dispose();
     } catch (error) {
       developer.log(
-        'Dispose error: $error',
+        'Failed to cleanly terminate long-lived polling worker engines: $error',
         name: 'AuthMiddlewareScreen.dispose',
         error: error,
       );

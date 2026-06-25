@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:appwrite/appwrite.dart';
+import 'package:minio/minio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:zephyron/routes.dart';
@@ -12,6 +13,7 @@ late final Storage storage;
 late final Realtime realtime;
 late final Databases databases;
 late final TablesDB tables;
+late final Minio bucket;
 
 Future main() async {
   runZonedGuarded(
@@ -25,6 +27,13 @@ Future main() async {
       storage = Storage(client);
       databases = Databases(client);
       tables = TablesDB(client);
+      bucket = Minio(
+        endPoint: '10.0.2.2',
+        port: 9000,
+        useSSL: false,
+        accessKey: 'user',
+        secretKey: 'password',
+      );
       SystemChrome.setEnabledSystemUIMode(
         SystemUiMode.immersiveSticky,
         overlays: [],

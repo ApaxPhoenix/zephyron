@@ -90,10 +90,10 @@ class SignUpPageState extends State<SignUpPage> {
                               return null;
                             } catch (error) {
                               developer.log(
-                                'Username validation failed',
+                                'Failed to evaluate username configuration rules: $error',
                                 error: error,
                                 stackTrace: StackTrace.current,
-                                name: 'SignUpPage.name',
+                                name: 'SignUpPage.validation',
                               );
                               return 'An unexpected error occurred.';
                             }
@@ -129,10 +129,10 @@ class SignUpPageState extends State<SignUpPage> {
                               return warning;
                             } catch (error) {
                               developer.log(
-                                'Email validation failed',
+                                'Failed to evaluate email formatting rules: $error',
                                 error: error,
                                 stackTrace: StackTrace.current,
-                                name: 'SignUpPage.email',
+                                name: 'SignUpPage.validation',
                               );
                               return 'An unexpected error occurred.';
                             }
@@ -143,10 +143,10 @@ class SignUpPageState extends State<SignUpPage> {
                               setState(() => warning = null);
                             } catch (error) {
                               developer.log(
-                                'Email onChanged failed',
+                                'Failed to clear active validation hints on email edit: $error',
                                 error: error,
                                 stackTrace: StackTrace.current,
-                                name: 'SignUpPage.email',
+                                name: 'SignUpPage.input',
                               );
                             }
                           },
@@ -198,10 +198,10 @@ class SignUpPageState extends State<SignUpPage> {
                               return null;
                             } catch (error) {
                               developer.log(
-                                'Password validation failed',
+                                'Failed to evaluate password complexity rules: $error',
                                 error: error,
                                 stackTrace: StackTrace.current,
-                                name: 'SignUpPage.password',
+                                name: 'SignUpPage.validation',
                               );
                               return 'An unexpected error occurred.';
                             }
@@ -260,10 +260,10 @@ class SignUpPageState extends State<SignUpPage> {
                                             );
                                           } catch (error) {
                                             developer.log(
-                                              'Failed to create row',
+                                              'Failed to write initialized registration record to primary collection: $error',
                                               error: error,
                                               stackTrace: StackTrace.current,
-                                              name: 'SignUpPage.data',
+                                              name: 'SignUpPage.database',
                                             );
                                             throw Exception(
                                               'Failed to store user data',
@@ -306,7 +306,7 @@ class SignUpPageState extends State<SignUpPage> {
                                             };
                                           });
                                           developer.log(
-                                            'Appwrite error',
+                                            'Appwrite server rejected registration request: [${error.type}] ${error.message}',
                                             error: error,
                                             stackTrace: StackTrace.current,
                                             name: 'SignUpPage.auth',
@@ -317,17 +317,18 @@ class SignUpPageState extends State<SignUpPage> {
                                                 'An unexpected error occurred.',
                                           );
                                           developer.log(
-                                            'Signup failed',
+                                            'Unexpected core exception during registration workflow: $error',
                                             error: error,
                                             stackTrace: StackTrace.current,
-                                            name: 'SignUpPage.create',
+                                            name: 'SignUpPage.auth',
                                           );
                                           if (mounted) {
                                             WidgetsBinding.instance
                                                 .addPostFrameCallback((_) {
-                                                  Navigator.pushReplacementNamed(
+                                                  Navigator.pushNamedAndRemoveUntil(
                                                     context,
                                                     '/',
+                                                    (route) => false,
                                                   );
                                                 });
                                           }
@@ -339,10 +340,10 @@ class SignUpPageState extends State<SignUpPage> {
                                       }
                                     } catch (error) {
                                       developer.log(
-                                        'Button press failed',
+                                        'Failed to process submission workflow execution: $error',
                                         error: error,
                                         stackTrace: StackTrace.current,
-                                        name: 'SignUpPage.press',
+                                        name: 'SignUpPage.submission',
                                       );
                                     }
                                   }
@@ -404,7 +405,7 @@ class SignUpPageState extends State<SignUpPage> {
       );
     } catch (error) {
       developer.log(
-        'Build failed',
+        'Failed to render registration profile interface layout: $error',
         error: error,
         stackTrace: StackTrace.current,
         name: 'SignUpPage.build',
@@ -422,7 +423,7 @@ class SignUpPageState extends State<SignUpPage> {
       super.dispose();
     } catch (error) {
       developer.log(
-        'Dispose failed',
+        'Failed to cleanly release input text tracking layouts: $error',
         error: error,
         stackTrace: StackTrace.current,
         name: 'SignUpPage.dispose',

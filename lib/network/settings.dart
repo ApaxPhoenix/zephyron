@@ -114,8 +114,9 @@ class NetworkSettingsPageState extends State<NetworkSettingsPage> {
                           try {
                             Appearance selected = Appearance.light;
                             if (value == 'dark') selected = Appearance.dark;
-                            if (value == 'grayscale')
+                            if (value == 'grayscale') {
                               selected = Appearance.grayscale;
+                            }
                             notifier.value = settings.copyWith(
                               appearance: selected,
                             );

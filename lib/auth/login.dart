@@ -72,10 +72,10 @@ class LogInPageState extends State<LogInPage> {
                               return warning;
                             } catch (error) {
                               developer.log(
-                                'Error validating email: $error',
+                                'Failed to evaluate email formatting rules: $error',
                                 error: error,
                                 stackTrace: StackTrace.current,
-                                name: 'LoginPage.emailValidator',
+                                name: 'LogInPage.validation',
                               );
                               return 'An unexpected error occurred.';
                             }
@@ -86,10 +86,10 @@ class LogInPageState extends State<LogInPage> {
                               setState(() => warning = null);
                             } catch (error) {
                               developer.log(
-                                'Error in onChanged callback: $error',
+                                'Failed to clear active validation hints on email edit: $error',
                                 error: error,
                                 stackTrace: StackTrace.current,
-                                name: 'LoginPage.emailChanged',
+                                name: 'LogInPage.input',
                               );
                             }
                           },
@@ -106,16 +106,16 @@ class LogInPageState extends State<LogInPage> {
                             TextButton(
                               onPressed: () async {
                                 try {
-                                  await Navigator.pushReplacementNamed(
+                                  await Navigator.pushNamed(
                                     context,
                                     '/auth/account-recovery',
                                   );
                                 } catch (error) {
                                   developer.log(
-                                    'Navigation Error',
+                                    'Failed to execute screen navigation to account recovery: $error',
                                     error: error,
                                     stackTrace: StackTrace.current,
-                                    name: 'LoginPage.navigation',
+                                    name: 'LogInPage.navigation',
                                   );
                                 }
                               },
@@ -157,10 +157,10 @@ class LogInPageState extends State<LogInPage> {
                               return warning;
                             } catch (error) {
                               developer.log(
-                                'Error validating password: $error',
+                                'Failed to evaluate password complexity rules: $error',
                                 error: error,
                                 stackTrace: StackTrace.current,
-                                name: 'LoginPage.passwordValidator',
+                                name: 'LogInPage.validation',
                               );
                               return 'An unexpected error occurred.';
                             }
@@ -171,10 +171,10 @@ class LogInPageState extends State<LogInPage> {
                               setState(() => warning = null);
                             } catch (error) {
                               developer.log(
-                                'Error in onChanged callback: $error',
+                                'Failed to clear active validation hints on password edit: $error',
                                 error: error,
                                 stackTrace: StackTrace.current,
-                                name: 'LoginPage.passwordChanged',
+                                name: 'LogInPage.input',
                               );
                             }
                           },
@@ -202,9 +202,10 @@ class LogInPageState extends State<LogInPage> {
                                               mounted) {
                                             WidgetsBinding.instance
                                                 .addPostFrameCallback((_) {
-                                                  Navigator.pushReplacementNamed(
+                                                  Navigator.pushNamedAndRemoveUntil(
                                                     context,
-                                                    '/auth/middleware',
+                                                    '/dashboard',
+                                                    (route) => false,
                                                   );
                                                 });
                                           }
@@ -230,10 +231,10 @@ class LogInPageState extends State<LogInPage> {
                                             };
                                           });
                                           developer.log(
-                                            'Appwrite Auth Error: ${error.type} - ${error.message}',
+                                            'Appwrite server rejected authentication request: [${error.type}] ${error.message}',
                                             error: error,
                                             stackTrace: StackTrace.current,
-                                            name: 'LoginPage.appwrite',
+                                            name: 'LogInPage.auth',
                                           );
                                         } catch (error) {
                                           setState(
@@ -241,17 +242,18 @@ class LogInPageState extends State<LogInPage> {
                                                 'An unexpected error occurred',
                                           );
                                           developer.log(
-                                            'Unexpected error during login: $error',
+                                            'Unexpected internal error during engine processing: $error',
                                             error: error,
                                             stackTrace: StackTrace.current,
-                                            name: 'LoginPage.login',
+                                            name: 'LogInPage.auth',
                                           );
                                           if (mounted) {
                                             WidgetsBinding.instance
                                                 .addPostFrameCallback((_) {
-                                                  Navigator.pushReplacementNamed(
+                                                  Navigator.pushNamedAndRemoveUntil(
                                                     context,
                                                     '/',
+                                                    (route) => false,
                                                   );
                                                 });
                                           }
@@ -263,10 +265,10 @@ class LogInPageState extends State<LogInPage> {
                                       }
                                     } catch (error) {
                                       developer.log(
-                                        'Error in button press handler: $error',
+                                        'Failed to process submission workflow execution: $error',
                                         error: error,
                                         stackTrace: StackTrace.current,
-                                        name: 'LoginPage.button',
+                                        name: 'LogInPage.submission',
                                       );
                                     }
                                   },
@@ -292,10 +294,10 @@ class LogInPageState extends State<LogInPage> {
       );
     } catch (error) {
       developer.log(
-        'Error building widget: $error',
+        'Failed to render log in view interface layout: $error',
         error: error,
         stackTrace: StackTrace.current,
-        name: 'LoginPage.build',
+        name: 'LogInPage.build',
       );
       return const SizedBox.shrink();
     }
@@ -309,10 +311,10 @@ class LogInPageState extends State<LogInPage> {
       super.dispose();
     } catch (error) {
       developer.log(
-        'Error during dispose: $error',
+        'Failed to cleanly release input layout controllers: $error',
         error: error,
         stackTrace: StackTrace.current,
-        name: 'LoginPage.dispose',
+        name: 'LogInPage.dispose',
       );
     }
   }

@@ -89,8 +89,9 @@ external int transfer(
 
 final DynamicLibrary library = () {
   if (Platform.isIOS) throw UnsupportedError('iOS blocks raw USB access.');
-  if (Platform.isFuchsia)
+  if (Platform.isFuchsia) {
     throw UnsupportedError('Fuchsia is not supported yet.');
+  }
 
   return [
         if (Platform.isWindows) ...['libusb-1.0.dll', 'libusb-1.0-0.dll'],
@@ -121,8 +122,9 @@ final DynamicLibrary library = () {
 Pointer<Void> boot() {
   return using((arena) {
     final pointer = arena<Pointer<Void>>();
-    if (initialize(pointer) != 0)
+    if (initialize(pointer) != 0) {
       throw StateError('Failed to initialize libusb.');
+    }
     return pointer.value;
   });
 }

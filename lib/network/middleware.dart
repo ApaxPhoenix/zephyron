@@ -3,7 +3,7 @@ import 'dart:io';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:minio/minio.dart';
+import 'package:zephyron/main.dart';
 
 class NetworkMiddlewareScreen extends StatefulWidget {
   const NetworkMiddlewareScreen({super.key});
@@ -21,146 +21,137 @@ class NetworkMiddlewareScreenState extends State<NetworkMiddlewareScreen>
   @override
   void initState() {
     super.initState();
-    animation = AnimationController(
-      duration: const Duration(seconds: 5),
-      vsync: this,
-    )..repeat();
+    try {
+      animation = AnimationController(
+        duration: const Duration(seconds: 5),
+        vsync: this,
+      )..repeat();
+    } catch (error) {
+      developer.log(
+        'Failed to initialize layout animation loops: $error',
+        name: 'NetworkMiddlewareScreen.setup',
+        error: error,
+        stackTrace: StackTrace.current,
+      );
+    }
 
     unawaited(() async {
-      if (progress.value > 0.0) return;
-
-      bool completedAll = false;
-
       try {
-        final directory = await getApplicationDocumentsDirectory();
-        final path = directory.path;
-        await Directory('$path/map').create(recursive: true);
+        if (!(progress.value > 0.0)) {
+          progress.value = 0.0;
+          final directory = await getApplicationDocumentsDirectory();
+          await Directory('${directory.path}/map').create(recursive: true);
 
-        final client = Minio(
-          endPoint: '10.0.2.2',
-          port: 9000,
-          useSSL: false,
-          accessKey: 'user',
-          secretKey: 'password',
-        );
+          final stream = bucket
+              .listObjectsV2('appwrite', prefix: 'map/', recursive: true)
+              .timeout(const Duration(seconds: 10));
 
-        final stream = client
-            .listObjectsV2('appwrite', prefix: 'map/', recursive: true)
-            .timeout(const Duration(seconds: 10));
+          await for (final result in stream) {
+            final objects = result.objects
+                .where((object) => object.key != null && !object.key!.endsWith("/"))
+                .toList();
 
-        int count = 0;
-        progress.value = -1.0;
-
-        await for (final result in stream) {
-          for (final object in result.objects) {
-            if (object.key != null && !object.key!.endsWith('/')) {
-              final name = object.key!.substring('map/'.length);
+            await Future.wait(objects.asMap().entries.map((entry) async {
+              final index = entry.key;
+              final object = entry.value;
+              final name = object.key!.substring("/map".length);
               final size = object.size ?? 0;
 
-              developer.log(
-                'Processing $name with $size bytes',
-                name: 'NetworkMiddlewareScreen.objects',
-              );
-
               try {
-                final file = File('$path/map/$name');
+                final file = File('${directory.path}/map/$name');
+                final exists = await file.exists();
+                int offset = 0;
 
-                if (await file.exists() &&
-                    (size == 0 || await file.length() == size)) {
-                  developer.log(
-                    'Skipping matching file $name',
-                    name: 'NetworkMiddlewareScreen.worker',
-                  );
-                  continue;
-                }
-
-                int start = 0;
-                if (await file.exists()) {
+                if (exists) {
                   final length = await file.length();
-                  if (length < size) {
-                    start = length;
-                    developer.log(
-                      'Resuming $name from byte $start',
-                      name: 'NetworkMiddlewareScreen.resume',
-                    );
-                  } else {
+                  if (size == 0 || length == size) {
+                    return;
+                  }
+                  if (length >= size) {
                     await file.delete();
+                  } else {
+                    offset = length;
                   }
                 }
 
-                await file.parent.create(recursive: true);
+                final data = offset > 0
+                    ? await bucket.getPartialObject('appwrite', object.key!, offset)
+                    : await bucket.getObject('appwrite', object.key!);
 
-                final data = start > 0
-                    ? await client.getPartialObject('appwrite', object.key!, start)
-                    : await client.getObject('appwrite', object.key!);
-
-                final access = await file.open(
-                  mode: start > 0 ? FileMode.append : FileMode.write,
+                final sink = file.openWrite(
+                  mode: offset > 0 ? FileMode.append : FileMode.write,
                 );
 
                 try {
-                  await for (final chunk in data) {
-                    await access.writeFrom(chunk);
-                  }
+                  await sink.addStream(data);
                 } finally {
-                  await access.close();
+                  await sink.close();
                 }
 
-                count++;
-
-                double fake = 0.1 + (count * 0.005);
-                if (fake > 0.9) fake = 0.9;
-                progress.value = fake;
-
-              } catch (error, trace) {
+                progress.value = (0.1 + ((index + 1) * 0.005)).clamp(0.0, 0.9);
+              } catch (error) {
                 developer.log(
-                  'Sync failed for $name due to $error',
+                  'Downstream failed for $name due to $error',
                   error: error,
-                  stackTrace: trace,
+                  stackTrace: StackTrace.current,
                   name: 'NetworkMiddlewareScreen.sync',
                   level: 1000,
                 );
               }
-            }
+            }));
           }
+          progress.value = 1.0;
         }
-
-        completedAll = true;
-      } catch (error, trace) {
+      } catch (error, stackTrace) {
         developer.log(
-          'Operational network failure from $error',
+          'Synchronization cycle failed unexpectedly: $error',
           error: error,
-          stackTrace: trace,
-          name: 'NetworkMiddlewareScreen.failure',
-          level: 1000,
+          stackTrace: stackTrace,
+          name: 'NetworkMiddlewareScreen.synchronization',
         );
       }
 
-      if (!mounted) return;
-
-      if (completedAll) {
-        progress.value = 1.0;
-        await Future.delayed(const Duration(milliseconds: 800));
-        if (mounted) {
-          Navigator.of(context).pushReplacementNamed('/network');
-        }
-      } else {
-        final directory = await getApplicationDocumentsDirectory();
-        final path = directory.path;
-        final target = Directory('$path/map');
-
-        if (await target.exists() &&
-            (await target.list(recursive: true).toList()).any((entity) => entity is File)) {
-          developer.log(
-            'Routing to network view with local assets',
-            name: 'NetworkMiddlewareScreen.fallback',
-          );
-          if (mounted) {
-            Navigator.of(context).pushReplacementNamed('/network');
+      if (mounted) {
+        try {
+          if (progress.value == 1.0) {
+            await Future.delayed(const Duration(milliseconds: 800));
+            if (mounted) {
+              Navigator.of(context).pushNamedAndRemoveUntil(
+                '/network',
+                    (route) => false,
+              );
+            }
+          } else {
+            final directory = await getApplicationDocumentsDirectory();
+            final target = Directory('${directory.path}/map');
+            if (await target.exists() && await target.list(recursive: true).any((entity) => entity is File)) {
+              if (mounted) {
+                Navigator.of(context).pushNamedAndRemoveUntil(
+                  '/network',
+                      (route) => false,
+                );
+              }
+            } else {
+              if (mounted) {
+                Navigator.of(context).pushNamedAndRemoveUntil(
+                  '/',
+                      (route) => false,
+                );
+              }
+            }
           }
-        } else {
+        } catch (error, stackTrace) {
           if (mounted) {
-            Navigator.of(context).pushReplacementNamed('/');
+            developer.log(
+              'Navigation fallback routing execution failed: $error',
+              error: error,
+              stackTrace: stackTrace,
+              name: 'NetworkMiddlewareScreen.routing',
+            );
+            Navigator.of(context).pushNamedAndRemoveUntil(
+              '/',
+                  (route) => false,
+            );
           }
         }
       }
@@ -168,105 +159,165 @@ class NetworkMiddlewareScreenState extends State<NetworkMiddlewareScreen>
   }
 
   @override
-  void dispose() {
-    animation.dispose();
-    progress.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Stack(
-        children: [
-          Center(
-            child: AnimatedBuilder(
-              animation: animation,
-              builder: (context, child) {
-                final current = progress.value;
-                final double tick = current >= 0.99
-                    ? animation.value
-                    : animation.value % 1.0;
+    try {
+      return Scaffold(
+        body: Stack(
+          children: [
+            Center(
+              child: AnimatedBuilder(
+                animation: animation,
+                builder: (context, child) {
+                  try {
+                    final current = progress.value;
+                    final double tick = current >= 0.99
+                        ? animation.value
+                        : animation.value % 1.0;
 
-                if (current >= 0.99) {
-                  return Opacity(
-                    opacity: tick >= 0.5
-                        ? 1.0 - Curves.easeOut.transform(((tick - 0.5) / 0.5).clamp(0.0, 1.0))
-                        : 1.0,
-                    child: Transform.scale(
-                      scale: tick >= 0.3 && tick < 0.6
-                          ? Curves.easeOut.transform(((tick - 0.3) / 0.3).clamp(0.0, 1.0)) * 30
-                          : tick >= 0.6 ? 30.0 : 1.0,
-                      child: Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.secondary,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    ),
-                  );
-                }
-
-                return SizedBox(
-                  width: 80,
-                  height: 80,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: List.generate(4, (index) {
-                      final bool left = index == 0 || index == 3;
-                      final bool top = index == 0 || index == 1;
-                      final bool right = (index + 1) % 4 == 0 || (index + 1) % 4 == 3;
-                      final bool bottom = (index + 1) % 4 == 0 || (index + 1) % 4 == 1;
-
-                      final double spread = tick < 0.15
-                          ? Curves.easeOut.transform((tick / 0.15).clamp(0.0, 1.0))
-                          : tick >= 0.55
-                          ? 1.0 - Curves.easeIn.transform(((tick - 0.55) / 0.15).clamp(0.0, 1.0))
-                          : 1.0;
-                      final double orbit = tick >= 0.15 && tick < 0.5
-                          ? Curves.easeInOut.transform(((tick - 0.15) / 0.35).clamp(0.0, 1.0))
-                          : 0.0;
-                      final double bounce = tick >= 0.55 && tick < 0.65
-                          ? Curves.elasticOut.transform(((tick - 0.55) / 0.1).clamp(0.0, 1.0))
-                          : tick >= 0.65 ? 1.0 : 0.0;
-
-                      return Transform.translate(
-                        offset: Offset(
-                          (left ? -20.0 : 20.0) * spread + (right ? -20.0 : 20.0) * spread * orbit - (left ? -20.0 : 20.0) * spread * orbit,
-                          (top ? -20.0 : 20.0) * spread + (bottom ? -20.0 : 20.0) * spread * orbit - (top ? -20.0 : 20.0) * spread * orbit,
-                        ),
-                        child: Container(
-                          width: 16.0 + 16.0 * (1.0 - spread) + 8.0 * (1.0 - spread) * bounce,
-                          height: 16.0 + 16.0 * (1.0 - spread) + 8.0 * (1.0 - spread) * bounce,
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.secondary,
-                            shape: BoxShape.circle,
+                    if (current >= 0.99) {
+                      return Opacity(
+                        opacity: tick >= 0.5
+                            ? 1.0 -
+                            Curves.easeOut.transform(
+                              ((tick - 0.5) / 0.5).clamp(0.0, 1.0),
+                            )
+                            : 1.0,
+                        child: Transform.scale(
+                          scale: tick >= 0.3 && tick < 0.6
+                              ? Curves.easeOut.transform(
+                            ((tick - 0.3) / 0.3).clamp(0.0, 1.0),
+                          ) *
+                              30
+                              : tick >= 0.6
+                              ? 30.0
+                              : 1.0,
+                          child: Container(
+                            width: 80,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.secondary,
+                              shape: BoxShape.circle,
+                            ),
                           ),
                         ),
                       );
-                    }),
-                  ),
-                );
-              },
+                    }
+
+                    return SizedBox(
+                      width: 80,
+                      height: 80,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: List.generate(4, (index) {
+                          final bool left = index == 0 || index == 3;
+                          final bool top = index == 0 || index == 1;
+                          final bool right =
+                              (index + 1) % 4 == 0 || (index + 1) % 4 == 3;
+                          final bool bottom =
+                              (index + 1) % 4 == 0 || (index + 1) % 4 == 1;
+
+                          final double spread = tick < 0.15
+                              ? Curves.easeOut.transform(
+                            (tick / 0.15).clamp(0.0, 1.0),
+                          )
+                              : tick >= 0.55
+                              ? 1.0 -
+                              Curves.easeIn.transform(
+                                ((tick - 0.55) / 0.15).clamp(0.0, 1.0),
+                              )
+                              : 1.0;
+                          final double orbit = tick >= 0.15 && tick < 0.5
+                              ? Curves.easeInOut.transform(
+                            ((tick - 0.15) / 0.35).clamp(0.0, 1.0),
+                          )
+                              : 0.0;
+                          final double bounce = tick >= 0.55 && tick < 0.65
+                              ? Curves.elasticOut.transform(
+                            ((tick - 0.55) / 0.1).clamp(0.0, 1.0),
+                          )
+                              : tick >= 0.65
+                              ? 1.0
+                              : 0.0;
+
+                          return Transform.translate(
+                            offset: Offset(
+                              (left ? -20.0 : 20.0) * spread +
+                                  (right ? -20.0 : 20.0) * spread * orbit -
+                                  (left ? -20.0 : 20.0) * spread * orbit,
+                              (top ? -20.0 : 20.0) * spread +
+                                  (bottom ? -20.0 : 20.0) * spread * orbit -
+                                  (top ? -20.0 : 20.0) * spread * orbit,
+                            ),
+                            child: Container(
+                              width:
+                              16.0 +
+                                  16.0 * (1.0 - spread) +
+                                  8.0 * (1.0 - spread) * bounce,
+                              height:
+                              16.0 +
+                                  16.0 * (1.0 - spread) +
+                                  8.0 * (1.0 - spread) * bounce,
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).colorScheme.secondary,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          );
+                        }),
+                      ),
+                    );
+                  } catch (error) {
+                    developer.log(
+                      'Failed to compile step parameters inside sub-frame generator: $error',
+                      name: 'NetworkMiddlewareScreen.animation',
+                      error: error,
+                      stackTrace: StackTrace.current,
+                    );
+                    return const SizedBox.shrink();
+                  }
+                },
+              ),
             ),
-          ),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: ValueListenableBuilder<double>(
-              valueListenable: progress,
-              builder: (context, value, child) {
-                return LinearProgressIndicator(
-                  value: value >= 0.0 && value <= 1.0 ? value : null,
-                );
-              },
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: ValueListenableBuilder<double>(
+                valueListenable: progress,
+                builder: (context, value, child) {
+                  return LinearProgressIndicator(
+                    value: value >= 0.0 && value <= 1.0 ? value : null,
+                  );
+                },
+              ),
             ),
-          ),
-        ],
-      ),
-    );
+          ],
+        ),
+      );
+    } catch (error) {
+      developer.log(
+        'Failed to render network synchronization layout interface: $error',
+        name: 'NetworkMiddlewareScreen.build',
+        error: error,
+        stackTrace: StackTrace.current,
+      );
+      return const SizedBox.shrink();
+    }
+  }
+
+  @override
+  void dispose() {
+    try {
+      animation.dispose();
+      progress.dispose();
+    } catch (error) {
+      developer.log(
+        'Failed to cleanly terminate active state lifecycle controllers: $error',
+        name: 'NetworkMiddlewareScreen.dispose',
+        error: error,
+        stackTrace: StackTrace.current,
+      );
+    }
+    super.dispose();
   }
 }

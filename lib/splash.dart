@@ -5,7 +5,7 @@ class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
   @override
-  State createState() => SplashScreenState();
+  State<SplashScreen> createState() => SplashScreenState();
 }
 
 class SplashScreenState extends State<SplashScreen> {
@@ -16,7 +16,7 @@ class SplashScreenState extends State<SplashScreen> {
         body: Stack(
           children: [
             Container(
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 image: DecorationImage(
                   image: AssetImage('image_path'),
                   fit: BoxFit.cover,
@@ -86,7 +86,9 @@ class SplashScreenState extends State<SplashScreen> {
                       const SizedBox(height: 12.0),
                       ElevatedButton(
                         style: ButtonStyle(
-                          backgroundColor: WidgetStateColor.transparent,
+                          backgroundColor: WidgetStateProperty.all(
+                            Colors.transparent,
+                          ),
                           side: WidgetStateProperty.all(
                             const BorderSide(color: Colors.white, width: 2),
                           ),
@@ -95,7 +97,7 @@ class SplashScreenState extends State<SplashScreen> {
                           try {
                             Navigator.pushReplacementNamed(
                               context,
-                              '/network/middleware', // TODO: FIX THE BUG ON WHERE MIDDLEWARE ISN'T RIGHTFULLY MANAGING THE LINEAR PROGRESS BAR
+                              '/network', // SWITCH BACK TO /network/middleware
                             );
                           } catch (error, stackTrace) {
                             developer.log(

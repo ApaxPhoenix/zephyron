@@ -25,8 +25,8 @@ class AuthScreenState extends State<AuthScreen> {
       ];
     } catch (error) {
       developer.log(
-        'Error initializing items in initState: $error',
-        name: 'AuthScreen.initState',
+        'Failed to initialize authentication sub-pages: $error',
+        name: 'AuthScreen.setup',
         error: error,
         stackTrace: StackTrace.current,
       );
@@ -58,8 +58,8 @@ class AuthScreenState extends State<AuthScreen> {
                     }
                   } catch (error) {
                     developer.log(
-                      'Error handling horizontal drag gesture: $error',
-                      name: 'AuthScreen.drag',
+                      'Failed to route screen swipe gesture navigation: $error',
+                      name: 'AuthScreen.gesture',
                       error: error,
                       stackTrace: StackTrace.current,
                     );
@@ -72,8 +72,8 @@ class AuthScreenState extends State<AuthScreen> {
                       setState(() => index = i);
                     } catch (error) {
                       developer.log(
-                        'Error changing page: $error',
-                        name: 'AuthScreen.page',
+                        'Failed to sync state with active view index: $error',
+                        name: 'AuthScreen.navigation',
                         error: error,
                         stackTrace: StackTrace.current,
                       );
@@ -116,7 +116,7 @@ class AuthScreenState extends State<AuthScreen> {
       );
     } catch (error) {
       developer.log(
-        'Error building widget: $error',
+        'Failed to render master authentication container interface: $error',
         name: 'AuthScreen.build',
         error: error,
         stackTrace: StackTrace.current,
@@ -132,7 +132,7 @@ class AuthScreenState extends State<AuthScreen> {
       super.dispose();
     } catch (error) {
       developer.log(
-        'Error during dispose: $error',
+        'Failed to cleanly release screen controller resources: $error',
         stackTrace: StackTrace.current,
         name: 'AuthScreen.dispose',
         error: error,

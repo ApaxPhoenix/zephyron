@@ -44,8 +44,12 @@ dependencies:
   maplibre: ^0.3.0
   geolocator: ^14.0.2
   minio: ^3.5.8
-  sqflite: ^2.4.3
+  sqlite3: ^3.3.3
 
+hooks:
+  user_defines:
+    sqlite3:
+      source: sqlite3
 
 dev_dependencies:
   flutter_test:
