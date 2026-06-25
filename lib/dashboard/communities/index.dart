@@ -258,7 +258,7 @@ class Mark extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tone = color ?? Theme.of(context).colorScheme.onSurfaceVariant;
-    return switch (kind) {
+    final mark = switch (kind) {
       Space.text => Text(
         '#',
         style: TextStyle(
@@ -270,5 +270,7 @@ class Mark extends StatelessWidget {
       Space.podcast => Icon(Icons.podcasts, color: tone, size: 22),
       Space.voice => Icon(Icons.volume_up_outlined, color: tone, size: 22),
     };
+    // The same box for every mark, so "#" lines up with the icons.
+    return SizedBox(height: 24, child: Center(child: mark));
   }
 }
