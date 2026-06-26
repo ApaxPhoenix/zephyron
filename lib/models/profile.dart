@@ -67,6 +67,9 @@ class Preferences {
   bool strangers;
   bool banners;
   bool haptics;
+
+  /// Blocks screenshots and hides the app in the app switcher.
+  bool shield;
   ThemeMode theme;
   Rating rating;
 
@@ -76,6 +79,7 @@ class Preferences {
     this.strangers = true,
     this.banners = true,
     this.haptics = true,
+    this.shield = true,
     this.theme = ThemeMode.system,
     this.rating = Rating.pg,
   });
@@ -87,6 +91,7 @@ class Preferences {
       strangers: json['strangers'] as bool? ?? true,
       banners: json['banners'] as bool? ?? true,
       haptics: json['haptics'] as bool? ?? true,
+      shield: json['shield'] as bool? ?? true,
       theme: ThemeMode.values.firstWhere(
         (item) => item.name == json['theme'],
         orElse: () => ThemeMode.system,
@@ -105,6 +110,7 @@ class Preferences {
       'strangers': strangers,
       'banners': banners,
       'haptics': haptics,
+      'shield': shield,
       'theme': theme.name,
       'rating': rating.name,
     };

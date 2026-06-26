@@ -73,16 +73,47 @@ class RelaysPageState extends State<RelaysPage> {
     } catch (_) {}
   }
 
-  Widget page(BuildContext context, List<Widget> children) {
+  /// One tab of content. A [footer] is pinned above the navigation bar, so
+  /// page controls stay put however tall the cards above them are, and
+  /// [slot] gives each page of results its own scroll position.
+  Widget page(
+    BuildContext context,
+    List<Widget> children, {
+    Widget? footer,
+    Object? slot,
+  }) {
+    final scheme = Theme.of(context).colorScheme;
     final inset = MediaQuery.paddingOf(context).bottom;
-    return RefreshIndicator(
-      color: Theme.of(context).colorScheme.onSurface,
+    final list = RefreshIndicator(
+      color: scheme.onSurface,
       onRefresh: refresh,
       child: ListView(
+        key: slot == null ? null : ValueKey(slot),
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: EdgeInsets.fromLTRB(20, 20, 20, 32 + inset),
+        padding: EdgeInsets.fromLTRB(
+          20,
+          20,
+          20,
+          footer == null ? 32 + inset : 20,
+        ),
         children: children,
       ),
+    );
+    if (footer == null) return list;
+    return Column(
+      children: [
+        Expanded(child: list),
+        DecoratedBox(
+          decoration: BoxDecoration(
+            color: scheme.surface,
+            border: Border(top: BorderSide(color: scheme.outlineVariant)),
+          ),
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(20, 0, 20, 12 + inset),
+            child: footer,
+          ),
+        ),
+      ],
     );
   }
 
@@ -414,316 +445,337 @@ class RelaysPageState extends State<RelaysPage> {
                     ],
                   ),
                 ]),
-                page(context, [
-                  Heading(
-                    'On Your Node',
-                    count: connections.length,
-                    padding: top,
-                    description:
-                        'Everyone connected to your onion service right now. Tor hides their IP addresses, so trustees are recognised by their signed discovery key.',
-                  ),
-                  if (connections.isEmpty)
-                    const Vacant(
-                      icon: Icons.sensors_off_outlined,
-                      text: 'Nobody is connected right now.',
-                    )
-                  else
-                    Group(
-                      indent: 76,
-                      children: [
-                        for (final channel in Pager.slice(
-                          connections,
-                          crowding,
-                          visitors,
-                        ))
-                          visitor(channel),
-                      ],
+                page(
+                  context,
+                  [
+                    Heading(
+                      'On Your Node',
+                      count: connections.length,
+                      padding: top,
+                      description:
+                          'Everyone connected to your onion service right now. Tor hides their IP addresses, so trustees are recognised by their signed discovery key.',
                     ),
-                  if (crowds > 1)
-                    Pager(
-                      page: crowding,
-                      pages: crowds,
-                      onChanged: (next) => setState(() => crowd = next),
+                    if (connections.isEmpty)
+                      const Vacant(
+                        icon: Icons.sensors_off_outlined,
+                        text: 'Nobody is connected right now.',
+                      )
+                    else
+                      Group(
+                        indent: 76,
+                        children: [
+                          for (final channel in Pager.slice(
+                            connections,
+                            crowding,
+                            visitors,
+                          ))
+                            visitor(channel),
+                        ],
+                      ),
+                  ],
+                  slot: 'node:$crowding',
+                  footer: crowds > 1
+                      ? Pager(
+                          page: crowding,
+                          pages: crowds,
+                          onChanged: (next) => setState(() => crowd = next),
+                        )
+                      : null,
+                ),
+                page(
+                  context,
+                  [
+                    Heading(
+                      'Circuits',
+                      count: progress == 100 ? circuits.length : null,
+                      padding: top,
+                      description:
+                          'The relays your traffic travels through. No single relay sees both where it comes from and where it goes.',
                     ),
-                ]),
-                page(context, [
-                  Heading(
-                    'Circuits',
-                    count: progress == 100 ? circuits.length : null,
-                    padding: top,
-                    description:
-                        'The relays your traffic travels through. No single relay sees both where it comes from and where it goes.',
-                  ),
-                  if (circuits.isEmpty)
-                    Vacant(
-                      icon: Icons.route_outlined,
-                      text: progress == 100
-                          ? 'Tor has not built any circuits yet.'
-                          : 'Circuits appear once Tor has bootstrapped.',
-                    ),
-                  for (final circuit in Pager.slice(
-                    circuits,
-                    routing,
-                    routes,
-                  )) ...[
-                    Card(
-                      key: ValueKey('circuit:${circuit.id}'),
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    () {
-                                      final peer = courier
-                                          .roster['${circuit.target}.onion'];
-                                      final purpose = switch (circuit.purpose) {
-                                        'GENERAL' => 'General',
-                                        'HS_CLIENT_HSDIR' ||
-                                        'HS_CLIENT_INTRO' =>
-                                          'Looking Up a Peer',
-                                        'HS_CLIENT_REND' => 'Talking to a Peer',
-                                        'HS_SERVICE_HSDIR' =>
-                                          'Publishing Your Node',
-                                        'HS_SERVICE_INTRO' =>
-                                          'Introduction Point for Your Node',
-                                        'HS_SERVICE_REND' =>
-                                          'A Peer Talking to You',
-                                        'HS_VANGUARDS' => 'Vanguards',
-                                        'CONFLUX_LINKED' ||
-                                        'CONFLUX_UNLINKED' => 'Conflux',
-                                        'MEASURE_TIMEOUT' => 'Measuring Speed',
-                                        _ => 'Circuit ${circuit.id}',
-                                      };
-                                      return peer == null
-                                          ? purpose
-                                          : '$purpose: ${peer.label}';
-                                    }(),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.titleSmall,
-                                  ),
-                                ),
-                                if (circuit.created != null)
-                                  Text(
-                                    ago(circuit.created!.toLocal()),
-                                    style: Theme.of(context).textTheme.bodySmall
-                                        ?.copyWith(fontFeatures: tabular),
-                                  ),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            for (
-                              var index = 0;
-                              index < circuit.path.length;
-                              index++
-                            )
-                              Builder(
-                                builder: (context) {
-                                  final relay = circuit.path[index];
-                                  final last = index == circuit.path.length - 1;
-                                  final marks = relay.flags
-                                      .where(
-                                        (item) => const {
-                                          'Guard',
-                                          'Exit',
-                                          'Fast',
-                                          'Stable',
-                                          'HSDir',
-                                        }.contains(item),
-                                      )
-                                      .toList();
-                                  final role = index == 0
-                                      ? 'Guard'
-                                      : !last
-                                      ? 'Middle'
-                                      : circuit.purpose == 'GENERAL'
-                                      ? 'Exit'
-                                      : circuit.purpose.endsWith('INTRO')
-                                      ? 'Introduction'
-                                      : circuit.purpose.endsWith('REND')
-                                      ? 'Rendezvous'
-                                      : 'Last Hop';
-                                  final flag = relay.country.length == 2
-                                      ? String.fromCharCodes(
-                                          relay.country
-                                              .toUpperCase()
-                                              .codeUnits
-                                              .map(
-                                                (unit) => 0x1F1E6 + unit - 65,
-                                              ),
-                                        )
-                                      : '';
-                                  return InkWell(
-                                    borderRadius: BorderRadius.circular(8),
-                                    onTap: () {
-                                      Clipboard.setData(
-                                        ClipboardData(text: relay.fingerprint),
-                                      );
-                                      ScaffoldMessenger.of(
+                    if (circuits.isEmpty)
+                      Vacant(
+                        icon: Icons.route_outlined,
+                        text: progress == 100
+                            ? 'Tor has not built any circuits yet.'
+                            : 'Circuits appear once Tor has bootstrapped.',
+                      ),
+                    for (final circuit in Pager.slice(
+                      circuits,
+                      routing,
+                      routes,
+                    )) ...[
+                      Card(
+                        key: ValueKey('circuit:${circuit.id}'),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      () {
+                                        final peer = courier
+                                            .roster['${circuit.target}.onion'];
+                                        final purpose = switch (circuit
+                                            .purpose) {
+                                          'GENERAL' => 'General',
+                                          'HS_CLIENT_HSDIR' ||
+                                          'HS_CLIENT_INTRO' =>
+                                            'Looking Up a Peer',
+                                          'HS_CLIENT_REND' =>
+                                            'Talking to a Peer',
+                                          'HS_SERVICE_HSDIR' =>
+                                            'Publishing Your Node',
+                                          'HS_SERVICE_INTRO' =>
+                                            'Introduction Point for Your Node',
+                                          'HS_SERVICE_REND' =>
+                                            'A Peer Talking to You',
+                                          'HS_VANGUARDS' => 'Vanguards',
+                                          'CONFLUX_LINKED' ||
+                                          'CONFLUX_UNLINKED' => 'Conflux',
+                                          'MEASURE_TIMEOUT' =>
+                                            'Measuring Speed',
+                                          _ => 'Circuit ${circuit.id}',
+                                        };
+                                        return peer == null
+                                            ? purpose
+                                            : '$purpose: ${peer.label}';
+                                      }(),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(
                                         context,
-                                      ).showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            'Copied fingerprint of ${relay.nickname.isEmpty ? 'relay' : relay.nickname}',
+                                      ).textTheme.titleSmall,
+                                    ),
+                                  ),
+                                  if (circuit.created != null)
+                                    Text(
+                                      ago(circuit.created!.toLocal()),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(fontFeatures: tabular),
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              for (
+                                var index = 0;
+                                index < circuit.path.length;
+                                index++
+                              )
+                                Builder(
+                                  builder: (context) {
+                                    final relay = circuit.path[index];
+                                    final last =
+                                        index == circuit.path.length - 1;
+                                    final marks = relay.flags
+                                        .where(
+                                          (item) => const {
+                                            'Guard',
+                                            'Exit',
+                                            'Fast',
+                                            'Stable',
+                                            'HSDir',
+                                          }.contains(item),
+                                        )
+                                        .toList();
+                                    final role = index == 0
+                                        ? 'Guard'
+                                        : !last
+                                        ? 'Middle'
+                                        : circuit.purpose == 'GENERAL'
+                                        ? 'Exit'
+                                        : circuit.purpose.endsWith('INTRO')
+                                        ? 'Introduction'
+                                        : circuit.purpose.endsWith('REND')
+                                        ? 'Rendezvous'
+                                        : 'Last Hop';
+                                    final flag = relay.country.length == 2
+                                        ? String.fromCharCodes(
+                                            relay.country
+                                                .toUpperCase()
+                                                .codeUnits
+                                                .map(
+                                                  (unit) => 0x1F1E6 + unit - 65,
+                                                ),
+                                          )
+                                        : '';
+                                    return InkWell(
+                                      borderRadius: BorderRadius.circular(8),
+                                      onTap: () {
+                                        Clipboard.setData(
+                                          ClipboardData(
+                                            text: relay.fingerprint,
                                           ),
-                                        ),
-                                      );
-                                    },
-                                    child: IntrinsicHeight(
-                                      child: Row(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.stretch,
-                                        children: [
-                                          SizedBox(
-                                            width: 16,
-                                            child: Column(
-                                              children: [
-                                                Container(
-                                                  width: 1,
-                                                  height: 12,
-                                                  color: index == 0
-                                                      ? Colors.transparent
-                                                      : scheme.outline,
-                                                ),
-                                                Container(
-                                                  width: 9,
-                                                  height: 9,
-                                                  decoration: BoxDecoration(
-                                                    shape: BoxShape.circle,
-                                                    color: last
-                                                        ? scheme.onSurface
-                                                        : scheme.surface,
-                                                    border: Border.all(
-                                                      color: scheme.onSurface,
-                                                      width: 1.5,
-                                                    ),
-                                                  ),
-                                                ),
-                                                Expanded(
-                                                  child: Container(
+                                        );
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              'Copied fingerprint of ${relay.nickname.isEmpty ? 'relay' : relay.nickname}',
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                      child: IntrinsicHeight(
+                                        child: Row(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.stretch,
+                                          children: [
+                                            SizedBox(
+                                              width: 16,
+                                              child: Column(
+                                                children: [
+                                                  Container(
                                                     width: 1,
-                                                    color: last
+                                                    height: 12,
+                                                    color: index == 0
                                                         ? Colors.transparent
                                                         : scheme.outline,
                                                   ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          const SizedBox(width: 12),
-                                          Expanded(
-                                            child: Padding(
-                                              padding: const EdgeInsets.only(
-                                                top: 6,
-                                                bottom: 10,
-                                              ),
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  Row(
-                                                    children: [
-                                                      Expanded(
-                                                        child: Row(
-                                                          children: [
-                                                            Flexible(
-                                                              child: Text(
-                                                                relay
-                                                                        .nickname
-                                                                        .isEmpty
-                                                                    ? 'Unnamed relay'
-                                                                    : relay
-                                                                          .nickname,
-                                                                maxLines: 1,
-                                                                overflow:
-                                                                    TextOverflow
-                                                                        .ellipsis,
-                                                                style: Theme.of(
-                                                                  context,
-                                                                ).textTheme.labelLarge,
-                                                              ),
-                                                            ),
-                                                            if (flag
-                                                                .isNotEmpty) ...[
-                                                              const SizedBox(
-                                                                width: 6,
-                                                              ),
-                                                              Text(flag),
-                                                            ],
-                                                          ],
-                                                        ),
+                                                  Container(
+                                                    width: 9,
+                                                    height: 9,
+                                                    decoration: BoxDecoration(
+                                                      shape: BoxShape.circle,
+                                                      color: last
+                                                          ? scheme.onSurface
+                                                          : scheme.surface,
+                                                      border: Border.all(
+                                                        color: scheme.onSurface,
+                                                        width: 1.5,
                                                       ),
-                                                      const SizedBox(width: 12),
-                                                      Text(
-                                                        role,
-                                                        style: Theme.of(
-                                                          context,
-                                                        ).textTheme.labelSmall,
-                                                      ),
-                                                    ],
-                                                  ),
-                                                  const SizedBox(height: 2),
-                                                  Text.rich(
-                                                    TextSpan(
-                                                      children: [
-                                                        TextSpan(
-                                                          text:
-                                                              relay
-                                                                  .address
-                                                                  .isEmpty
-                                                              ? '${relay.fingerprint.substring(0, 16)}…'
-                                                              : relay.address,
-                                                          style:
-                                                              const TextStyle(
-                                                                fontFamily:
-                                                                    Pallete
-                                                                        .mono,
-                                                                fontSize: 12,
-                                                              ),
-                                                        ),
-                                                        if (marks.isNotEmpty)
-                                                          TextSpan(
-                                                            text:
-                                                                '  ·  ${marks.join(' · ')}',
-                                                          ),
-                                                      ],
                                                     ),
-                                                    maxLines: 1,
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
-                                                    style: Theme.of(
-                                                      context,
-                                                    ).textTheme.bodySmall,
+                                                  ),
+                                                  Expanded(
+                                                    child: Container(
+                                                      width: 1,
+                                                      color: last
+                                                          ? Colors.transparent
+                                                          : scheme.outline,
+                                                    ),
                                                   ),
                                                 ],
                                               ),
                                             ),
-                                          ),
-                                        ],
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: Padding(
+                                                padding: const EdgeInsets.only(
+                                                  top: 6,
+                                                  bottom: 10,
+                                                ),
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    Row(
+                                                      children: [
+                                                        Expanded(
+                                                          child: Row(
+                                                            children: [
+                                                              Flexible(
+                                                                child: Text(
+                                                                  relay
+                                                                          .nickname
+                                                                          .isEmpty
+                                                                      ? 'Unnamed relay'
+                                                                      : relay
+                                                                            .nickname,
+                                                                  maxLines: 1,
+                                                                  overflow:
+                                                                      TextOverflow
+                                                                          .ellipsis,
+                                                                  style: Theme.of(
+                                                                    context,
+                                                                  ).textTheme.labelLarge,
+                                                                ),
+                                                              ),
+                                                              if (flag
+                                                                  .isNotEmpty) ...[
+                                                                const SizedBox(
+                                                                  width: 6,
+                                                                ),
+                                                                Text(flag),
+                                                              ],
+                                                            ],
+                                                          ),
+                                                        ),
+                                                        const SizedBox(
+                                                          width: 12,
+                                                        ),
+                                                        Text(
+                                                          role,
+                                                          style:
+                                                              Theme.of(context)
+                                                                  .textTheme
+                                                                  .labelSmall,
+                                                        ),
+                                                      ],
+                                                    ),
+                                                    const SizedBox(height: 2),
+                                                    Text.rich(
+                                                      TextSpan(
+                                                        children: [
+                                                          TextSpan(
+                                                            text:
+                                                                relay
+                                                                    .address
+                                                                    .isEmpty
+                                                                ? '${relay.fingerprint.substring(0, 16)}…'
+                                                                : relay.address,
+                                                            style:
+                                                                const TextStyle(
+                                                                  fontFamily:
+                                                                      Pallete
+                                                                          .mono,
+                                                                  fontSize: 12,
+                                                                ),
+                                                          ),
+                                                          if (marks.isNotEmpty)
+                                                            TextSpan(
+                                                              text:
+                                                                  '  ·  ${marks.join(' · ')}',
+                                                            ),
+                                                        ],
+                                                      ),
+                                                      maxLines: 1,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                      style: Theme.of(
+                                                        context,
+                                                      ).textTheme.bodySmall,
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
-                                    ),
-                                  );
-                                },
-                              ),
-                          ],
+                                    );
+                                  },
+                                ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 12),
+                      const SizedBox(height: 12),
+                    ],
                   ],
-                  if (roads > 1)
-                    Pager(
-                      page: routing,
-                      pages: roads,
-                      onChanged: (next) => setState(() => route = next),
-                    ),
-                ]),
+                  slot: 'circuits:$routing',
+                  footer: roads > 1
+                      ? Pager(
+                          page: routing,
+                          pages: roads,
+                          onChanged: (next) => setState(() => route = next),
+                        )
+                      : null,
+                ),
                 page(context, [
                   const Heading(
                     'Bridges',
