@@ -151,6 +151,42 @@ class Ratchet {
 
   static final Map<String, Future<void>> locks = {};
 
+  /// Smallest size class a sealed message is padded to.
+  static const int floor = 256;
+
+  /// The size class for [length] bytes: 256, 512, 1024 and so on, so a
+  /// ciphertext's length tells an observer only roughly how big it is.
+  static int bucket(int length) {
+    var size = floor;
+    while (size < length) {
+      size *= 2;
+    }
+    return size;
+  }
+
+  /// Prefixes [clear] with its length and pads it with zeros to [width],
+  /// or to its size class. The zeros are hidden by the encryption around it.
+  static Uint8List pad(List<int> clear, {int? width}) {
+    final size = width ?? bucket(clear.length + 4);
+    if (clear.length + 4 > size) {
+      throw ArgumentError('${clear.length} bytes do not fit in $size');
+    }
+    final out = Uint8List(size);
+    ByteData.view(out.buffer).setUint32(0, clear.length);
+    out.setRange(4, 4 + clear.length, clear);
+    return out;
+  }
+
+  static Uint8List unpad(Uint8List padded) {
+    if (padded.length < 4) throw const Unreadable('too short to unpad');
+    final length = ByteData.view(
+      padded.buffer,
+      padded.offsetInBytes,
+    ).getUint32(0);
+    if (length > padded.length - 4) throw const Unreadable('bad padding');
+    return Uint8List.sublistView(padded, 4, 4 + length);
+  }
+
   static Uint8List random(int length) {
     final source = Random.secure();
     return Uint8List.fromList(
@@ -408,7 +444,7 @@ class Ratchet {
       if (state.opening != null) 'x3dh': state.opening,
     };
     final encoded = utf8.encode(jsonEncode(header));
-    final sealed = await lock(key, clear, encoded);
+    final sealed = await lock(key, pad(clear), encoded);
     state
       ..sending = chain
       ..sent += 1;
@@ -449,7 +485,7 @@ class Ratchet {
     if (kept != null) {
       final clear = await unlock(base64.decode(kept), sealed, encoded);
       await keep(self, peer, state);
-      return clear;
+      return unpad(clear);
     }
 
     final working = Bond.fromJson(state.toJson());
@@ -479,7 +515,7 @@ class Ratchet {
       ..received += 1
       ..opening = null;
     await keep(self, peer, working);
-    return clear;
+    return unpad(clear);
   });
 
   /// Stores keys for messages up to [until] that have not arrived yet.
@@ -508,11 +544,26 @@ class Ratchet {
   }
 
   /// Seals one attachment chunk with the per-file key from its manifest.
-  static Future<Uint8List> chunk(Uint8List key, int seq, List<int> clear) {
-    return lock(key, clear, utf8.encode('chunk:$seq'));
+  /// With [width], every chunk is padded to that many bytes, so the last
+  /// one looks like the rest and the file's exact size stays hidden.
+  static Future<Uint8List> chunk(
+    Uint8List key,
+    int seq,
+    List<int> clear, {
+    int? width,
+  }) {
+    return lock(
+      key,
+      pad(clear, width: width == null ? null : width + 4),
+      utf8.encode('chunk:$seq'),
+    );
   }
 
-  static Future<Uint8List> unchunk(Uint8List key, int seq, Uint8List sealed) {
-    return unlock(key, sealed, utf8.encode('chunk:$seq'));
+  static Future<Uint8List> unchunk(
+    Uint8List key,
+    int seq,
+    Uint8List sealed,
+  ) async {
+    return unpad(await unlock(key, sealed, utf8.encode('chunk:$seq')));
   }
 }
