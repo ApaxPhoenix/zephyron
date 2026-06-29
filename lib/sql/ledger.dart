@@ -69,7 +69,8 @@ class Ledger {
           revised INTEGER NOT NULL DEFAULT 0,
           keys TEXT,
           epoch TEXT,
-          rotated INTEGER NOT NULL DEFAULT 0
+          rotated INTEGER NOT NULL DEFAULT 0,
+          grouped INTEGER NOT NULL DEFAULT 0
         )
       ''');
       await base.execute('''
@@ -115,6 +116,7 @@ class Ledger {
         ('communities', 'keys', 'TEXT'),
         ('communities', 'epoch', 'TEXT'),
         ('communities', 'rotated', 'INTEGER NOT NULL DEFAULT 0'),
+        ('communities', 'grouped', 'INTEGER NOT NULL DEFAULT 0'),
       ]) {
         final columns = await base.rawQuery('PRAGMA table_info($table)');
         if (!columns.any((row) => row['name'] == name)) {

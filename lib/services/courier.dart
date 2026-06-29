@@ -1312,6 +1312,7 @@ class Courier extends ChangeNotifier {
           'keys',
           'founder',
           'created',
+          'group',
         ])
           key: message.meta[key],
       },
