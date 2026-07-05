@@ -164,6 +164,12 @@ enum Signal {
 
   /// Sets the disappearing message timer for both sides of a chat.
   timer,
+
+  /// Carries the profile banner, too large to share the profile frame.
+  banner,
+
+  /// Exchanges encryption bundles and opens end-to-end sessions.
+  session,
 }
 
 /// How long messages last before both phones delete them.
