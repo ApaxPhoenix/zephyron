@@ -70,8 +70,6 @@ dependencies:
   record: ^7.1.2
   audioplayers: ^6.8.1
   video_player: ^2.14.1
-  flutter_pcm_sound: ^3.3.3
-
 hooks:
   user_defines:
     sqlite3:

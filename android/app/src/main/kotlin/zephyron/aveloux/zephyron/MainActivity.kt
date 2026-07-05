@@ -2,6 +2,9 @@ package com.aveloux.zephyron
 
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.media.AudioAttributes
+import android.media.AudioFormat
+import android.media.AudioTrack
 import android.media.MediaMetadataRetriever
 import android.os.Build
 import android.os.Bundle
@@ -11,9 +14,12 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.ByteArrayOutputStream
 import java.security.MessageDigest
+import java.util.concurrent.Executors
 
 class MainActivity : FlutterActivity() {
     private val channel = "zephyron/security"
+    private var speaker: AudioTrack? = null
+    private val writer = Executors.newSingleThreadExecutor()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -38,6 +44,59 @@ class MainActivity : FlutterActivity() {
                         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
                     } else {
                         window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                    }
+                    result.success(null)
+                }
+                else -> result.notImplemented()
+            }
+        }
+
+        MethodChannel(engine.dartExecutor.binaryMessenger, "zephyron/sound").setMethodCallHandler { call, result ->
+            when (call.method) {
+                "open" -> {
+                    val rate = call.argument<Int>("rate") ?: 8000
+                    speaker?.release()
+                    val size = AudioTrack.getMinBufferSize(
+                        rate,
+                        AudioFormat.CHANNEL_OUT_MONO,
+                        AudioFormat.ENCODING_PCM_16BIT,
+                    )
+                    speaker = AudioTrack.Builder()
+                        .setAudioAttributes(
+                            AudioAttributes.Builder()
+                                .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                                .build(),
+                        )
+                        .setAudioFormat(
+                            AudioFormat.Builder()
+                                .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                                .setSampleRate(rate)
+                                .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                                .build(),
+                        )
+                        .setBufferSizeInBytes(maxOf(size, rate))
+                        .setTransferMode(AudioTrack.MODE_STREAM)
+                        .build()
+                        .also { it.play() }
+                    result.success(null)
+                }
+                "feed" -> {
+                    val pcm = call.argument<ByteArray>("pcm")
+                    val track = speaker
+                    if (pcm != null && track != null) {
+                        // Writing blocks while the buffer is full, so it never
+                        // runs on the UI thread.
+                        writer.execute { track.write(pcm, 0, pcm.size) }
+                    }
+                    result.success(null)
+                }
+                "close" -> {
+                    val track = speaker
+                    speaker = null
+                    writer.execute {
+                        track?.stop()
+                        track?.release()
                     }
                     result.success(null)
                 }
