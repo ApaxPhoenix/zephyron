@@ -132,7 +132,13 @@ class InvitationState extends State<Invitation> {
                                     arguments: {'id': id},
                                   )
                                 : join,
-                            child: Text(joined ? 'Open' : 'Join'),
+                            child: Text(
+                              busy
+                                  ? 'Proving you are a person…'
+                                  : joined
+                                  ? 'Open'
+                                  : 'Join',
+                            ),
                           ),
                         ),
                     ],

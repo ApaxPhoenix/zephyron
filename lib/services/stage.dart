@@ -6,12 +6,12 @@ import 'dart:math';
 import 'dart:typed_data';
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_pcm_sound/flutter_pcm_sound.dart';
-import 'package:record/record.dart' hide IosAudioCategory;
+import 'package:record/record.dart';
 import 'package:zephyron/models/community.dart';
 import 'package:zephyron/services/courier.dart';
 import 'package:zephyron/services/mesh.dart';
 import 'package:zephyron/services/ratchet.dart';
+import 'package:zephyron/services/sound.dart';
 
 /// Someone in a voice room, as this phone last heard from them.
 class Seat {
@@ -66,6 +66,7 @@ class Stage extends ChangeNotifier {
   final Map<String, Queue<Int16List>> buffers = {};
   final Set<String> started = {};
   Timer? pulse;
+  Timer? speaker;
   bool sounding = false;
 
   Mesh get mesh => Mesh.instance;
@@ -285,15 +286,14 @@ class Stage extends ChangeNotifier {
 
   Future<void> open() async {
     try {
-      await FlutterPcmSound.setup(
-        sampleRate: rate,
-        channelCount: 1,
-        iosAudioCategory: IosAudioCategory.playAndRecord,
+      sounding = await Sound.open(rate);
+      speaker?.cancel();
+      // Mix and hand over one packet every 200 ms; the platform buffer
+      // smooths out small timing slips.
+      speaker = Timer.periodic(
+        const Duration(milliseconds: 200),
+        (_) => feed(),
       );
-      await FlutterPcmSound.setFeedThreshold(frame);
-      FlutterPcmSound.setFeedCallback(feed);
-      sounding = true;
-      FlutterPcmSound.start();
     } catch (error) {
       developer.log(
         'Voice playback is unavailable on this device',
@@ -343,12 +343,11 @@ class Stage extends ChangeNotifier {
     } catch (_) {}
     recorder = null;
     pending.clear();
+    speaker?.cancel();
+    speaker = null;
     if (sounding) {
       sounding = false;
-      try {
-        FlutterPcmSound.setFeedCallback(null);
-        await FlutterPcmSound.release();
-      } catch (_) {}
+      await Sound.close();
     }
   }
 
@@ -413,11 +412,9 @@ class Stage extends ChangeNotifier {
     ]);
   }
 
-  void feed(int remaining) {
+  void feed() {
     if (!sounding) return;
-    try {
-      FlutterPcmSound.feed(PcmArrayInt16.fromList(mix()));
-    } catch (_) {}
+    Sound.feed(mix());
   }
 
   // Network.

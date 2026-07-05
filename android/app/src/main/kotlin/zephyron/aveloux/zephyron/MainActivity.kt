@@ -1,16 +1,25 @@
 package com.aveloux.zephyron
 
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.media.AudioAttributes
+import android.media.AudioFormat
+import android.media.AudioTrack
+import android.media.MediaMetadataRetriever
 import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.io.ByteArrayOutputStream
 import java.security.MessageDigest
+import java.util.concurrent.Executors
 
 class MainActivity : FlutterActivity() {
     private val channel = "zephyron/security"
+    private var speaker: AudioTrack? = null
+    private val writer = Executors.newSingleThreadExecutor()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -40,6 +49,107 @@ class MainActivity : FlutterActivity() {
                 }
                 else -> result.notImplemented()
             }
+        }
+
+        MethodChannel(engine.dartExecutor.binaryMessenger, "zephyron/sound").setMethodCallHandler { call, result ->
+            when (call.method) {
+                "open" -> {
+                    val rate = call.argument<Int>("rate") ?: 8000
+                    speaker?.release()
+                    val size = AudioTrack.getMinBufferSize(
+                        rate,
+                        AudioFormat.CHANNEL_OUT_MONO,
+                        AudioFormat.ENCODING_PCM_16BIT,
+                    )
+                    speaker = AudioTrack.Builder()
+                        .setAudioAttributes(
+                            AudioAttributes.Builder()
+                                .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                                .build(),
+                        )
+                        .setAudioFormat(
+                            AudioFormat.Builder()
+                                .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                                .setSampleRate(rate)
+                                .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                                .build(),
+                        )
+                        .setBufferSizeInBytes(maxOf(size, rate))
+                        .setTransferMode(AudioTrack.MODE_STREAM)
+                        .build()
+                        .also { it.play() }
+                    result.success(null)
+                }
+                "feed" -> {
+                    val pcm = call.argument<ByteArray>("pcm")
+                    val track = speaker
+                    if (pcm != null && track != null) {
+                        // Writing blocks while the buffer is full, so it never
+                        // runs on the UI thread.
+                        writer.execute { track.write(pcm, 0, pcm.size) }
+                    }
+                    result.success(null)
+                }
+                "close" -> {
+                    val track = speaker
+                    speaker = null
+                    writer.execute {
+                        track?.stop()
+                        track?.release()
+                    }
+                    result.success(null)
+                }
+                else -> result.notImplemented()
+            }
+        }
+
+        MethodChannel(engine.dartExecutor.binaryMessenger, "zephyron/media").setMethodCallHandler { call, result ->
+            when (call.method) {
+                "thumbnail" -> {
+                    val path = call.argument<String>("path")
+                    val width = call.argument<Int>("width") ?: 480
+                    if (path == null) {
+                        result.success(null)
+                    } else {
+                        Thread {
+                            val bytes = try {
+                                still(path, width)
+                            } catch (error: Exception) {
+                                null
+                            }
+                            runOnUiThread { result.success(bytes) }
+                        }.start()
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+    }
+
+    /** A small JPEG of a video's first moments, made with the phone's own decoder. */
+    private fun still(path: String, width: Int): ByteArray? {
+        val retriever = MediaMetadataRetriever()
+        try {
+            retriever.setDataSource(path)
+            val frame = retriever.getFrameAtTime(500_000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                ?: return null
+            val scale = width.toFloat() / maxOf(frame.width, frame.height)
+            val sized = if (scale < 1f) {
+                Bitmap.createScaledBitmap(
+                    frame,
+                    (frame.width * scale).toInt().coerceAtLeast(1),
+                    (frame.height * scale).toInt().coerceAtLeast(1),
+                    true,
+                )
+            } else {
+                frame
+            }
+            val out = ByteArrayOutputStream()
+            sized.compress(Bitmap.CompressFormat.JPEG, 70, out)
+            return out.toByteArray()
+        } finally {
+            retriever.release()
         }
     }
 
