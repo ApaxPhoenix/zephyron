@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:zephyron/dashboard/chats/compose.dart';
 import 'package:zephyron/enums.dart';
+import 'package:zephyron/models/community.dart';
+import 'package:zephyron/models/trustee.dart';
+import 'package:zephyron/services/mesh.dart';
 import 'package:zephyron/services/courier.dart';
 import 'package:zephyron/widgets/avatar.dart';
 import 'package:zephyron/widgets/beacon.dart';
@@ -27,7 +30,7 @@ class ChatsPageState extends State<ChatsPage> {
     super.dispose();
   }
 
-  Future<void> compose() async {
+  Future<void> chat() async {
     final contact = await Compose.show(context);
     if (contact == null || !mounted) return;
     Navigator.pushNamed(
@@ -36,6 +39,28 @@ class ChatsPageState extends State<ChatsPage> {
       arguments: {'id': contact.address},
     );
   }
+
+  Future<void> compose() => Sheets.actions(
+    context,
+    items: [
+      SheetAction(
+        icon: Icons.chat_bubble_outline,
+        label: 'New Chat',
+        onTap: chat,
+      ),
+      SheetAction(
+        icon: Icons.group_add_outlined,
+        label: 'New Group',
+        onTap: () => Navigator.pushNamed(context, '/dashboard/chats/group'),
+      ),
+    ],
+  );
+
+  void open(Community group) => Navigator.pushNamed(
+    context,
+    '/dashboard/communities/channel',
+    arguments: {'community': group.id, 'channel': group.general},
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -60,8 +85,9 @@ class ChatsPageState extends State<ChatsPage> {
         ],
       ),
       body: ListenableBuilder(
-        listenable: courier,
+        listenable: Listenable.merge([courier, Mesh.instance]),
         builder: (context, _) {
+          final mesh = Mesh.instance;
           final query = search.text.trim().toLowerCase();
           final list =
               courier.roster.values.where((contact) {
@@ -91,9 +117,83 @@ class ChatsPageState extends State<ChatsPage> {
                 final right = courier.last(beta.address)?.time ?? beta.created;
                 return right.compareTo(left);
               });
+          final rooms =
+              filter == ChatFilters.archived || filter == ChatFilters.unread
+              ? const <Community>[]
+              : mesh
+                    .groups()
+                    .where(
+                      (group) => filter != ChatFilters.pinned || group.pinned,
+                    )
+                    .where(
+                      (group) =>
+                          query.isEmpty ||
+                          group.name.toLowerCase().contains(query),
+                    )
+                    .toList();
+          DateTime when(Object entry) => entry is Community
+              ? mesh.active(entry)
+              : courier.last((entry as Trustee).address)?.time ?? entry.created;
+          bool pinned(Object entry) =>
+              entry is Community ? entry.pinned : (entry as Trustee).pinned;
+          final entries =
+              <Object>[if (filter != ChatFilters.groups) ...list, ...rooms]
+                ..sort((alpha, beta) {
+                  if (pinned(alpha) != pinned(beta)) {
+                    return pinned(alpha) ? -1 : 1;
+                  }
+                  return when(beta).compareTo(when(alpha));
+                });
+
+          Widget room(Community group) {
+            final latest = mesh.latest(group.id);
+            final count = mesh.members(group.id).length;
+            return ListTile(
+              key: ValueKey('group:${group.id}'),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 20.0,
+                vertical: 4.0,
+              ),
+              onTap: () => open(group),
+              leading: Crest(label: group.name, image: group.icon, size: 48),
+              title: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      group.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: scheme.onSurface,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  if (latest != null)
+                    Text(
+                      brief(latest.time),
+                      style: Theme.of(context).textTheme.labelSmall,
+                    ),
+                ],
+              ),
+              subtitle: Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  latest != null
+                      ? '${mesh.called(group.id, latest.author)}: ${latest.text}'
+                      : '$count ${count == 1 ? 'member' : 'members'}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            );
+          }
 
           Widget content;
-          if (courier.roster.isEmpty) {
+          if (courier.roster.isEmpty && mesh.groups().isEmpty) {
             content = Center(
               key: const ValueKey('welcome'),
               child: SingleChildScrollView(
@@ -142,7 +242,7 @@ class ChatsPageState extends State<ChatsPage> {
                 ),
               ),
             );
-          } else if (list.isEmpty) {
+          } else if (entries.isEmpty) {
             content = Center(
               key: ValueKey('empty:${filter.name}'),
               child: Padding(
@@ -161,14 +261,16 @@ class ChatsPageState extends State<ChatsPage> {
             content = ListView.separated(
               key: ValueKey('list:${filter.name}'),
               padding: EdgeInsets.only(top: 4, bottom: 16 + inset),
-              itemCount: list.length,
+              itemCount: entries.length,
               separatorBuilder: (context, index) => Divider(
                 height: 1,
                 indent: 84,
                 color: scheme.outlineVariant.withAlpha(50),
               ),
               itemBuilder: (context, index) {
-                final contact = list[index];
+                final entry = entries[index];
+                if (entry is Community) return room(entry);
+                final contact = entry as Trustee;
                 final last = courier.last(contact.address);
                 final unread = courier.unread(contact.address);
                 final bold = unread > 0;
@@ -517,6 +619,7 @@ class ChatsPageState extends State<ChatsPage> {
                       for (final item in [
                         ChatFilters.all,
                         ChatFilters.unread,
+                        ChatFilters.groups,
                         ChatFilters.pinned,
                         ChatFilters.archived,
                       ])
