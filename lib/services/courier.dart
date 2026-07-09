@@ -14,6 +14,7 @@ import 'package:zephyron/models/message.dart';
 import 'package:zephyron/models/profile.dart';
 import 'package:zephyron/models/trustee.dart';
 import 'package:zephyron/services/locker.dart';
+import 'package:zephyron/services/catalog.dart';
 import 'package:zephyron/services/mesh.dart';
 import 'package:zephyron/services/ratchet.dart';
 import 'package:zephyron/services/shield.dart';
@@ -235,6 +236,7 @@ class Courier extends ChangeNotifier {
         threads.putIfAbsent(message.peer, () => []).add(message);
       }
       await Mesh.instance.start();
+      await Catalog.instance.start();
       notifyListeners();
     } catch (error) {
       developer.log(
@@ -327,6 +329,7 @@ class Courier extends ChangeNotifier {
     threads.clear();
     presence.clear();
     Mesh.instance.stop();
+    Catalog.instance.stop();
     reach.value = Reach.offline;
     theme.value = ThemeMode.system;
     shielded.value = true;
@@ -363,6 +366,7 @@ class Courier extends ChangeNotifier {
   void heartbeat() {
     if (reach.value != Reach.online || self == null) return;
     Mesh.instance.heartbeat();
+    Catalog.instance.heartbeat();
     unawaited(dispatch());
     final now = DateTime.now();
     for (final trustee in roster.values.toList()) {
@@ -458,6 +462,7 @@ class Courier extends ChangeNotifier {
     }
     channel.greeted = true;
     Mesh.instance.greet(peer);
+    Catalog.instance.greet(peer, channel);
     final known = roster[peer]!;
     final identity = self!;
     unawaited(() async {
@@ -888,6 +893,8 @@ class Courier extends ChangeNotifier {
           waiting.remove(id)?.complete();
         case Signal.mesh:
           await Mesh.instance.receive(from, channel, body);
+        case Signal.listing:
+          await Catalog.instance.receive(from, channel, body);
         case Signal.parcel:
           final data = jsonDecode(body) as Map;
           final to = data['to'];
@@ -1679,6 +1686,7 @@ class Courier extends ChangeNotifier {
   }
 
   Future<void> configure(Preferences preferences) async {
+    final relist = prefs.listed != preferences.listed;
     prefs = preferences;
     theme.value = preferences.theme;
     if (shielded.value != preferences.shield) {
@@ -1687,6 +1695,7 @@ class Courier extends ChangeNotifier {
     }
     await Ledger.write('preferences', preferences.toJson());
     notifyListeners();
+    if (relist) unawaited(Catalog.instance.refresh());
   }
 
   Future<Trustee> add(String address, String nickname) async {
