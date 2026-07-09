@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:zephyron/dashboard/communities/index.dart';
 import 'package:zephyron/enums.dart';
 import 'package:zephyron/models/community.dart';
+import 'package:zephyron/services/catalog.dart';
 import 'package:zephyron/services/courier.dart';
 import 'package:zephyron/services/mesh.dart';
 import 'package:zephyron/widgets/avatar.dart';
@@ -220,6 +221,39 @@ class CommunityPageState extends State<CommunityPage> {
     );
   }
 
+  /// Lists [community] in Discover, or takes it out, after the founder
+  /// confirms what listing means.
+  Future<void> list(Community community, bool on) async {
+    final messenger = ScaffoldMessenger.of(context);
+    if (on) {
+      final self = Courier.instance.self?.address;
+      final listed = mesh.communities.values.where(
+        (item) => item.listed && item.founder == self,
+      );
+      if (listed.length >= Catalog.share) {
+        messenger.showSnackBar(
+          const SnackBar(
+            behavior: SnackBarBehavior.floating,
+            content: Text(
+              'You can list up to ${Catalog.share} communities at a time.',
+            ),
+          ),
+        );
+        return;
+      }
+      final sure = await Sheets.confirm(
+        context,
+        title: 'List ${community.name}?',
+        message:
+            'Anyone the listing reaches can join and read everything in it, history included. Removing someone by vote still works.',
+        action: 'List',
+      );
+      if (!sure) return;
+    }
+    await mesh.amend(community..listed = on);
+    await Catalog.instance.refresh();
+  }
+
   Future<void> more(Community community) async {
     await Sheets.actions(
       context,
@@ -281,7 +315,7 @@ class CommunityPageState extends State<CommunityPage> {
     final scheme = theme.colorScheme;
 
     return ListenableBuilder(
-      listenable: Listenable.merge([mesh, Courier.instance]),
+      listenable: Listenable.merge([mesh, Courier.instance, Catalog.instance]),
       builder: (context, _) {
         final community = mesh.communities[widget.id];
         if (community == null) {
@@ -581,6 +615,43 @@ class CommunityPageState extends State<CommunityPage> {
                   pages: pages,
                   onChanged: (next) => setState(() => page = next),
                 ),
+              if (!community.group &&
+                  community.founder == Courier.instance.self?.address) ...[
+                const Heading(
+                  'Discover',
+                  description:
+                      'A listed community can be found and joined by anyone the listing reaches.',
+                ),
+                Group(
+                  children: [
+                    SwitchListTile(
+                      secondary: const Icon(Icons.travel_explore),
+                      title: const Text('List in Discover'),
+                      subtitle: Text(
+                        community.listed
+                            ? 'Listed. This phone renews it every few days'
+                            : 'Off. Only people you invite can join',
+                      ),
+                      value: community.listed,
+                      onChanged: (on) => list(community, on),
+                    ),
+                  ],
+                ),
+              ] else if (!community.group &&
+                  Catalog.instance.listing(community) != null) ...[
+                const Heading('Discover'),
+                const Group(
+                  children: [
+                    ListTile(
+                      leading: Icon(Icons.travel_explore),
+                      title: Text('Listed in Discover'),
+                      subtitle: Text(
+                        'Its founder lists it, so anyone can find and join it',
+                      ),
+                    ),
+                  ],
+                ),
+              ],
               if (mesh.removed(community.id).isNotEmpty) ...[
                 Heading(
                   'Removed by Vote',
