@@ -47,6 +47,15 @@ class PeersPageState extends State<PeersPage> {
         title: const Text('Trustees'),
         actions: [
           const Center(child: Beacon()),
+          IconButton(
+            icon: const Icon(Icons.travel_explore),
+            tooltip: 'Discover People',
+            onPressed: () => Navigator.pushNamed(
+              context,
+              '/dashboard/communities/discover',
+              arguments: {'shelf': Shelf.person.name},
+            ),
+          ),
           Padding(
             padding: const EdgeInsets.only(right: 4.0),
             child: IconButton(
