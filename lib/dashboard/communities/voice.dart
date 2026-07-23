@@ -7,12 +7,40 @@ import 'package:zephyron/services/mesh.dart';
 import 'package:zephyron/services/stage.dart';
 import 'package:zephyron/widgets/avatar.dart';
 
-/// A live voice room. Leaving the page leaves the room.
+/// A live voice room, or a group's call. Leaving the page leaves it.
 class VoicePage extends StatefulWidget {
   final Community community;
   final Room room;
 
-  const VoicePage({super.key, required this.community, required this.room});
+  /// A group's call, which starts as soon as the page opens.
+  final bool call;
+
+  const VoicePage({
+    super.key,
+    required this.community,
+    required this.room,
+    this.call = false,
+  });
+
+  /// The room a group's call happens in.
+  static Room lobby(Community group) => Room(
+    id: group.general,
+    community: group.id,
+    name: group.name,
+    kind: Space.voice,
+    author: group.founder,
+    created: group.created,
+  );
+
+  /// Opens [group]'s call, starting it if nobody is on it yet.
+  static Future<void> show(BuildContext context, Community group) =>
+      Navigator.push(
+        context,
+        MaterialPageRoute<void>(
+          builder: (_) =>
+              VoicePage(community: group, room: lobby(group), call: true),
+        ),
+      );
 
   @override
   State<VoicePage> createState() => VoicePageState();
@@ -24,6 +52,16 @@ class VoicePageState extends State<VoicePage> {
   Stage get stage => Stage.instance;
 
   bool get here => stage.room == widget.room.id;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.call && !here) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) join();
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -60,8 +98,15 @@ class VoicePageState extends State<VoicePage> {
       appBar: AppBar(
         title: Row(
           children: [
-            Mark(kind: Space.voice, color: scheme.onSurface),
-            const SizedBox(width: 10),
+            if (widget.call)
+              Crest(
+                label: widget.community.name,
+                image: widget.community.icon,
+                size: 36,
+              )
+            else
+              Mark(kind: Space.voice, color: scheme.onSurface),
+            SizedBox(width: widget.call ? 12 : 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -76,7 +121,7 @@ class VoicePageState extends State<VoicePage> {
                     ),
                   ),
                   Text(
-                    widget.community.name,
+                    widget.call ? 'Group call' : widget.community.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.labelSmall,
@@ -183,7 +228,9 @@ class VoicePageState extends State<VoicePage> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          'Experimental. Voices travel peer to peer over Tor, encrypted with the community key, so expect about a second of delay.',
+                          widget.call
+                              ? 'Experimental. Voices travel peer to peer over Tor, encrypted with the group key, so expect about a second of delay.'
+                              : 'Experimental. Voices travel peer to peer over Tor, encrypted with the community key, so expect about a second of delay.',
                           style: theme.textTheme.bodySmall,
                         ),
                       ),
@@ -276,7 +323,9 @@ class VoicePageState extends State<VoicePage> {
                                   ),
                                   onPressed: stage.leave,
                                   icon: const Icon(Icons.call_end),
-                                  label: const Text('Leave Room'),
+                                  label: Text(
+                                    widget.call ? 'Hang Up' : 'Leave Room',
+                                  ),
                                 ),
                               ),
                             ],
@@ -290,7 +339,11 @@ class VoicePageState extends State<VoicePage> {
                             onPressed: joining ? null : join,
                             icon: const Icon(Icons.headset_mic),
                             label: Text(
-                              seats.isEmpty
+                              widget.call
+                                  ? seats.isEmpty
+                                        ? 'Start Call'
+                                        : 'Join Call'
+                                  : seats.isEmpty
                                   ? 'Join Voice'
                                   : 'Join ${seats.length} ${seats.length == 1 ? 'Person' : 'People'}',
                             ),
