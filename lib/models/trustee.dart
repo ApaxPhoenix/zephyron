@@ -15,6 +15,9 @@ class Trustee {
   Availability availability;
   Uint8List? avatar;
   Uint8List? banner;
+
+  /// Who holds messages for them while they are offline, from their profile.
+  String mailbox;
   int revision;
 
   /// Seconds until messages in this chat disappear, or 0 to keep them.
@@ -36,6 +39,7 @@ class Trustee {
     this.availability = Availability.available,
     this.avatar,
     this.banner,
+    this.mailbox = '',
     this.revision = 0,
     this.fuse = 0,
     this.fused = 0,
@@ -61,6 +65,7 @@ class Trustee {
           .values[index(row['availability'], Availability.values.length)],
       avatar: picture is Uint8List && picture.isNotEmpty ? picture : null,
       banner: cover is Uint8List && cover.isNotEmpty ? cover : null,
+      mailbox: row['mailbox'] as String? ?? '',
       revision: row['revision'] as int? ?? 0,
       fuse: row['fuse'] as int? ?? 0,
       fused: row['fused'] as int? ?? 0,
@@ -81,6 +86,7 @@ class Trustee {
       'availability': availability.index,
       'avatar': avatar,
       'banner': banner,
+      'mailbox': mailbox,
       'revision': revision,
       'fuse': fuse,
       'fused': fused,

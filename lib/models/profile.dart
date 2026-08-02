@@ -16,6 +16,10 @@ class Profile {
 
   /// A wide picture or animated GIF shown behind the avatar.
   Uint8List? banner;
+
+  /// The trustee that holds messages for this identity while it is
+  /// offline, often a spare phone of their own, or empty.
+  String mailbox;
   int revision;
 
   Profile({
@@ -25,6 +29,7 @@ class Profile {
     this.availability = Availability.available,
     this.avatar,
     this.banner,
+    this.mailbox = '',
     this.revision = 0,
   });
 
@@ -44,6 +49,7 @@ class Profile {
           ? base64.decode(picture)
           : null,
       banner: cover != null && cover.isNotEmpty ? base64.decode(cover) : null,
+      mailbox: clip(json['mailbox'], 62).toLowerCase(),
       revision: json['revision'] as int? ?? 0,
     );
   }
@@ -59,6 +65,7 @@ class Profile {
       'avatar': avatar == null ? '' : base64.encode(avatar!),
       if (banner)
         'banner': this.banner == null ? '' : base64.encode(this.banner!),
+      'mailbox': mailbox,
       'revision': revision,
     };
   }
@@ -80,6 +87,13 @@ class Preferences {
 
   /// Blocks screenshots and hides the app in the app switcher.
   bool shield;
+
+  /// Holds sealed messages for trustees while the person they are for is
+  /// offline.
+  bool carry;
+
+  /// The trustee this phone is a mailbox for, or empty.
+  String serve;
   ThemeMode theme;
   Rating rating;
 
@@ -90,6 +104,8 @@ class Preferences {
     this.banners = true,
     this.haptics = true,
     this.shield = true,
+    this.carry = true,
+    this.serve = '',
     this.theme = ThemeMode.system,
     this.rating = Rating.pg,
   });
@@ -102,6 +118,8 @@ class Preferences {
       banners: json['banners'] as bool? ?? true,
       haptics: json['haptics'] as bool? ?? true,
       shield: json['shield'] as bool? ?? true,
+      carry: json['carry'] as bool? ?? true,
+      serve: json['serve'] as String? ?? '',
       theme: ThemeMode.values.firstWhere(
         (item) => item.name == json['theme'],
         orElse: () => ThemeMode.system,
@@ -121,6 +139,8 @@ class Preferences {
       'banners': banners,
       'haptics': haptics,
       'shield': shield,
+      'carry': carry,
+      'serve': serve,
       'theme': theme.name,
       'rating': rating.name,
     };
