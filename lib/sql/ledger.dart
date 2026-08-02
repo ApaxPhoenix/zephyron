@@ -32,6 +32,7 @@ class Ledger {
           availability INTEGER NOT NULL DEFAULT 0,
           avatar BLOB,
           banner BLOB,
+          mailbox TEXT NOT NULL DEFAULT '',
           revision INTEGER NOT NULL DEFAULT 0,
           fuse INTEGER NOT NULL DEFAULT 0,
           fused INTEGER NOT NULL DEFAULT 0
@@ -89,6 +90,15 @@ class Ledger {
         'CREATE INDEX IF NOT EXISTS posts_community ON posts (community, time)',
       );
       await base.execute('''
+        CREATE TABLE IF NOT EXISTS parcels (
+          id TEXT PRIMARY KEY,
+          sender TEXT NOT NULL,
+          recipient TEXT NOT NULL,
+          frame TEXT NOT NULL,
+          time INTEGER NOT NULL
+        )
+      ''');
+      await base.execute('''
         CREATE TABLE IF NOT EXISTS preferences (
           key TEXT PRIMARY KEY,
           value TEXT NOT NULL
@@ -101,6 +111,7 @@ class Ledger {
         ('trustees', 'fuse', 'INTEGER NOT NULL DEFAULT 0'),
         ('trustees', 'fused', 'INTEGER NOT NULL DEFAULT 0'),
         ('trustees', 'banner', 'BLOB'),
+        ('trustees', 'mailbox', "TEXT NOT NULL DEFAULT ''"),
         ('communities', 'keys', 'TEXT'),
         ('communities', 'epoch', 'TEXT'),
         ('communities', 'rotated', 'INTEGER NOT NULL DEFAULT 0'),
@@ -197,6 +208,57 @@ class Ledger {
       conflictAlgorithm: cipher.ConflictAlgorithm.ignore,
     );
     return row != 0;
+  }
+
+  /// Holds a parcel for [recipient], unless [sender] already has [share]
+  /// waiting or this phone is carrying [total] in all.
+  static Future<bool> hold({
+    required String id,
+    required String sender,
+    required String recipient,
+    required String frame,
+    int share = 200,
+    int total = 2000,
+  }) async {
+    int count(List<Map<String, Object?>> rows) =>
+        rows.first.values.first as int;
+    final mine = count(
+      await base.rawQuery('SELECT COUNT(*) FROM parcels WHERE sender = ?', [
+        sender,
+      ]),
+    );
+    final all = count(await base.rawQuery('SELECT COUNT(*) FROM parcels'));
+    if (mine >= share || all >= total) return false;
+    await base.insert('parcels', {
+      'id': id,
+      'sender': sender,
+      'recipient': recipient,
+      'frame': frame,
+      'time': DateTime.now().millisecondsSinceEpoch,
+    }, conflictAlgorithm: cipher.ConflictAlgorithm.ignore);
+    return true;
+  }
+
+  static Future<List<Map<String, Object?>>> parcels({String? recipient}) =>
+      recipient == null
+      ? base.query('parcels', orderBy: 'time ASC')
+      : base.query(
+          'parcels',
+          where: 'recipient = ?',
+          whereArgs: [recipient],
+          orderBy: 'time ASC',
+        );
+
+  static Future<void> handed(String id) async {
+    await base.delete('parcels', where: 'id = ?', whereArgs: [id]);
+  }
+
+  static Future<void> discardParcels(DateTime before) async {
+    await base.delete(
+      'parcels',
+      where: 'time < ?',
+      whereArgs: [before.millisecondsSinceEpoch],
+    );
   }
 
   static Future<List<Trustee>> trustees() async {
