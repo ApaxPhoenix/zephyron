@@ -194,33 +194,53 @@ class ChannelPageState extends State<ChannelPage> {
         return Scaffold(
           backgroundColor: scheme.surface,
           appBar: AppBar(
-            title: Row(
-              children: [
-                Mark(kind: room.kind, color: scheme.onSurface),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        room.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
+            title: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () => Navigator.pushNamed(
+                context,
+                '/dashboard/communities/community',
+                arguments: {'id': community.id},
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(
+                  children: [
+                    if (community.group)
+                      Crest(
+                        label: community.name,
+                        image: community.icon,
+                        size: 36,
+                      )
+                    else
+                      Mark(kind: room.kind, color: scheme.onSurface),
+                    SizedBox(width: community.group ? 12 : 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            community.group ? community.name : room.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          Text(
+                            community.group
+                                ? '${mesh.members(community.id).length} members'
+                                : community.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.labelSmall,
+                          ),
+                        ],
                       ),
-                      Text(
-                        community.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.labelSmall,
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
           body: Column(
@@ -248,7 +268,9 @@ class ChannelPageState extends State<ChannelPage> {
                               ),
                               const SizedBox(height: 16),
                               Text(
-                                'Welcome to #${room.name}',
+                                community.group
+                                    ? 'Welcome to ${community.name}'
+                                    : 'Welcome to #${room.name}',
                                 textAlign: TextAlign.center,
                                 style: theme.textTheme.titleMedium?.copyWith(
                                   fontWeight: FontWeight.w700,
@@ -256,7 +278,9 @@ class ChannelPageState extends State<ChannelPage> {
                               ),
                               const SizedBox(height: 6),
                               Text(
-                                'This is the start of the channel. Messages are encrypted with the community key and passed between members over Tor.',
+                                community.group
+                                    ? 'This is the start of the group. Only the people in it can read what is said here.'
+                                    : 'This is the start of the channel. Messages are encrypted with the community key and passed between members over Tor.',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   color: scheme.onSurfaceVariant,
@@ -297,7 +321,9 @@ class ChannelPageState extends State<ChannelPage> {
                             maxLength: Mesh.limit,
                             textCapitalization: TextCapitalization.sentences,
                             decoration: InputDecoration(
-                              hintText: 'Message #${room.name}',
+                              hintText: community.group
+                                  ? 'Message ${community.name}'
+                                  : 'Message #${room.name}',
                               counterText: '',
                               contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 16,
