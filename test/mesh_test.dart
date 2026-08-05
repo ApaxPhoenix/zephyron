@@ -458,4 +458,18 @@ void main() {
     final meta = courier.envelope(card)['meta'] as Map;
     expect((meta['keys'] as Map).keys, containsAll(community.keys.keys));
   });
+
+  test(
+    'a group stays out of the communities list and travels as a group',
+    () async {
+      final group = await mesh.create(name: 'Family', group: true);
+      expect(mesh.groups().map((item) => item.id), contains(group.id));
+      expect(mesh.ordered().map((item) => item.id), isNot(contains(group.id)));
+      final invitation = Mesh.valid(mesh.invitation(group), alice.address)!;
+      expect(invitation['group'], isTrue);
+      await mesh.leave(group.id);
+      final joined = (await mesh.join(invitation))!;
+      expect(joined.group, isTrue);
+    },
+  );
 }

@@ -94,6 +94,13 @@ class Preferences {
 
   /// The trustee this phone is a mailbox for, or empty.
   String serve;
+
+  /// Lists this identity in the directory, so people it has not met can
+  /// find it and send a request.
+  bool listed;
+
+  /// Passes the directory listings this phone holds on to trustees.
+  bool spread;
   ThemeMode theme;
   Rating rating;
 
@@ -106,6 +113,8 @@ class Preferences {
     this.shield = true,
     this.carry = true,
     this.serve = '',
+    this.listed = false,
+    this.spread = true,
     this.theme = ThemeMode.system,
     this.rating = Rating.pg,
   });
@@ -120,6 +129,8 @@ class Preferences {
       shield: json['shield'] as bool? ?? true,
       carry: json['carry'] as bool? ?? true,
       serve: json['serve'] as String? ?? '',
+      listed: json['listed'] as bool? ?? false,
+      spread: json['spread'] as bool? ?? true,
       theme: ThemeMode.values.firstWhere(
         (item) => item.name == json['theme'],
         orElse: () => ThemeMode.system,
@@ -141,6 +152,8 @@ class Preferences {
       'shield': shield,
       'carry': carry,
       'serve': serve,
+      'listed': listed,
+      'spread': spread,
       'theme': theme.name,
       'rating': rating.name,
     };
