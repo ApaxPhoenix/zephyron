@@ -224,6 +224,18 @@ enum Signal {
 
   /// A trustee confirming it is holding a parcel.
   held,
+
+  /// Directory listings, compared and passed along between trustees.
+  listing,
+}
+
+/// What a directory listing offers. Sent by name.
+enum Shelf {
+  /// Someone who wants to be found by people they have not met.
+  person,
+
+  /// A community anyone may join, listed by its founder.
+  community,
 }
 
 /// How long messages last before both phones delete them.
