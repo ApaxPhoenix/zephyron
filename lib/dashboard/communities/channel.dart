@@ -8,6 +8,7 @@ import 'package:zephyron/enums.dart';
 import 'package:zephyron/models/community.dart';
 import 'package:zephyron/services/courier.dart';
 import 'package:zephyron/services/mesh.dart';
+import 'package:zephyron/services/stage.dart';
 import 'package:zephyron/widgets/avatar.dart';
 import 'package:zephyron/widgets/stamp.dart';
 
@@ -54,7 +55,7 @@ class ChannelPageState extends State<ChannelPage> {
     final scheme = theme.colorScheme;
 
     return ListenableBuilder(
-      listenable: Listenable.merge([mesh, Courier.instance]),
+      listenable: Listenable.merge([mesh, Courier.instance, Stage.instance]),
       builder: (context, _) {
         final community = mesh.communities[widget.community];
         final rooms = community == null
@@ -194,37 +195,110 @@ class ChannelPageState extends State<ChannelPage> {
         return Scaffold(
           backgroundColor: scheme.surface,
           appBar: AppBar(
-            title: Row(
-              children: [
-                Mark(kind: room.kind, color: scheme.onSurface),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        room.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
+            title: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () => Navigator.pushNamed(
+                context,
+                '/dashboard/communities/community',
+                arguments: {'id': community.id},
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(
+                  children: [
+                    if (community.group)
+                      Crest(
+                        label: community.name,
+                        image: community.icon,
+                        size: 36,
+                      )
+                    else
+                      Mark(kind: room.kind, color: scheme.onSurface),
+                    SizedBox(width: community.group ? 12 : 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            community.group ? community.name : room.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          Text(
+                            community.group
+                                ? '${mesh.members(community.id).length} members'
+                                : community.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.labelSmall,
+                          ),
+                        ],
                       ),
-                      Text(
-                        community.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.labelSmall,
-                      ),
-                    ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              if (community.group)
+                Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: IconButton(
+                    tooltip: 'Group Call',
+                    icon: Icon(
+                      Icons.call_outlined,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                    onPressed: () => VoicePage.show(context, community),
                   ),
                 ),
-              ],
-            ),
+            ],
           ),
           body: Column(
             children: [
+              if (community.group)
+                ...() {
+                  final stage = Stage.instance;
+                  final self = Courier.instance.self?.address;
+                  final count = stage
+                      .seated(community.general)
+                      .keys
+                      .where((address) => address != self)
+                      .length;
+                  if (count == 0 || stage.room == community.general) {
+                    return const <Widget>[];
+                  }
+                  return [
+                    Container(
+                      margin: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+                      padding: const EdgeInsets.fromLTRB(16, 6, 8, 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2E9E57).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.call, color: Color(0xFF2E9E57)),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Call in progress · $count ${count == 1 ? 'person' : 'people'}',
+                              style: theme.textTheme.bodyMedium,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () => VoicePage.show(context, community),
+                            child: const Text('Join'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ];
+                }(),
               Expanded(
                 child: posts.isEmpty
                     ? Center(
@@ -248,7 +322,9 @@ class ChannelPageState extends State<ChannelPage> {
                               ),
                               const SizedBox(height: 16),
                               Text(
-                                'Welcome to #${room.name}',
+                                community.group
+                                    ? 'Welcome to ${community.name}'
+                                    : 'Welcome to #${room.name}',
                                 textAlign: TextAlign.center,
                                 style: theme.textTheme.titleMedium?.copyWith(
                                   fontWeight: FontWeight.w700,
@@ -256,7 +332,9 @@ class ChannelPageState extends State<ChannelPage> {
                               ),
                               const SizedBox(height: 6),
                               Text(
-                                'This is the start of the channel. Messages are encrypted with the community key and passed between members over Tor.',
+                                community.group
+                                    ? 'This is the start of the group. Only the people in it can read what is said here.'
+                                    : 'This is the start of the channel. Messages are encrypted with the community key and passed between members over Tor.',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   color: scheme.onSurfaceVariant,
@@ -297,7 +375,9 @@ class ChannelPageState extends State<ChannelPage> {
                             maxLength: Mesh.limit,
                             textCapitalization: TextCapitalization.sentences,
                             decoration: InputDecoration(
-                              hintText: 'Message #${room.name}',
+                              hintText: community.group
+                                  ? 'Message ${community.name}'
+                                  : 'Message #${room.name}',
                               counterText: '',
                               contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 16,
