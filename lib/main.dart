@@ -1,23 +1,35 @@
 import 'dart:async';
 import 'dart:developer' as developer;
+import 'dart:io';
+import 'dart:isolate';
 import 'package:cloudflare/cloudflare.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:zephyron/routes.dart';
 import 'package:zephyron/theme.dart';
+import 'package:zephyron/wrappers/tor.dart';
 
 late final R2API bucket;
 
 Future main() async {
   runZonedGuarded(
-    () async {
+        () async {
       WidgetsFlutterBinding.ensureInitialized();
+
+      final directory = await getApplicationSupportDirectory();
+      final path = '${directory.path}/tor';
+
+      await Isolate.run(() {
+        final instance = Tor(path: path);
+        instance.boot();
+      });
 
       bucket = R2API(
         accountId: const String.fromEnvironment('CLOUDFLARE_ACCOUNT_ID'),
         credentials: const R2Credentials(
-          accessKeyId: const String.fromEnvironment('R2_ACCESS_KEY_ID'),
-          secretAccessKey: const String.fromEnvironment('R2_SECRET_ACCESS_KEY'),
+          accessKeyId: String.fromEnvironment('R2_ACCESS_KEY_ID'),
+          secretAccessKey: String.fromEnvironment('R2_SECRET_ACCESS_KEY'),
         ),
       );
 
@@ -27,7 +39,7 @@ Future main() async {
       );
       runApp(const MyApp());
     },
-    (dynamic error, dynamic stack) {
+        (dynamic error, dynamic stack) {
       developer.log(
         'Uncaught application error',
         name: 'main',
@@ -88,7 +100,7 @@ class MyAppState extends State<MyApp> with WidgetsBindingObserver {
           ? Pallete.lightTheme(context)
           : Pallete.darkTheme(context),
       home:
-          builder?.call(context) ??
+      builder?.call(context) ??
           const Scaffold(body: Center(child: CircularProgressIndicator())),
       onGenerateRoute: (RouteSettings settings) {
         final builder = routes[settings.name];
