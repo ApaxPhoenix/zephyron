@@ -117,13 +117,45 @@ where they are. Everyone deserves the right to privacy.
 - An offline map with location search, downloaded once and usable without a
   connection.
 
+## How it compares
+
+|  | Zephyron | Signal | Session | Briar | SimpleX |
+| --- | :---: | :---: | :---: | :---: | :---: |
+| No phone number or email | ✅ | ❌ | ✅ | ✅ | ✅ |
+| No servers at all, phone to phone | ✅ | ❌ | ❌ | ✅ | ❌ |
+| Hides your IP address | ✅ Tor | ❌ | ✅ | ✅ Tor | Optional |
+| End-to-end encrypted by default | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Post-quantum encryption | ✅ | ✅ | ❌ | ❌ | ✅ |
+| Voice calls | ✅ | ✅ | ✅ | ❌ | ✅ |
+| Group calls | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Communities with channels | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Messages reach you while offline | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Works without internet | Planned | ❌ | ❌ | ✅ | ❌ |
+| Offline maps | ✅ | ❌ | ❌ | ❌ | ❌ |
+
+Zephyron also has things none of these do together: a duress passphrase that
+opens a decoy identity, a device-wide guard against passphrase guessing, keys
+bound to the phone's secure hardware, and a server-free Discover directory.
+
+This table is our best reading of each app's public documentation and may
+fall out of date. If something is wrong, please open an issue.
+
 ## Roadmap
 
+**Next**
 - Mesh messaging over USB and serial radios, for when there's no internet
 - Tor on iOS, macOS, Windows and Linux (the apps build there today, but Tor
   currently only runs on Android)
 - Post-quantum sessions on iOS (they fall back to classical encryption there
   until liboqs is built for it)
+- Signed builds for every platform on the Releases page
+
+**Later**
+- Video calls
+- Using one identity on several of your own devices
+- Moving an identity and its chats to a new phone, not just the identity
+- Message reactions, replies and edits
+- Reproducible builds, so anyone can check a release matches the source
 - An independent security audit
 
 ## Platforms
