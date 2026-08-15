@@ -41,6 +41,13 @@
             </intent-filter>
         </activity>
 
+        <!-- Lends single files from the outbox to a share target or the camera -->
+        <provider
+            android:name=".Vault"
+            android:authorities="${applicationId}.vault"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+
         <!-- CORRECTED: Geolocator service binding for Android 14+ foreground location -->
         <service
             android:name="com.baseflow.geolocator.GeolocatorLocationService"
