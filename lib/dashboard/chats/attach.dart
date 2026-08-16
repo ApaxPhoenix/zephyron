@@ -11,6 +11,7 @@ import 'package:zephyron/models/message.dart';
 import 'package:zephyron/models/trustee.dart';
 import 'package:zephyron/services/courier.dart';
 import 'package:zephyron/services/locker.dart';
+import 'package:zephyron/services/still.dart';
 import 'package:zephyron/widgets/avatar.dart';
 import 'package:zephyron/widgets/sheet.dart';
 import 'package:zephyron/widgets/video.dart';
@@ -88,6 +89,7 @@ class Attach {
           return;
         }
         final facts = await probe(File(picked.path));
+        final thumb = await Still.grab(picked.path);
         final bytes = await picked.readAsBytes();
         if (!context.mounted) return;
         final caption = await Preview.show(
@@ -107,6 +109,7 @@ class Attach {
           width: facts.width,
           height: facts.height,
           duration: facts.duration.inMilliseconds,
+          thumb: thumb,
           caption: caption,
         );
       } on FormatException catch (error) {
