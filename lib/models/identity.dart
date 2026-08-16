@@ -27,12 +27,19 @@ class Identity {
 
     var key = ed25519.newKeyFromSeed(seed);
     var pub = Uint8List.fromList(ed25519.public(key).bytes);
-    var hash = sha256.convert(Uint8List.fromList([...utf8.encode('.onion checksum'), ...pub, 3])).bytes;
+    var hash = sha256
+        .convert(
+          Uint8List.fromList([...utf8.encode('.onion checksum'), ...pub, 3]),
+        )
+        .bytes;
 
     return Identity(
-      address: '${base32.encode(Uint8List.fromList([...pub, ...hash.sublist(0, 2), 3])).toLowerCase()}.onion',
+      address:
+          '${base32.encode(Uint8List.fromList([...pub, ...hash.sublist(0, 2), 3])).toLowerCase()}.onion',
       public: pub.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join(),
-      private: Uint8List.fromList(key.bytes).map((byte) => byte.toRadixString(16).padLeft(2, '0')).join(),
+      private: Uint8List.fromList(
+        key.bytes,
+      ).map((byte) => byte.toRadixString(16).padLeft(2, '0')).join(),
       name: name,
       date: DateTime.now(),
     );
@@ -44,7 +51,9 @@ class Identity {
       public: json['public'] as String? ?? '',
       private: json['private'] as String? ?? '',
       name: json['name'] as String? ?? '',
-      date: json['date'] != null ? DateTime.parse(json['date'] as String) : DateTime.now(),
+      date: json['date'] != null
+          ? DateTime.parse(json['date'] as String)
+          : DateTime.now(),
     );
   }
 

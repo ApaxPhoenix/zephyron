@@ -15,8 +15,8 @@ class MainActivity : FlutterActivity() {
 
         MethodChannel(engine.dartExecutor.binaryMessenger, channel).setMethodCallHandler { call, result ->
             when (call.method) {
-                "verifyAppSignature" -> result.success(signature() != null)
-                "getSignature", "signature" -> result.success(signature())
+                "authorized" -> result.success(signature() != null)
+                "signature" -> result.success(signature())
                 else -> result.notImplemented()
             }
         }

@@ -5,11 +5,7 @@ class MessagePage extends StatefulWidget {
   final String? title;
   final String? id;
 
-  const MessagePage({
-    super.key,
-    this.title,
-    this.id,
-  });
+  const MessagePage({super.key, this.title, this.id});
 
   @override
   State<MessagePage> createState() => MessagePageState();
@@ -49,7 +45,11 @@ class MessagePageState extends State<MessagePage> {
 
     final data = ModalRoute.of(context)?.settings.arguments;
     if (data is Map<String, dynamic>) {
-      title = widget.title ?? data['name'] as String? ?? data['title'] as String? ?? 'Alpha Node';
+      title =
+          widget.title ??
+          data['name'] as String? ??
+          data['title'] as String? ??
+          'Alpha Node';
       id = widget.id ?? data['id'] as String? ?? '1';
     } else if (data is String) {
       title = widget.title ?? data;
@@ -133,9 +133,9 @@ class MessagePageState extends State<MessagePage> {
                     ),
                     Text(
                       'Encrypted • Active Node',
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: colors.primary,
-                      ),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.labelSmall?.copyWith(color: colors.primary),
                     ),
                   ],
                 ),
@@ -158,14 +158,19 @@ class MessagePageState extends State<MessagePage> {
             Expanded(
               child: ListView.builder(
                 controller: scroll,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 itemCount: messages.length,
                 itemBuilder: (context, index) {
                   final item = messages[index];
                   final bool mine = item['mine'] == true;
 
                   return Align(
-                    alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+                    alignment: mine
+                        ? Alignment.centerRight
+                        : Alignment.centerLeft,
                     child: Container(
                       margin: const EdgeInsets.only(bottom: 8),
                       constraints: BoxConstraints(
@@ -187,15 +192,14 @@ class MessagePageState extends State<MessagePage> {
                         ),
                       ),
                       child: Column(
-                        crossAxisAlignment:
-                        mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                        crossAxisAlignment: mine
+                            ? CrossAxisAlignment.end
+                            : CrossAxisAlignment.start,
                         children: [
                           Text(
                             item['text'] as String,
                             style: TextStyle(
-                              color: mine
-                                  ? colors.onPrimary
-                                  : colors.onSurface,
+                              color: mine ? colors.onPrimary : colors.onSurface,
                               fontSize: 14,
                             ),
                           ),
@@ -235,9 +239,7 @@ class MessagePageState extends State<MessagePage> {
                         style: TextStyle(color: colors.onSurface),
                         decoration: InputDecoration(
                           hintText: 'Type encrypted message...',
-                          hintStyle: TextStyle(
-                            color: colors.onSurfaceVariant,
-                          ),
+                          hintStyle: TextStyle(color: colors.onSurfaceVariant),
                           filled: true,
                           fillColor: colors.surfaceContainerLow,
                           border: OutlineInputBorder(
