@@ -1,14 +1,15 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:maplibre/maplibre.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:maplibre_gl/maplibre_gl.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:sqlite3/sqlite3.dart';
 import 'package:zephyron/enums.dart';
-import 'package:zephyron/state.dart';
 import 'package:zephyron/models/location.dart';
+import 'package:zephyron/state.dart';
 import 'package:zephyron/widgets/dropdown.dart';
 
 class NetworkScreen extends StatefulWidget {
@@ -20,116 +21,115 @@ class NetworkScreen extends StatefulWidget {
 
 class NetworkScreenState extends State<NetworkScreen> {
   final input = TextEditingController();
-  MapController? controller;
+  MapLibreMapController? map;
   Database? database;
   String? style;
   double zoom = 14.0;
-  Geographic? telemetry;
+  LatLng? telemetry;
 
   @override
   void initState() {
     super.initState();
+
     () async {
       try {
         if (await Geolocator.isLocationServiceEnabled()) {
-          LocationPermission auth = await Geolocator.checkPermission();
-          if (auth == LocationPermission.denied) {
-            auth = await Geolocator.requestPermission();
-          }
-          if (auth != LocationPermission.denied &&
-              auth != LocationPermission.deniedForever) {
-            final position = await Geolocator.getCurrentPosition(
-              locationSettings: const LocationSettings(
-                accuracy: LocationAccuracy.high,
-              ),
-            );
-            telemetry = Geographic(
-              lon: position.longitude,
-              lat: position.latitude,
-            );
-          }
-        }
-      } catch (error) {
-        developer.log(
-          'Failed to capture hardware device telemetry: $error',
-          error: error,
-          stackTrace: StackTrace.current,
-          name: 'NetworkScreen.telemetry',
-        );
-      }
+    var status = await Geolocator.checkPermission();
+    if (status == LocationPermission.denied) {
+    status = await Geolocator.requestPermission();
+    }
+    if (status != LocationPermission.denied && status != LocationPermission.deniedForever) {
+    final loc = await Geolocator.getCurrentPosition(
+    locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+    );
+    telemetry = LatLng(loc.latitude, loc.longitude);
+    }
+    }
+    } catch (error) {
+    developer.log(
+    'Failed to setup geolocation telemetry: $error',
+    error: error,
+    stackTrace: StackTrace.current,
+    level: 1000,
+    name: 'NetworkScreen.telemetry',
+    );
+    }
 
-      try {
-        final folder = await getApplicationDocumentsDirectory();
-        final target = Directory('${folder.path}/map');
-        if (await target.exists()) {
-          final files = target.list(recursive: true);
-          await for (final file in files) {
-            if (file is File) {
-              final name = file.path.split('/').last.toLowerCase();
-              if (name.contains('low') && name.endsWith('.pmtiles')) {
-                final mode = switch (notifier.value.appearance) {
-                  Appearance.dark => 'dark',
-                  Appearance.grayscale => 'grayscale',
-                  _ => 'light',
-                };
+    try {
+    final path = (await getApplicationDocumentsDirectory()).path;
+    final mode = notifier.value.appearance == Appearance.dark ? 'dark' : 'light';
+    final schema = File('$path/styles/$mode.json');
 
-                final schema = File('${target.path}/styles/$mode.json');
-                if (await schema.exists()) {
-                  final Map<String, dynamic> configuration = jsonDecode(
-                    await schema.readAsString(),
-                  );
-                  configuration["sprite"] =
-                      "file://${target.path}/sprites/v4/$mode";
-                  configuration["glyphs"] =
-                      "file://${target.path}/fonts/{fontstack}/{range}.pbf";
-                  final sources = configuration["sources"];
-                  if (sources != null) {
-                    if (sources["protomaps"] != null) {
-                      sources["protomaps"]["url"] =
-                          "pmtiles://file://${file.path}";
-                    }
-                    if (sources["vector-tiles"] != null) {
-                      sources["vector-tiles"]["url"] =
-                          "pmtiles://file://${file.path}";
-                    }
-                  }
-                  style = jsonEncode(configuration);
-                } else {
-                  style = jsonEncode({
-                    "version": 8,
-                    "sources": {
-                      "protomaps": {
-                        "type": "vector",
-                        "url": "pmtiles://file://${file.path}",
-                      },
-                    },
-                    "layers": [
-                      {
-                        "id": "background",
-                        "type": "background",
-                        "paint": {"background-color": "#f7f7f7"},
-                      },
-                    ],
-                  });
-                }
-                break;
-              }
-            }
-          }
-        }
-      } catch (error) {
-        developer.log(
-          'Failed to assemble stylesheet definitions from engine storage: $error',
-          error: error,
-          stackTrace: StackTrace.current,
-          name: 'NetworkScreen.setup',
-        );
-      }
+    if (await schema.exists()) {
+    final Map<String, dynamic> config = jsonDecode(await schema.readAsString());
+    config['sprite'] = Uri.file('$path/sprites/v4/$mode').toString();
+    config['glyphs'] = '${Uri.file('$path/fonts')}/{fontstack}/{range}.pbf';
 
-      if (mounted) {
-        setState(() {});
-      }
-    }();
+    final tileExists = await File('$path/tiles/protomaps.pmtiles').exists();
+    if (config['sources'] is Map && tileExists) {
+    final pmtilesUrl = 'pmtiles://${Uri.file('$path/tiles/protomaps.pmtiles')}';
+    for (final entry in (config['sources'] as Map).entries) {
+    final key = entry.key.toString().toLowerCase();
+    final source = entry.value;
+    if (source is Map && (source['type'] == 'vector' || key.contains('protomaps') || key.contains('vector'))) {
+    source.remove('tiles');
+    source.remove('url');
+    source['url'] = pmtilesUrl;
+    }
+    }
+    } else {
+    if (!tileExists) {
+    developer.log(
+    'Could not find tile file at path: $path/tiles/protomaps.pmtiles',
+    stackTrace: StackTrace.current,
+    level: 1000,
+    name: 'NetworkScreen.setup',
+    );
+    }
+    if (config['sources'] != null) {
+    config['sources'] = {};
+    config['layers'] = [
+    {
+    'id': 'background',
+    'type': 'background',
+    'paint': {'background-color': '#121212'},
+    },
+    ];
+    }
+    }
+    style = jsonEncode(config);
+    } else {
+    developer.log(
+    'Could not find schema file at path: ${schema.path}',
+    stackTrace: StackTrace.current,
+    level: 1000,
+    name: 'NetworkScreen.setup',
+    );
+    }
+    } catch (error) {
+    developer.log(
+    'Failed to initialize network screen setup: $error',
+    error: error,
+    stackTrace: StackTrace.current,
+    level: 1000,
+    name: 'NetworkScreen.setup',
+    );
+    }
+
+    style ??= jsonEncode({
+    'version': 8,
+    'sources': {},
+    'layers': [
+    {
+    'id': 'background',
+    'type': 'background',
+    'paint': {'background-color': '#121212'},
+    },
+    ],
+    });
+
+    if (mounted) setState(() {});
+  }();
   }
 
   @override
@@ -144,27 +144,14 @@ class NetworkScreenState extends State<NetworkScreen> {
           children: [
             Positioned.fill(
               child: MapLibreMap(
-                options: MapOptions(
-                  initCenter: telemetry ?? const Geographic(lon: 0, lat: 20),
-                  initZoom: zoom,
-                  initPitch: 0,
-                  initStyle: style!,
+                initialCameraPosition: CameraPosition(
+                  target: telemetry ?? const LatLng(20.0, 0.0),
+                  zoom: zoom,
                 ),
-                onMapCreated: (map) {
-                  controller = map;
-                  if (telemetry != null) {
-                    try {
-                      controller!.animateCamera(center: telemetry!, zoom: zoom);
-                    } catch (error) {
-                      developer.log(
-                        'Failed to reposition camera target tracking to active location: $error',
-                        error: error,
-                        stackTrace: StackTrace.current,
-                        name: 'NetworkScreen.navigation',
-                      );
-                    }
-                  }
-                },
+                styleString: style!,
+                attributionButtonMargins: const math.Point(-1000, -1000),
+                logoViewMargins: const math.Point(-1000, -1000),
+                onMapCreated: (instance) => map = instance,
               ),
             ),
             Positioned(
@@ -181,31 +168,40 @@ class NetworkScreenState extends State<NetworkScreen> {
                   if (query.trim().isNotEmpty) {
                     try {
                       if (database == null) {
-                        final directory = await getApplicationDocumentsDirectory();
-                        final file = File('${directory.path}/map/misc/locations.db');
-                        if (await file.exists()) {
-                          database = sqlite3.open(file.path);
+                        final dbPath = '${(await getApplicationDocumentsDirectory()).path}/misc/locations.database';
+                        if (await File(dbPath).exists()) {
+                          database = sqlite3.open(dbPath);
+                        } else {
+                          developer.log(
+                            'Could not find database file at path: $dbPath',
+                            stackTrace: StackTrace.current,
+                            level: 1000,
+                            name: 'NetworkScreen.search',
+                          );
                         }
                       }
 
                       if (database != null) {
+                        final filter = query
+                            .trim()
+                            .split(RegExp(r'\s+'))
+                            .where((w) => w.isNotEmpty)
+                            .map((w) => '$w*')
+                            .join(' ');
+
                         final rows = database!.select(
-                          "SELECT id, ascii, iso, latitude, longitude "
-                              "FROM locations "
-                              "WHERE id IN (SELECT rowid FROM search WHERE search MATCH ?) "
-                              "LIMIT 40",
-                          [
-                            query.trim().split(RegExp(r'\s+')).map((word) => '$word*').join(' OR ')
-                          ],
+                          'SELECT l.* FROM locations l JOIN search s ON l.id = s.rowid WHERE s.ascii MATCH ? LIMIT 40;',
+                          [filter],
                         );
 
-                        return rows.map((json) => Location.fromJson(json)).toList();
+                        return rows.map((row) => Location.fromJson(row)).toList();
                       }
                     } catch (error) {
                       developer.log(
-                        'Failed to filter search rows against index conditions: $error',
+                        'Search query execution failed: $error',
                         error: error,
                         stackTrace: StackTrace.current,
+                        level: 1000,
                         name: 'NetworkScreen.search',
                       );
                     }
@@ -213,20 +209,20 @@ class NetworkScreenState extends State<NetworkScreen> {
                   return [];
                 },
                 select: (location) {
-                  if (controller != null) {
+                  if (map != null) {
                     try {
-                      controller!.animateCamera(
-                        center: Geographic(
-                          lon: location.longitude,
-                          lat: location.latitude,
+                      map!.animateCamera(
+                        CameraUpdate.newLatLngZoom(
+                          LatLng(location.latitude, location.longitude),
+                          zoom,
                         ),
-                        zoom: zoom,
                       );
                     } catch (error) {
                       developer.log(
-                        'Failed to direct camera translation to explicit target: $error',
+                        'Failed to animate camera to target location: $error',
                         error: error,
                         stackTrace: StackTrace.current,
+                        level: 1000,
                         name: 'NetworkScreen.navigation',
                       );
                     }
@@ -247,9 +243,10 @@ class NetworkScreenState extends State<NetworkScreen> {
                         Navigator.of(context).pushNamed('/network/settings');
                       } catch (error) {
                         developer.log(
-                          'Failed to route screen navigation to network settings: $error',
+                          'Failed to navigate to network settings: $error',
                           error: error,
                           stackTrace: StackTrace.current,
+                          level: 1000,
                           name: 'NetworkScreen.navigation',
                         );
                       }
@@ -260,17 +257,15 @@ class NetworkScreenState extends State<NetworkScreen> {
                   FloatingActionButton.small(
                     heroTag: 'location',
                     onPressed: () {
-                      if (controller != null && telemetry != null) {
+                      if (map != null && telemetry != null) {
                         try {
-                          controller!.animateCamera(
-                            center: telemetry!,
-                            zoom: zoom,
-                          );
+                          map!.animateCamera(CameraUpdate.newLatLngZoom(telemetry!, zoom));
                         } catch (error) {
                           developer.log(
-                            'Failed to snap camera back to active telemetry coordinates: $error',
+                            'Failed to animate camera to telemetry location: $error',
                             error: error,
                             stackTrace: StackTrace.current,
+                            level: 1000,
                             name: 'NetworkScreen.navigation',
                           );
                         }
@@ -284,14 +279,13 @@ class NetworkScreenState extends State<NetworkScreen> {
                     onPressed: () {
                       try {
                         zoom = (zoom + 1).clamp(0.0, 22.0);
-                        if (controller != null) {
-                          controller!.animateCamera(zoom: zoom);
-                        }
+                        map?.animateCamera(CameraUpdate.zoomTo(zoom));
                       } catch (error) {
                         developer.log(
-                          'Failed to adjust dynamic rendering magnification scale: $error',
+                          'Failed to zoom in: $error',
                           error: error,
                           stackTrace: StackTrace.current,
+                          level: 1000,
                           name: 'NetworkScreen.navigation',
                         );
                       }
@@ -304,14 +298,13 @@ class NetworkScreenState extends State<NetworkScreen> {
                     onPressed: () {
                       try {
                         zoom = (zoom - 1).clamp(0.0, 22.0);
-                        if (controller != null) {
-                          controller!.animateCamera(zoom: zoom);
-                        }
+                        map?.animateCamera(CameraUpdate.zoomTo(zoom));
                       } catch (error) {
                         developer.log(
-                          'Failed to adjust dynamic rendering magnification scale: $error',
+                          'Failed to zoom out: $error',
                           error: error,
                           stackTrace: StackTrace.current,
+                          level: 1000,
                           name: 'NetworkScreen.navigation',
                         );
                       }
@@ -326,9 +319,10 @@ class NetworkScreenState extends State<NetworkScreen> {
       );
     } catch (error) {
       developer.log(
-        'Failed to render interactive geographic dashboard view interface: $error',
+        'Layout error rendering network screen: $error',
         error: error,
         stackTrace: StackTrace.current,
+        level: 1000,
         name: 'NetworkScreen.build',
       );
       return const SizedBox.shrink();
@@ -342,9 +336,10 @@ class NetworkScreenState extends State<NetworkScreen> {
       database?.close();
     } catch (error) {
       developer.log(
-        'Failed to cleanly release mapping and telemetry framework allocations: $error',
+        'Cleanup error in network screen dispose: $error',
         error: error,
         stackTrace: StackTrace.current,
+        level: 1000,
         name: 'NetworkScreen.dispose',
       );
     }

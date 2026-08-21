@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:zephyron/dashboard/chats/index.dart';
-import 'package:zephyron/dashboard/chats/stories.dart';
+import 'package:zephyron/dashboard/peers/index.dart';
+import 'package:zephyron/dashboard/vault/index.dart';
 import 'package:zephyron/enums.dart';
 import 'dart:developer' as developer;
 
@@ -31,6 +32,24 @@ class DashboardScreenState extends State<DashboardScreen>
     }
   }
 
+  void route(int index) {
+    try {
+      if (index < 0 || index >= Menu.values.length) return;
+      pages.animateToPage(
+        index,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    } catch (error) {
+      developer.log(
+        'Failed to route container target tab destination: $error',
+        name: 'DashboardScreen.navigation',
+        error: error,
+        stackTrace: StackTrace.current,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     try {
@@ -53,29 +72,11 @@ class DashboardScreenState extends State<DashboardScreen>
               );
             }
           },
-          children: const [
-            ChatsPage(key: PageStorageKey('chats')),
-            StoriesPage(key: PageStorageKey('stories')),
-          ],
+          children: const [ChatsPage(), PeersPage(), VaultPage()],
         ),
         bottomNavigationBar: NavigationBar(
           selectedIndex: screen.index,
-          onDestinationSelected: (selected) {
-            try {
-              pages.animateToPage(
-                selected,
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeInOut,
-              );
-            } catch (error) {
-              developer.log(
-                'Failed to route container target tab destination: $error',
-                name: 'DashboardScreen.navigation',
-                error: error,
-                stackTrace: StackTrace.current,
-              );
-            }
-          },
+          onDestinationSelected: route,
           destinations: const [
             NavigationDestination(
               icon: Icon(Icons.chat_bubble_outline),
@@ -83,9 +84,14 @@ class DashboardScreenState extends State<DashboardScreen>
               label: 'Chats',
             ),
             NavigationDestination(
-              icon: Icon(Icons.style_outlined),
-              selectedIcon: Icon(Icons.style),
-              label: 'Stories',
+              icon: Icon(Icons.hub_outlined),
+              selectedIcon: Icon(Icons.hub),
+              label: 'Peers',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.shield_outlined),
+              selectedIcon: Icon(Icons.shield),
+              label: 'Vault',
             ),
           ],
         ),

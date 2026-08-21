@@ -1,39 +1,26 @@
 import 'dart:async';
 import 'dart:developer' as developer;
-import 'package:appwrite/appwrite.dart';
-import 'package:minio/minio.dart';
+import 'package:cloudflare/cloudflare.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:zephyron/routes.dart';
 import 'package:zephyron/theme.dart';
 
-late final Client client;
-late final Account account;
-late final Storage storage;
-late final Realtime realtime;
-late final Databases databases;
-late final TablesDB tables;
-late final Minio bucket;
+late final R2API bucket;
 
 Future main() async {
   runZonedGuarded(
     () async {
       WidgetsFlutterBinding.ensureInitialized();
-      client = Client()
-        ..setSelfSigned()
-        ..setEndpoint('http://10.0.2.2/v1')
-        ..setProject('69951d1500159f9e1d20');
-      account = Account(client);
-      storage = Storage(client);
-      databases = Databases(client);
-      tables = TablesDB(client);
-      bucket = Minio(
-        endPoint: '10.0.2.2',
-        port: 9000,
-        useSSL: false,
-        accessKey: 'user',
-        secretKey: 'password',
+
+      bucket = R2API(
+        accountId: const String.fromEnvironment('CLOUDFLARE_ACCOUNT_ID'),
+        credentials: const R2Credentials(
+          accessKeyId: const String.fromEnvironment('R2_ACCESS_KEY_ID'),
+          secretAccessKey: const String.fromEnvironment('R2_SECRET_ACCESS_KEY'),
+        ),
       );
+
       SystemChrome.setEnabledSystemUIMode(
         SystemUiMode.immersiveSticky,
         overlays: [],
@@ -60,21 +47,12 @@ class MyApp extends StatefulWidget {
 }
 
 class MyAppState extends State<MyApp> with WidgetsBindingObserver {
-  String? route;
+  String route = '/';
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    account
-        .get()
-        .timeout(const Duration(seconds: 6))
-        .then((user) {
-          if (mounted) setState(() => route = '/auth/middleware');
-        })
-        .catchError((error) {
-          if (mounted) setState(() => route = '/');
-        });
   }
 
   @override
@@ -95,7 +73,7 @@ class MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    final builder = route != null ? routes[route] : null;
+    final builder = routes[route];
 
     return MaterialApp(
       title: 'Zephyron',

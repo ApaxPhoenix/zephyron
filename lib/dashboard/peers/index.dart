@@ -1,84 +1,62 @@
-import 'package:flutter/material.dart';
-import 'package:zephyron/enums.dart';
 import 'dart:developer' as developer;
+import 'package:flutter/material.dart';
+import 'package:zephyron/theme.dart';
 
-class ChatsPage extends StatefulWidget {
-  const ChatsPage({super.key});
+class PeersPage extends StatefulWidget {
+  const PeersPage({super.key});
 
   @override
-  State<ChatsPage> createState() => ChatsPageState();
+  State<PeersPage> createState() => PeersPageState();
 }
 
-class ChatsPageState extends State<ChatsPage> {
+class PeersPageState extends State<PeersPage> {
   final TextEditingController search = TextEditingController();
-  ChatFilters filter = ChatFilters.all;
   final Set<String> highlighted = {};
 
-  List<Map<String, dynamic>> chats = [
+  List<Map<String, dynamic>> peers = [
     {
-      'id': '1',
+      'id': 'peer_01',
       'name': 'Alpha Node',
-      'message': 'Encrypted payload confirmed at block 842.',
-      'time': '10:42 AM',
-      'unread': 2,
-      'group': false,
+      'address': '192.168.1.10',
+      'latency': '24ms',
+      'online': true,
       'pinned': true,
+      'pending': false,
     },
     {
-      'id': '2',
-      'name': 'Mesh Relay Zero',
-      'message': 'Routing circuit established over onion v3.',
-      'time': '08:15 AM',
-      'unread': 0,
-      'group': true,
-      'pinned': true,
-    },
-    {
-      'id': '3',
-      'name': 'Cipher Suite',
-      'message': 'Key exchange complete.',
-      'time': 'Yesterday',
-      'unread': 5,
-      'group': false,
+      'id': null,
+      'name': 'Beta Relay',
+      'address': '10.0.0.45',
+      'latency': '120ms',
+      'online': false,
       'pinned': false,
+      'pending': true,
     },
     {
-      'id': '4',
-      'name': 'Delta Gateway',
-      'message': 'Heartbeat packet acknowledged.',
-      'time': '2 days ago',
-      'unread': 0,
-      'group': false,
+      'id': 'peer_03',
+      'name': 'Gamma Gateway',
+      'address': '172.16.0.2',
+      'latency': '45ms',
+      'online': true,
       'pinned': false,
+      'pending': false,
     },
   ];
 
   @override
   Widget build(BuildContext context) {
     try {
-      final results =
-          chats
-              .where(
-                (chat) =>
-                    ((chat['name'] as String? ?? '').toLowerCase().contains(
-                          search.text.toLowerCase(),
-                        ) ||
-                        (chat['message'] as String? ?? '')
-                            .toLowerCase()
-                            .contains(search.text.toLowerCase())) &&
-                    switch (filter) {
-                      ChatFilters.unread => (chat['unread'] as int? ?? 0) > 0,
-                      ChatFilters.groups => chat['group'] == true,
-                      ChatFilters.pinned => chat['pinned'] == true,
-                      _ => true,
-                    },
-              )
-              .toList()
-            ..sort(
-              (alpha, beta) => (alpha['pinned'] == beta['pinned'])
-                  ? 0
-                  : (alpha['pinned'] == true ? -1 : 1),
-            );
+      final results = peers
+          .where(
+            (peer) =>
+                (peer['name']?.toString() ?? '').toLowerCase().contains(
+                  search.text.toLowerCase(),
+                ) ||
+                (peer['address']?.toString() ?? '').toLowerCase().contains(
+                  search.text.toLowerCase(),
+                ),
+          )
+          .toList();
 
       return Scaffold(
         backgroundColor: Theme.of(context).colorScheme.surface,
@@ -88,7 +66,7 @@ class ChatsPageState extends State<ChatsPage> {
           automaticallyImplyLeading: false,
           titleSpacing: 16.0,
           title: Text(
-            'Chats',
+            'Peer Nodes',
             style: TextStyle(
               color: Theme.of(context).colorScheme.onSurface,
               fontWeight: FontWeight.bold,
@@ -101,17 +79,17 @@ class ChatsPageState extends State<ChatsPage> {
                 color: Theme.of(context).colorScheme.primary,
               ),
               onPressed: () {},
-              tooltip: 'Scan Node QR',
+              tooltip: 'Scan Peer QR',
             ),
             Padding(
               padding: const EdgeInsets.only(right: 4.0),
               child: IconButton(
                 icon: Icon(
-                  Icons.add_outlined,
+                  Icons.person_add_outlined,
                   color: Theme.of(context).colorScheme.primary,
                 ),
                 onPressed: () {},
-                tooltip: 'New Conversation',
+                tooltip: 'Add Peer Node',
               ),
             ),
           ],
@@ -126,7 +104,7 @@ class ChatsPageState extends State<ChatsPage> {
                   color: Theme.of(context).colorScheme.onSurface,
                 ),
                 decoration: InputDecoration(
-                  hintText: 'Search contacts or onion ID...',
+                  hintText: 'Search peer name or address...',
                   hintStyle: TextStyle(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
@@ -154,40 +132,6 @@ class ChatsPageState extends State<ChatsPage> {
                   contentPadding: const EdgeInsets.symmetric(vertical: 0),
                 ),
                 onChanged: (_) => setState(() {}),
-              ),
-            ),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16.0,
-                vertical: 4.0,
-              ),
-              child: Row(
-                children: ChatFilters.values.map((item) {
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8.0),
-                    child: FilterChip(
-                      label: Text(item.label),
-                      selected: filter == item,
-                      selectedColor: Theme.of(
-                        context,
-                      ).colorScheme.primaryContainer,
-                      backgroundColor: Theme.of(
-                        context,
-                      ).colorScheme.surfaceContainerLow,
-                      labelStyle: TextStyle(
-                        color: filter == item
-                            ? Theme.of(context).colorScheme.onPrimaryContainer
-                            : Theme.of(context).colorScheme.onSurfaceVariant,
-                        fontWeight: filter == item
-                            ? FontWeight.bold
-                            : FontWeight.normal,
-                      ),
-                      side: BorderSide.none,
-                      onSelected: (_) => setState(() => filter = item),
-                    ),
-                  );
-                }).toList(),
               ),
             ),
             Padding(
@@ -231,7 +175,12 @@ class ChatsPageState extends State<ChatsPage> {
                                   highlighted.clear();
                                 } else {
                                   highlighted.addAll(
-                                    results.map((c) => c['id'] as String),
+                                    results.map(
+                                      (peer) =>
+                                          peer['id']?.toString() ??
+                                          peer['address']?.toString() ??
+                                          '',
+                                    ),
                                   );
                                 }
                               });
@@ -288,8 +237,8 @@ class ChatsPageState extends State<ChatsPage> {
                                       const SizedBox(height: 16),
                                       Text(
                                         highlighted.length > 1
-                                            ? 'Delete ${highlighted.length} Chats?'
-                                            : 'Delete Chat?',
+                                            ? 'Remove ${highlighted.length} Peers?'
+                                            : 'Remove Peer?',
                                         style: TextStyle(
                                           color: Theme.of(
                                             context,
@@ -301,8 +250,8 @@ class ChatsPageState extends State<ChatsPage> {
                                       const SizedBox(height: 8),
                                       Text(
                                         highlighted.length > 1
-                                            ? 'Are you sure you want to delete these ${highlighted.length} chats?'
-                                            : 'Are you sure you want to delete this chat?',
+                                            ? 'Are you sure you want to remove these ${highlighted.length} peers?'
+                                            : 'Are you sure you want to remove this peer node?',
                                         textAlign: TextAlign.center,
                                         style: TextStyle(
                                           color: Theme.of(
@@ -340,7 +289,7 @@ class ChatsPageState extends State<ChatsPage> {
                                               ),
                                               onPressed: () =>
                                                   Navigator.pop(ctx, true),
-                                              child: const Text('Delete'),
+                                              child: const Text('Remove'),
                                             ),
                                           ),
                                         ],
@@ -351,14 +300,18 @@ class ChatsPageState extends State<ChatsPage> {
                               );
                               if (confirmed == true) {
                                 setState(() {
-                                  chats.removeWhere(
-                                    (chat) => highlighted.contains(chat['id']),
+                                  peers.removeWhere(
+                                    (peer) => highlighted.contains(
+                                      peer['id']?.toString() ??
+                                          peer['address']?.toString() ??
+                                          '',
+                                    ),
                                   );
                                   highlighted.clear();
                                 });
                               }
                             },
-                            tooltip: 'Delete Highlighted',
+                            tooltip: 'Remove Highlighted',
                           ),
                         ],
                       )
@@ -382,14 +335,14 @@ class ChatsPageState extends State<ChatsPage> {
                                 shape: BoxShape.circle,
                               ),
                               child: Icon(
-                                Icons.mark_chat_read_outlined,
+                                Icons.hub_outlined,
                                 size: 48,
                                 color: Theme.of(context).colorScheme.primary,
                               ),
                             ),
                             const SizedBox(height: 20),
                             Text(
-                              'No Conversations Found',
+                              'No Peer Nodes Found',
                               style: Theme.of(context).textTheme.titleMedium
                                   ?.copyWith(
                                     fontWeight: FontWeight.bold,
@@ -400,7 +353,7 @@ class ChatsPageState extends State<ChatsPage> {
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              'Connect with peers by scanning a QR code or entering an encrypted node address.',
+                              'Scan a node QR code or manually specify a host address to establish peer connection.',
                               textAlign: TextAlign.center,
                               style: Theme.of(context).textTheme.bodyMedium
                                   ?.copyWith(
@@ -420,8 +373,8 @@ class ChatsPageState extends State<ChatsPage> {
                                 ).colorScheme.onPrimary,
                               ),
                               onPressed: () {},
-                              icon: const Icon(Icons.add_outlined),
-                              label: const Text('Start New Chat'),
+                              icon: const Icon(Icons.person_add_outlined),
+                              label: const Text('Add Peer Node'),
                             ),
                           ],
                         ),
@@ -437,8 +390,11 @@ class ChatsPageState extends State<ChatsPage> {
                         ).colorScheme.outlineVariant.withAlpha(50),
                       ),
                       itemBuilder: (context, index) {
-                        final chat = results[index];
-                        final String id = chat['id'] as String;
+                        final peer = results[index];
+                        final String id =
+                            peer['id']?.toString() ??
+                            peer['address']?.toString() ??
+                            index.toString();
 
                         return Dismissible(
                           key: Key(id),
@@ -476,7 +432,7 @@ class ChatsPageState extends State<ChatsPage> {
                                     ),
                                     const SizedBox(height: 16),
                                     Text(
-                                      'Delete Chat?',
+                                      'Remove Peer?',
                                       style: TextStyle(
                                         color: Theme.of(
                                           context,
@@ -487,7 +443,7 @@ class ChatsPageState extends State<ChatsPage> {
                                     ),
                                     const SizedBox(height: 8),
                                     Text(
-                                      'Are you sure you want to delete this chat?',
+                                      'Are you sure you want to remove this peer node?',
                                       textAlign: TextAlign.center,
                                       style: TextStyle(
                                         color: Theme.of(
@@ -525,7 +481,7 @@ class ChatsPageState extends State<ChatsPage> {
                                             ),
                                             onPressed: () =>
                                                 Navigator.pop(ctx, true),
-                                            child: const Text('Delete'),
+                                            child: const Text('Remove'),
                                           ),
                                         ),
                                       ],
@@ -537,7 +493,13 @@ class ChatsPageState extends State<ChatsPage> {
                           },
                           onDismissed: (_) {
                             setState(() {
-                              chats.removeWhere((c) => c['id'] == id);
+                              peers.removeWhere(
+                                (peer) =>
+                                    (peer['id']?.toString() ??
+                                        peer['address']?.toString() ??
+                                        '') ==
+                                    id,
+                              );
                               highlighted.remove(id);
                             });
                           },
@@ -614,7 +576,12 @@ class ChatsPageState extends State<ChatsPage> {
                                                   .colorScheme
                                                   .surfaceContainerHighest,
                                         child: Text(
-                                          (chat['name'] as String)[0],
+                                          (peer['name']?.toString() ?? 'U')
+                                                  .isNotEmpty
+                                              ? (peer['name']?.toString() ??
+                                                        'U')[0]
+                                                    .toUpperCase()
+                                              : '?',
                                           style: TextStyle(
                                             fontWeight: FontWeight.bold,
                                             color: highlighted.contains(id)
@@ -627,23 +594,28 @@ class ChatsPageState extends State<ChatsPage> {
                                           ),
                                         ),
                                       ),
-                                      if (chat['group'] == true)
-                                        Container(
-                                          padding: const EdgeInsets.all(2),
-                                          decoration: BoxDecoration(
+                                      Container(
+                                        width: 14,
+                                        height: 14,
+                                        decoration: BoxDecoration(
+                                          color: peer['pending'] == true
+                                              ? Theme.of(
+                                                  context,
+                                                ).colorScheme.tertiary
+                                              : (peer['online'] == true
+                                                    ? Pallete.success500
+                                                    : Theme.of(
+                                                        context,
+                                                      ).colorScheme.outline),
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
                                             color: Theme.of(
                                               context,
                                             ).colorScheme.surface,
-                                            shape: BoxShape.circle,
-                                          ),
-                                          child: Icon(
-                                            Icons.group,
-                                            size: 12,
-                                            color: Theme.of(
-                                              context,
-                                            ).colorScheme.onSurfaceVariant,
+                                            width: 2,
                                           ),
                                         ),
+                                      ),
                                     ],
                                   ),
                                 ],
@@ -652,34 +624,34 @@ class ChatsPageState extends State<ChatsPage> {
                                 children: [
                                   Expanded(
                                     child: Text(
-                                      chat['name'] as String,
+                                      peer['name']?.toString() ??
+                                          'Unknown Peer',
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
                                         color: Theme.of(
                                           context,
                                         ).colorScheme.onSurface,
-                                        fontWeight: (chat['unread'] as int) > 0
+                                        fontWeight: peer['pending'] == true
                                             ? FontWeight.bold
                                             : FontWeight.normal,
                                       ),
                                     ),
                                   ),
                                   Text(
-                                    chat['time'] as String,
+                                    peer['latency']?.toString() ?? 'Offline',
                                     style: Theme.of(context)
                                         .textTheme
                                         .labelSmall
                                         ?.copyWith(
-                                          color: (chat['unread'] as int) > 0
+                                          color: peer['online'] == true
                                               ? Theme.of(
                                                   context,
                                                 ).colorScheme.primary
                                               : Theme.of(
                                                   context,
                                                 ).colorScheme.onSurfaceVariant,
-                                          fontWeight:
-                                              (chat['unread'] as int) > 0
+                                          fontWeight: peer['online'] == true
                                               ? FontWeight.bold
                                               : FontWeight.normal,
                                         ),
@@ -690,7 +662,8 @@ class ChatsPageState extends State<ChatsPage> {
                                 children: [
                                   Expanded(
                                     child: Text(
-                                      chat['message'] as String,
+                                      peer['address']?.toString() ??
+                                          'No address',
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: Theme.of(context)
@@ -703,7 +676,7 @@ class ChatsPageState extends State<ChatsPage> {
                                           ),
                                     ),
                                   ),
-                                  if (chat['pinned'] == true) ...[
+                                  if (peer['pinned'] == true) ...[
                                     const SizedBox(width: 6),
                                     Icon(
                                       Icons.push_pin,
@@ -713,18 +686,27 @@ class ChatsPageState extends State<ChatsPage> {
                                       ).colorScheme.onSurfaceVariant,
                                     ),
                                   ],
-                                  if ((chat['unread'] as int) > 0) ...[
+                                  if (peer['pending'] == true) ...[
                                     const SizedBox(width: 6),
-                                    Badge(
-                                      backgroundColor: Theme.of(
-                                        context,
-                                      ).colorScheme.primary,
-                                      label: Text(
-                                        chat['unread'].toString(),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.tertiaryContainer,
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Text(
+                                        'Pending',
                                         style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
                                           color: Theme.of(
                                             context,
-                                          ).colorScheme.onPrimary,
+                                          ).colorScheme.onTertiaryContainer,
                                         ),
                                       ),
                                     ),
@@ -762,8 +744,8 @@ class ChatsPageState extends State<ChatsPage> {
       );
     } catch (error) {
       developer.log(
-        'Failed to render chats view layout: $error',
-        name: 'ChatsPage.build',
+        'Failed to render peers view layout: $error',
+        name: 'PeersPage.build',
         error: error,
         stackTrace: StackTrace.current,
       );
@@ -779,7 +761,7 @@ class ChatsPageState extends State<ChatsPage> {
     } catch (error) {
       developer.log(
         'Failed to dispose text controller resources: $error',
-        name: 'ChatsPage.dispose',
+        name: 'PeersPage.dispose',
         error: error,
         stackTrace: StackTrace.current,
       );
