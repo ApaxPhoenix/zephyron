@@ -1,27 +1,14 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:video_player/video_player.dart';
 import 'package:zephyron/models/message.dart';
 import 'package:zephyron/services/locker.dart';
+import 'package:zephyron/services/player.dart';
+import 'package:zephyron/services/still.dart';
 
-/// Reads a video's length and size by opening it once.
-Future<({Duration duration, int width, int height})> probe(File file) async {
-  final controller = VideoPlayerController.file(file);
-  try {
-    await controller.initialize();
-    final value = controller.value;
-    return (
-      duration: value.duration,
-      width: value.size.width.round(),
-      height: value.size.height.round(),
-    );
-  } catch (_) {
-    return (duration: Duration.zero, width: 0, height: 0);
-  } finally {
-    await controller.dispose();
-  }
-}
+/// Reads a video's length and upright size.
+Future<({Duration duration, int width, int height})> probe(File file) =>
+    Still.probe(file.path);
 
 /// A video message bubble: a dark frame with its length and a play button.
 class Reel extends StatelessWidget {
@@ -139,7 +126,7 @@ class Screening extends StatefulWidget {
 }
 
 class ScreeningState extends State<Screening> {
-  VideoPlayerController? controller;
+  Player? player;
   bool failed = false;
 
   @override
@@ -151,17 +138,16 @@ class ScreeningState extends State<Screening> {
   Future<void> prepare() async {
     try {
       final file = await Locker.export(widget.message);
-      final next = VideoPlayerController.file(file);
-      await next.initialize();
+      final next = await Player.open(file.path, video: true);
+      if (!mounted) {
+        await next.close();
+        return;
+      }
       next.addListener(() {
         if (mounted) setState(() {});
       });
+      setState(() => player = next);
       await next.play();
-      if (!mounted) {
-        await next.dispose();
-        return;
-      }
-      setState(() => controller = next);
     } catch (_) {
       if (mounted) setState(() => failed = true);
     }
@@ -169,14 +155,16 @@ class ScreeningState extends State<Screening> {
 
   @override
   void dispose() {
-    controller?.dispose();
+    player?.close();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final video = controller;
-    final value = video?.value;
+    final video = player;
+    final texture = video?.texture;
+    final total = video?.duration ?? Duration.zero;
+    final at = video?.position ?? Duration.zero;
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
@@ -198,7 +186,7 @@ class ScreeningState extends State<Screening> {
                   style: TextStyle(color: Colors.white70),
                 ),
               )
-            : video == null || value == null || !value.isInitialized
+            : video == null || texture == null
             ? const Center(
                 child: CircularProgressIndicator(color: Colors.white),
               )
@@ -206,12 +194,14 @@ class ScreeningState extends State<Screening> {
                 children: [
                   Expanded(
                     child: GestureDetector(
-                      onTap: () =>
-                          value.isPlaying ? video.pause() : video.play(),
+                      onTap: () => video.playing ? video.pause() : video.play(),
                       child: Center(
                         child: AspectRatio(
-                          aspectRatio: value.aspectRatio,
-                          child: VideoPlayer(video),
+                          aspectRatio: video.aspect,
+                          child: RotatedBox(
+                            quarterTurns: video.rotation ~/ 90,
+                            child: Texture(textureId: texture),
+                          ),
                         ),
                       ),
                     ),
@@ -221,11 +211,11 @@ class ScreeningState extends State<Screening> {
                     child: Row(
                       children: [
                         IconButton(
-                          tooltip: value.isPlaying ? 'Pause' : 'Play',
+                          tooltip: video.playing ? 'Pause' : 'Play',
                           onPressed: () =>
-                              value.isPlaying ? video.pause() : video.play(),
+                              video.playing ? video.pause() : video.play(),
                           icon: Icon(
-                            value.isPlaying
+                            video.playing
                                 ? Icons.pause_rounded
                                 : Icons.play_arrow_rounded,
                             color: Colors.white,
@@ -233,22 +223,24 @@ class ScreeningState extends State<Screening> {
                           ),
                         ),
                         Expanded(
-                          child: VideoProgressIndicator(
-                            video,
-                            allowScrubbing: true,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            colors: VideoProgressColors(
-                              playedColor: Theme.of(
-                                context,
-                              ).colorScheme.primary,
-                              bufferedColor: Colors.white24,
-                              backgroundColor: Colors.white12,
+                          child: Slider(
+                            activeColor: Theme.of(context).colorScheme.primary,
+                            inactiveColor: Colors.white24,
+                            value: total.inMilliseconds == 0
+                                ? 0
+                                : (at.inMilliseconds / total.inMilliseconds)
+                                      .clamp(0.0, 1.0),
+                            onChanged: (value) => video.seek(
+                              Duration(
+                                milliseconds: (value * total.inMilliseconds)
+                                    .round(),
+                              ),
                             ),
                           ),
                         ),
                         const SizedBox(width: 12),
                         Text(
-                          '${length(value.position)} / ${length(value.duration)}',
+                          '${length(at)} / ${length(total)}',
                           style: const TextStyle(
                             color: Colors.white70,
                             fontFeatures: [FontFeature.tabularFigures()],

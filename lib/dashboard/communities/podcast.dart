@@ -1,8 +1,5 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:typed_data';
-import 'package:audioplayers/audioplayers.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:zephyron/theme.dart';
 import 'package:zephyron/dashboard/communities/index.dart';
@@ -13,6 +10,9 @@ import 'package:zephyron/services/broadcast.dart';
 import 'package:zephyron/services/courier.dart';
 import 'package:zephyron/services/locker.dart';
 import 'package:zephyron/services/mesh.dart';
+import 'package:zephyron/services/picker.dart';
+import 'package:zephyron/services/player.dart';
+import 'package:zephyron/services/still.dart';
 import 'package:zephyron/widgets/avatar.dart';
 import 'package:zephyron/widgets/sheet.dart';
 import 'package:zephyron/widgets/stamp.dart';
@@ -84,25 +84,16 @@ class PodcastPageState extends State<PodcastPage> {
 
   Future<({Uint8List bytes, Duration duration, String mime})?> file() async {
     try {
-      final picked = await FilePicker.pickFiles(type: FileType.audio);
-      if (picked.isEmpty) return null;
-      final chosen = picked.first.xFile;
-      if (await chosen.length() > Broadcast.ceiling) {
+      final chosen = await Picker.file(type: 'audio/*');
+      if (chosen == null) return null;
+      if (chosen.size > Broadcast.ceiling) {
         warn('Episodes are limited to 50 MB.');
         return null;
       }
-      final probe = AudioPlayer();
-      Duration duration = Duration.zero;
-      try {
-        await probe.setSource(DeviceFileSource(chosen.path));
-        duration = await probe.getDuration() ?? Duration.zero;
-      } catch (_) {
-      } finally {
-        await probe.dispose();
-      }
-      final mime = Locker.mime(picked.first.name);
+      final duration = (await Still.probe(chosen.path)).duration;
+      final mime = Locker.mime(chosen.name);
       return (
-        bytes: await chosen.readAsBytes(),
+        bytes: await chosen.bytes(),
         duration: duration,
         mime: mime.startsWith('audio/') ? mime : 'audio/mp4',
       );
@@ -363,8 +354,7 @@ class EpisodeCard extends StatefulWidget {
 }
 
 class EpisodeCardState extends State<EpisodeCard> {
-  final List<StreamSubscription<dynamic>> watching = [];
-  AudioPlayer? player;
+  Player? player;
   bool? kept;
   bool playing = false;
   bool opening = false;
@@ -384,10 +374,7 @@ class EpisodeCardState extends State<EpisodeCard> {
   @override
   void dispose() {
     broadcast.removeListener(check);
-    for (final subscription in watching) {
-      subscription.cancel();
-    }
-    player?.dispose();
+    player?.close();
     super.dispose();
   }
 
@@ -399,35 +386,25 @@ class EpisodeCardState extends State<EpisodeCard> {
   Future<void> toggle() async {
     final current = player;
     if (current != null) {
-      playing ? await current.pause() : await current.resume();
+      playing ? await current.pause() : await current.play();
       return;
     }
     setState(() => opening = true);
     try {
       final bytes = await broadcast.audio(blob);
       final file = await Locker.stage(blob, 'episode.m4a', bytes);
-      final made = AudioPlayer();
-      watching
-        ..add(
-          made.onPositionChanged.listen((value) {
-            if (mounted) setState(() => position = value);
-          }),
-        )
-        ..add(
-          made.onDurationChanged.listen((value) {
-            if (mounted) setState(() => total = value);
-          }),
-        )
-        ..add(
-          made.onPlayerStateChanged.listen((state) {
-            if (mounted) setState(() => playing = state == PlayerState.playing);
-          }),
-        );
-      await made.play(
-        DeviceFileSource(File(file.path).path),
-        position: position > Duration.zero ? position : null,
-      );
+      final made = await Player.open(file.path);
+      made.addListener(() {
+        if (!mounted) return;
+        setState(() {
+          position = made.position;
+          playing = made.playing;
+          if (made.duration > Duration.zero) total = made.duration;
+        });
+      });
       player = made;
+      if (position > Duration.zero) await made.seek(position);
+      await made.play();
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
