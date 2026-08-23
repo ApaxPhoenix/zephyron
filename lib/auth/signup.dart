@@ -38,13 +38,13 @@ class SignUpPageState extends State<SignUpPage> {
     try {
       seed = bip39.generateMnemonic();
       developer.log(
-        'Generated mnemonic seed phrase',
+        'Generated new mnemonic seed phrase for identity creation',
         name: 'SignUpPageState.initState',
         level: 800,
       );
     } catch (error) {
       developer.log(
-        'Failed to generate mnemonic seed phrase',
+        'Failed to generate random mnemonic seed phrase via BIP-39',
         name: 'SignUpPageState.initState',
         level: 1000,
         error: error,
@@ -54,25 +54,45 @@ class SignUpPageState extends State<SignUpPage> {
   }
 
   void copy(String text) {
-    Clipboard.setData(ClipboardData(text: text));
-    developer.log(
-      'Copied seed phrase to clipboard',
-      name: 'SignUpPageState.copy',
-      level: 800,
-    );
+    try {
+      Clipboard.setData(ClipboardData(text: text));
+      developer.log(
+        'Copied mnemonic seed phrase to system clipboard',
+        name: 'SignUpPageState.copy',
+        level: 800,
+      );
 
-    timer?.cancel();
-    timer = Timer(const Duration(seconds: 30), () async {
-      final data = await Clipboard.getData(Clipboard.kTextPlain);
-      if (data?.text == text) {
-        await Clipboard.setData(const ClipboardData(text: ''));
-        developer.log(
-          'Cleared seed phrase from clipboard',
-          name: 'SignUpPageState.copy',
-          level: 500,
-        );
-      }
-    });
+      timer?.cancel();
+      timer = Timer(const Duration(seconds: 30), () async {
+        try {
+          final data = await Clipboard.getData(Clipboard.kTextPlain);
+          if (data?.text == text) {
+            await Clipboard.setData(const ClipboardData(text: ''));
+            developer.log(
+              'Cleared copied mnemonic seed phrase from system clipboard after timeout',
+              name: 'SignUpPageState.copy',
+              level: 500,
+            );
+          }
+        } catch (error) {
+          developer.log(
+            'Failed to auto-clear mnemonic seed phrase from clipboard during timer execution',
+            name: 'SignUpPageState.copy',
+            level: 1000,
+            error: error,
+            stackTrace: StackTrace.current,
+          );
+        }
+      });
+    } catch (error) {
+      developer.log(
+        'Failed to copy mnemonic seed phrase to system clipboard',
+        name: 'SignUpPageState.copy',
+        level: 1000,
+        error: error,
+        stackTrace: StackTrace.current,
+      );
+    }
   }
 
   @override
@@ -127,9 +147,7 @@ class SignUpPageState extends State<SignUpPage> {
                           child: OutlinedButton.icon(
                             icon: const Icon(Icons.copy, size: 18),
                             label: const Text('Copy Seed to Clipboard'),
-                            onPressed: seed != null
-                                ? () => copy(seed!)
-                                : null,
+                            onPressed: seed != null ? () => copy(seed!) : null,
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -197,111 +215,142 @@ class SignUpPageState extends State<SignUpPage> {
                           child: ElevatedButton(
                             onPressed: agreed && !busy && seed != null
                                 ? () async {
-                              try {
-                                if (key.currentState!.validate()) {
-                                  developer.log(
-                                    'Starting identity creation workflow',
-                                    name: 'SignUpPageState.createIdentity',
-                                    level: 800,
-                                  );
+                                    try {
+                                      if (key.currentState!.validate()) {
+                                        developer.log(
+                                          'Starting identity generation and network initialization workflow',
+                                          name:
+                                              'SignUpPageState.createIdentity',
+                                          level: 800,
+                                        );
 
-                                  final mnemonic = seed!;
+                                        final mnemonic = seed!;
 
-                                  setState(() {
-                                    busy = true;
-                                    warning = null;
-                                  });
+                                        setState(() {
+                                          busy = true;
+                                          warning = null;
+                                        });
 
-                                  final user = await compute(make, mnemonic);
+                                        final user = await compute(
+                                          make,
+                                          mnemonic,
+                                        );
 
-                                  if (user.private.length != 128) {
-                                    developer.log(
-                                      'Private key length validation failed',
-                                      name: 'SignUpPageState.createIdentity',
-                                      level: 1000,
-                                      stackTrace: StackTrace.current,
-                                    );
-                                    throw StateError(
-                                      'Invalid key length: expected 128 hex chars',
-                                    );
+                                        if (user.private.length != 128) {
+                                          final exception = StateError(
+                                            'Invalid key length: expected 128 hex chars',
+                                          );
+                                          developer.log(
+                                            'Private key validation failed: generated seed resulted in invalid key length',
+                                            name:
+                                                'SignUpPageState.createIdentity',
+                                            level: 1000,
+                                            error: exception,
+                                            stackTrace: StackTrace.current,
+                                          );
+                                          throw exception;
+                                        }
+
+                                        await Session.compose(
+                                          Session.label,
+                                          passphrase.text,
+                                          user,
+                                          mnemonic,
+                                        );
+
+                                        final folder =
+                                            await getApplicationSupportDirectory();
+                                        final path = '${folder.path}/tor';
+
+                                        final rawKey = user.private;
+                                        final encoded = await compute(
+                                          pack,
+                                          rawKey,
+                                        );
+                                        final host = await publish(
+                                          path,
+                                          encoded,
+                                        );
+
+                                        final tor = host.replaceAll(
+                                          '.onion',
+                                          '',
+                                        );
+                                        final base = user.address.replaceAll(
+                                          '.onion',
+                                          '',
+                                        );
+
+                                        if (tor.length >= 50 &&
+                                            base.length >= 50 &&
+                                            tor.substring(0, 50) !=
+                                                base.substring(0, 50)) {
+                                          final exception = StateError(
+                                            'Published address pubkey does not match identity '
+                                            '(tor=$host expected=${user.address}).',
+                                          );
+                                          developer.log(
+                                            'Published Tor address public key mismatch: published host address does not match generated identity address',
+                                            name:
+                                                'SignUpPageState.createIdentity',
+                                            level: 1000,
+                                            error: exception,
+                                            stackTrace: StackTrace.current,
+                                          );
+                                          throw exception;
+                                        }
+
+                                        developer.log(
+                                          'Completed identity creation, session composition, and network publishing successfully',
+                                          name:
+                                              'SignUpPageState.createIdentity',
+                                          level: 800,
+                                        );
+
+                                        if (mounted) {
+                                          Navigator.of(
+                                            context,
+                                          ).pushReplacementNamed(
+                                            '/dashboard',
+                                            arguments: user,
+                                          );
+                                        }
+                                      } else {
+                                        developer.log(
+                                          'Identity creation form validation failed due to invalid user input',
+                                          name:
+                                              'SignUpPageState.createIdentity',
+                                          level: 900,
+                                        );
+                                      }
+                                    } catch (error) {
+                                      developer.log(
+                                        'Failed to initialize network or save identity credentials',
+                                        name: 'SignUpPageState.createIdentity',
+                                        level: 1000,
+                                        error: error,
+                                        stackTrace: StackTrace.current,
+                                      );
+
+                                      setState(
+                                        () => warning =
+                                            'Failed to initialize network or save identity credentials',
+                                      );
+                                    } finally {
+                                      if (mounted) {
+                                        setState(() => busy = false);
+                                      }
+                                    }
                                   }
-
-                                  await Session.compose(
-                                    Session.label,
-                                    passphrase.text,
-                                    user,
-                                    mnemonic,
-                                  );
-
-                                  final folder = await getApplicationSupportDirectory();
-                                  final path = '${folder.path}/tor';
-
-                                  final rawKey = user.private;
-                                  final encoded = await compute(pack, rawKey);
-                                  final host = await publish(path, encoded);
-
-                                  final tor = host.replaceAll('.onion', '');
-                                  final base = user.address.replaceAll('.onion', '');
-
-                                  if (tor.length >= 50 && base.length >= 50 && tor.substring(0, 50) != base.substring(0, 50)) {
-                                    developer.log(
-                                      'Published Tor address public key mismatch: tor=$host expected=${user.address}',
-                                      name: 'SignUpPageState.createIdentity',
-                                      level: 1000,
-                                      stackTrace: StackTrace.current,
-                                    );
-                                    throw StateError(
-                                      'Published address pubkey does not match identity '
-                                          '(tor=$host expected=${user.address}).',
-                                    );
-                                  }
-
-                                  developer.log(
-                                    'Completed identity creation successfully',
-                                    name: 'SignUpPageState.createIdentity',
-                                    level: 800,
-                                  );
-
-                                  if (mounted) {
-                                    Navigator.of(context).pushReplacementNamed(
-                                      '/dashboard',
-                                      arguments: user,
-                                    );
-                                  }
-                                } else {
-                                  developer.log(
-                                    'Form validation failed',
-                                    name: 'SignUpPageState.createIdentity',
-                                    level: 900,
-                                  );
-                                }
-                              } catch (error) {
-                                developer.log(
-                                  'Network or identity initialization failed',
-                                  name: 'SignUpPageState.createIdentity',
-                                  level: 1000,
-                                  error: error,
-                                  stackTrace: StackTrace.current,
-                                );
-
-                                setState(
-                                      () => warning = 'Failed to initialize network or save identity credentials',
-                                );
-                              } finally {
-                                if (mounted) {
-                                  setState(() => busy = false);
-                                }
-                              }
-                            }
                                 : null,
                             child: busy
                                 ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                              ),
-                            )
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
                                 : const Text('Create Identity'),
                           ),
                         ),
@@ -318,7 +367,7 @@ class SignUpPageState extends State<SignUpPage> {
                                 ),
                                 TextSpan(
                                   text:
-                                  '. If I lose my seed phrase or local passphrase, my account and messages cannot be recovered.',
+                                      '. If I lose my seed phrase or local passphrase, my account and messages cannot be recovered.',
                                 ),
                               ],
                             ),
@@ -362,14 +411,14 @@ class SignUpPageState extends State<SignUpPage> {
       warning = null;
 
       developer.log(
-        'Disposed SignUpPageState controller and state resources',
+        'Disposed SignUpPageState input controllers, state resources, and clipboard timers',
         name: 'SignUpPageState.dispose',
         level: 500,
       );
       super.dispose();
     } catch (error) {
       developer.log(
-        'Failed to release input controllers cleanly during dispose',
+        'Failed to cleanly release input controllers or cancel timers during dispose',
         name: 'SignUpPageState.dispose',
         level: 1000,
         error: error,

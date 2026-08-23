@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'dart:ffi';
 import 'dart:io';
 import 'package:ffi/ffi.dart';
@@ -77,8 +78,22 @@ external int send(
 external Pointer<Utf8> error();
 
 final DynamicLibrary library = () {
-  if (Platform.isIOS) throw UnsupportedError('iOS blocks raw serial access.');
+  if (Platform.isIOS) {
+    developer.log(
+      'Serial access is not supported on iOS platforms',
+      name: 'library.serial',
+      level: 1000,
+      stackTrace: StackTrace.current,
+    );
+    throw UnsupportedError('iOS blocks raw serial access.');
+  }
   if (Platform.isFuchsia) {
+    developer.log(
+      'Serial access is not supported on Fuchsia platforms',
+      name: 'library.serial',
+      level: 1000,
+      stackTrace: StackTrace.current,
+    );
     throw UnsupportedError('Fuchsia is not supported yet.');
   }
 
@@ -103,12 +118,22 @@ final DynamicLibrary library = () {
           return null;
         }
       }) ??
-      (throw StateError(
-        'libserialport not found on ${Platform.operatingSystem}.\n'
-        '  Linux  : sudo apt install libserialport-dev\n'
-        '  macOS  : brew install libserialport\n'
-        '  Windows: https://sigrok.org/wiki/Libserialport',
-      ));
+      () {
+        final exception = StateError(
+          'libserialport not found on ${Platform.operatingSystem}.\n'
+          '  Linux  : sudo apt install libserialport-dev\n'
+          '  macOS  : brew install libserialport\n'
+          '  Windows: https://sigrok.org/wiki/Libserialport',
+        );
+        developer.log(
+          'Failed to locate or load libserialport dynamic library on host operating system',
+          name: 'library.serial',
+          level: 1000,
+          error: exception,
+          stackTrace: StackTrace.current,
+        );
+        throw exception;
+      }();
 }();
 
 class Serial {
@@ -120,7 +145,16 @@ class Serial {
   static List<Map<String, String>> list() {
     return using((arena) {
       final pointer = arena<Pointer<Pointer<Void>>>();
-      if (enumerate(pointer) != 0) return [];
+      final status = enumerate(pointer);
+      if (status != 0) {
+        developer.log(
+          'Failed to enumerate system serial ports via libserialport (code: $status)',
+          name: 'Serial.list',
+          level: 900,
+          stackTrace: StackTrace.current,
+        );
+        return [];
+      }
 
       final ports = <Map<String, String>>[];
       int index = 0;
@@ -141,17 +175,44 @@ class Serial {
     return using((arena) {
       final pointer = arena<Pointer<Void>>();
       if (resolve(pointer, path.toNativeUtf8(allocator: arena)) != 0) {
-        throw StateError('Port $path not found: ${error().toDartString()}');
+        final errStr = error().toDartString();
+        final exception = StateError('Port $path not found: $errStr');
+        developer.log(
+          'Failed to resolve serial port path: $path ($errStr)',
+          name: 'Serial.open',
+          level: 1000,
+          error: exception,
+          stackTrace: StackTrace.current,
+        );
+        throw exception;
       }
 
       final port = pointer.value;
       if (launch(port, 3) != 0) {
-        throw StateError('Open failed: ${error().toDartString()}');
+        final errStr = error().toDartString();
+        final exception = StateError('Open failed: $errStr');
+        developer.log(
+          'Failed to open connection to serial port path: $path ($errStr)',
+          name: 'Serial.open',
+          level: 1000,
+          error: exception,
+          stackTrace: StackTrace.current,
+        );
+        throw exception;
       }
 
       final setup = arena<Pointer<Void>>();
       if (allocate(setup) != 0) {
-        throw StateError('Config failed: ${error().toDartString()}');
+        final errStr = error().toDartString();
+        final exception = StateError('Config failed: $errStr');
+        developer.log(
+          'Failed to allocate configuration object for serial port path: $path ($errStr)',
+          name: 'Serial.open',
+          level: 1000,
+          error: exception,
+          stackTrace: StackTrace.current,
+        );
+        throw exception;
       }
 
       baud(setup.value, rate);
@@ -160,7 +221,16 @@ class Serial {
       parity(setup.value, 0);
 
       if (apply(port, setup.value) != 0) {
-        throw StateError('Apply failed: ${error().toDartString()}');
+        final errStr = error().toDartString();
+        final exception = StateError('Apply failed: $errStr');
+        developer.log(
+          'Failed to apply baud rate ($rate) and frame configuration to serial port path: $path ($errStr)',
+          name: 'Serial.open',
+          level: 1000,
+          error: exception,
+          stackTrace: StackTrace.current,
+        );
+        throw exception;
       }
 
       return Serial._(port)..config = setup.value;
@@ -176,11 +246,30 @@ class Serial {
         )
         .toList();
 
-    if (matches.isEmpty) throw StateError('No port matching "$name" found.');
-    if (matches.length > 1) {
-      throw StateError(
-        'Multiple ports match "$name": ${matches.map((port) => port['name']).join(', ')}. Be more specific.',
+    if (matches.isEmpty) {
+      final exception = StateError('No port matching "$name" found.');
+      developer.log(
+        'Serial port lookup failed: no port matching search term "$name"',
+        name: 'Serial.find',
+        level: 900,
+        error: exception,
+        stackTrace: StackTrace.current,
       );
+      throw exception;
+    }
+    if (matches.length > 1) {
+      final matchedNames = matches.map((port) => port['name']).join(', ');
+      final exception = StateError(
+        'Multiple ports match "$name": $matchedNames. Be more specific.',
+      );
+      developer.log(
+        'Serial port lookup ambiguous: multiple candidate ports matched "$name" ($matchedNames)',
+        name: 'Serial.find',
+        level: 900,
+        error: exception,
+        stackTrace: StackTrace.current,
+      );
+      throw exception;
     }
 
     return Serial.open(matches.first['name']!, rate: rate);
@@ -193,7 +282,18 @@ class Serial {
         buffer[index] = bytes[index];
       }
       final sent = send(port, buffer.cast(), bytes.length, timeout);
-      if (sent < 0) throw StateError('Write failed: ${error().toDartString()}');
+      if (sent < 0) {
+        final errStr = error().toDartString();
+        final exception = StateError('Write failed: $errStr');
+        developer.log(
+          'Blocking write operation failed on target serial port ($errStr)',
+          name: 'Serial.push',
+          level: 1000,
+          error: exception,
+          stackTrace: StackTrace.current,
+        );
+        throw exception;
+      }
       return sent;
     });
   }
@@ -202,18 +302,39 @@ class Serial {
     return using((arena) {
       final buffer = arena<Uint8>(length);
       final count = recv(port, buffer.cast(), length, timeout);
-      if (count < 0) throw StateError('Read failed: ${error().toDartString()}');
+      if (count < 0) {
+        final errStr = error().toDartString();
+        final exception = StateError('Read failed: $errStr');
+        developer.log(
+          'Blocking read operation failed on target serial port ($errStr)',
+          name: 'Serial.pull',
+          level: 1000,
+          error: exception,
+          stackTrace: StackTrace.current,
+        );
+        throw exception;
+      }
       return List<int>.from(buffer.asTypedList(count));
     });
   }
 
   void dispose() {
-    if (port != nullptr) {
-      close(port);
-      free(port);
+    try {
+      if (port != nullptr) {
+        close(port);
+        free(port);
+      }
+      if (config != nullptr) clean(config);
+      config = nullptr;
+    } catch (error) {
+      developer.log(
+        'Failed to cleanly release native serial port handles during dispose',
+        name: 'Serial.dispose',
+        level: 1000,
+        error: error,
+        stackTrace: StackTrace.current,
+      );
     }
-    if (config != nullptr) clean(config);
-    config = nullptr;
   }
 
   T use<T>(T Function(Serial serial) callback) {
