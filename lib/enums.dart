@@ -217,6 +217,13 @@ enum Signal {
 
   /// Community posts and the sync that passes them between members.
   mesh,
+
+  /// A sealed frame for someone offline, given to a trustee to pass on, or
+  /// handed over by that trustee once they are back.
+  parcel,
+
+  /// A trustee confirming it is holding a parcel.
+  held,
 }
 
 /// How long messages last before both phones delete them.

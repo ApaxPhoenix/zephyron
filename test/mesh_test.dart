@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zephyron/enums.dart';
 import 'package:zephyron/models/community.dart';
 import 'package:zephyron/models/identity.dart';
+import 'package:zephyron/models/message.dart';
 import 'package:zephyron/models/profile.dart';
 import 'package:zephyron/services/courier.dart';
 import 'package:zephyron/services/mesh.dart';
@@ -440,5 +441,21 @@ void main() {
       }
       expect(kept, Mesh.burst - 1);
     });
+  });
+
+  test('an invitation sent through chat keeps the whole keyring', () async {
+    final community = await founded();
+    community.rekey(Uint8List.fromList(List.filled(32, 9)), 1);
+    final card = Message(
+      id: Courier.token(),
+      peer: alice.address,
+      mine: true,
+      kind: Kind.invite,
+      text: '',
+      time: DateTime.now(),
+      meta: mesh.invitation(community),
+    );
+    final meta = courier.envelope(card)['meta'] as Map;
+    expect((meta['keys'] as Map).keys, containsAll(community.keys.keys));
   });
 }
