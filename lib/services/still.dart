@@ -10,6 +10,26 @@ class Still {
   /// Largest thumbnail kept, so it fits inside an encrypted manifest.
   static const int ceiling = 64 * 1024;
 
+  /// How long a video or recording lasts, and a video's upright size; zero
+  /// for whatever cannot be read.
+  static Future<({Duration duration, int width, int height})> probe(
+    String path,
+  ) async {
+    try {
+      final facts = await link.invokeMapMethod<String, Object?>('probe', {
+        'path': path,
+      });
+      int read(String key) => (facts?[key] as num?)?.toInt() ?? 0;
+      return (
+        duration: Duration(milliseconds: read('duration')),
+        width: read('width'),
+        height: read('height'),
+      );
+    } catch (_) {
+      return (duration: Duration.zero, width: 0, height: 0);
+    }
+  }
+
   /// A JPEG of [path]'s first moments, or null when none can be made.
   static Future<Uint8List?> grab(String path, {int width = 480}) async {
     try {
