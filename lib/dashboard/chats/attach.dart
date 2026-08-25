@@ -75,6 +75,7 @@ class Attach {
         final picked = await Picker.video();
         if (picked == null) return;
         if (picked.size > Locker.ceiling) {
+          await picked.discard();
           warn('Videos are limited to 25 MB. Try a shorter clip.');
           return;
         }
@@ -196,6 +197,7 @@ class Attach {
                       final chosen = await Picker.file();
                       if (chosen == null) return;
                       if (chosen.size > Locker.ceiling) {
+                        await chosen.discard();
                         warn('Files are limited to 25 MB.');
                         return;
                       }

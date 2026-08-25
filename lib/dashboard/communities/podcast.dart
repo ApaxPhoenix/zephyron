@@ -87,6 +87,7 @@ class PodcastPageState extends State<PodcastPage> {
       final chosen = await Picker.file(type: 'audio/*');
       if (chosen == null) return null;
       if (chosen.size > Broadcast.ceiling) {
+        await chosen.discard();
         warn('Episodes are limited to 50 MB.');
         return null;
       }
