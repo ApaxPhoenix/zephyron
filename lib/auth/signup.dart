@@ -2,12 +2,15 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:io';
+import 'dart:isolate';
 import 'package:bip39/bip39.dart' as bip39;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:zephyron/models/identity.dart';
+import 'package:cryptography/cryptography.dart';
+import 'package:zephyron/wrappers/tor.dart';
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
@@ -55,6 +58,28 @@ class SignUpPageState extends State<SignUpPage> {
         developer.log('Clipboard automatically cleared', name: 'SignUpPage.clipboard');
       }
     });
+  }
+
+  Future<String> encrypt(String text, String pass) async {
+    final cipher = AesGcm.with256bits();
+    final hasher = Pbkdf2(
+      macAlgorithm: Hmac.sha256(),
+      iterations: 100000,
+      bits: 256,
+    );
+
+    final salt = List<int>.generate(16, (count) => count);
+    final unlock = await hasher.deriveKeyFromPassword(
+      password: pass,
+      nonce: salt,
+    );
+
+    final box = await cipher.encrypt(
+      utf8.encode(text),
+      secretKey: unlock,
+    );
+
+    return base64.encode(box.concatenation());
   }
 
   @override
@@ -108,7 +133,7 @@ class SignUpPageState extends State<SignUpPage> {
                           width: double.infinity,
                           child: OutlinedButton.icon(
                             icon: const Icon(Icons.copy, size: 18),
-                            label: const Text('Copy Seed to Clipboard (Auto-Clears)'),
+                            label: const Text('Copy Seed to Clipboard'),
                             onPressed: seed != null
                                 ? () => copy(seed!)
                                 : null,
@@ -208,22 +233,52 @@ class SignUpPageState extends State<SignUpPage> {
                                     warning = null;
                                   });
 
+                                  final encryptedSeed = await encrypt(
+                                    seed!,
+                                    passphrase.text,
+                                  );
+
                                   const options = AndroidOptions();
 
                                   await storage.write(
                                     key: 'seed',
-                                    value: seed,
+                                    value: encryptedSeed,
                                     aOptions: options,
                                   );
 
                                   final path = '${(await getApplicationSupportDirectory()).path}/tor';
-                                  final cookie = File('$path/cookie');
+                                  final torDir = Directory(path);
+                                  if (!await torDir.exists()) {
+                                    await torDir.create(recursive: true);
+                                  }
 
                                   if (Platform.isAndroid || Platform.isLinux || Platform.isMacOS) {
                                     await Process.run('chmod', ['700', path]);
-                                    if (await cookie.exists()) {
-                                      await Process.run('chmod', ['600', cookie.path]);
+                                  }
+
+                                  final socketFile = File('$path/control.sock');
+                                  if (!await socketFile.exists()) {
+                                    unawaited(Isolate.run(() {
+                                      final daemon = Tor(path: path, binary: '');
+                                      daemon.boot();
+                                    }).catchError((err, stack) {
+                                      developer.log('Tor daemon error: $err', error: err, stackTrace: stack);
+                                    }));
+
+                                    int retries = 0;
+                                    while (!await socketFile.exists() && retries < 30) {
+                                      await Future.delayed(const Duration(milliseconds: 500));
+                                      retries++;
                                     }
+                                  }
+
+                                  final cookie = File('$path/cookie');
+                                  if (await cookie.exists() && (Platform.isAndroid || Platform.isLinux || Platform.isMacOS)) {
+                                    await Process.run('chmod', ['600', cookie.path]);
+                                  }
+
+                                  if (!await socketFile.exists()) {
+                                    throw Exception('Timed out waiting for Tor control socket.');
                                   }
 
                                   final identity = Identity.fromInput(seed!);
@@ -238,7 +293,7 @@ class SignUpPageState extends State<SignUpPage> {
                                       radix: 16,
                                     );
                                   }
-                                  final secret = base64.encode(raw);
+                                  final secretKey = base64.encode(raw);
                                   raw.fillRange(0, raw.length, 0);
 
                                   final socket = await Socket.connect(
@@ -249,10 +304,10 @@ class SignUpPageState extends State<SignUpPage> {
                                   final lines = socket.cast<List<int>>().transform(utf8.decoder).transform(const LineSplitter());
 
                                   final bytes = await cookie.readAsBytes();
-                                  final hex = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+                                  final hex = bytes.map((bytes) => bytes.toRadixString(16).padLeft(2, '0')).join();
 
                                   socket.write('AUTHENTICATE $hex\r\n');
-                                  socket.write('ADD_ONION ED25519-V3:$secret Port=80,127.0.0.1:8080\r\n');
+                                  socket.write('ADD_ONION ED25519-V3:$secretKey Port=80,127.0.0.1:8080\r\n');
                                   await socket.flush();
 
                                   final response = await lines.first;
@@ -346,8 +401,6 @@ class SignUpPageState extends State<SignUpPage> {
   void dispose() {
     timer?.cancel();
     try {
-      // Garbage collection is ironically garbage.
-      // Overwrite sensitive passphrase buffers with zero-value characters prior to controller disposal to minimize residual memory exposure.
       passphrase.text = '0' * passphrase.text.length;
       passphrase.clear();
       passphrase.dispose();
