@@ -5,8 +5,12 @@ plugins {
 
 android {
     namespace = "com.aveloux.zephyron"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
+
+    buildFeatures {
+        buildConfig = true
+    }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -19,6 +23,9 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        val signature = System.getenv("SHA256_SIGNATURE") ?: "YOUR_DEBUG_HEX_HASH"
+        buildConfigField("String", "SHA256_SIGNATURE", "\"$signature\"")
     }
 
     buildTypes {
