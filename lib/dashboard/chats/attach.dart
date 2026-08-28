@@ -1,16 +1,14 @@
-import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:zephyron/theme.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:zephyron/dashboard/chats/gifs.dart';
 import 'package:zephyron/enums.dart';
 import 'package:zephyron/models/message.dart';
 import 'package:zephyron/models/trustee.dart';
 import 'package:zephyron/services/courier.dart';
 import 'package:zephyron/services/locker.dart';
+import 'package:zephyron/services/picker.dart';
 import 'package:zephyron/services/still.dart';
 import 'package:zephyron/widgets/avatar.dart';
 import 'package:zephyron/widgets/sheet.dart';
@@ -41,16 +39,11 @@ class Attach {
       );
     }
 
-    Future<void> photo(ImageSource source) async {
+    Future<void> photo({bool camera = false}) async {
       try {
-        final picked = await ImagePicker().pickImage(
-          source: source,
-          maxWidth: 2560,
-          maxHeight: 2560,
-          imageQuality: 88,
-        );
+        final picked = await Picker.photo(camera: camera);
         if (picked == null) return;
-        final bytes = await picked.readAsBytes();
+        final bytes = await picked.bytes();
         final size = await dimensions(bytes);
         final animated = picked.name.toLowerCase().endsWith('.gif');
         if (!context.mounted) return;
@@ -77,20 +70,17 @@ class Attach {
       }
     }
 
-    Future<void> clip(ImageSource source) async {
+    Future<void> clip() async {
       try {
-        final picked = await ImagePicker().pickVideo(
-          source: source,
-          maxDuration: const Duration(minutes: 5),
-        );
+        final picked = await Picker.video();
         if (picked == null) return;
-        if (await picked.length() > Locker.ceiling) {
+        if (picked.size > Locker.ceiling) {
           warn('Videos are limited to 25 MB. Try a shorter clip.');
           return;
         }
-        final facts = await probe(File(picked.path));
+        final facts = await probe(picked.file);
         final thumb = await Still.grab(picked.path);
-        final bytes = await picked.readAsBytes();
+        final bytes = await picked.bytes();
         if (!context.mounted) return;
         final caption = await Preview.show(
           context,
@@ -176,18 +166,14 @@ class Attach {
                   option(
                     Icons.photo_library_outlined,
                     'Gallery',
-                    () => photo(ImageSource.gallery),
+                    () => photo(),
                   ),
                   option(
                     Icons.photo_camera_outlined,
                     'Camera',
-                    () => photo(ImageSource.camera),
+                    () => photo(camera: true),
                   ),
-                  option(
-                    Icons.videocam_outlined,
-                    'Video',
-                    () => clip(ImageSource.gallery),
-                  ),
+                  option(Icons.videocam_outlined, 'Video', () => clip()),
                   option(Icons.gif_rounded, 'GIF', () async {
                     final picked = await Gifs.show(context);
                     if (picked == null) return;
@@ -207,15 +193,14 @@ class Attach {
                   }),
                   option(Icons.insert_drive_file_outlined, 'File', () async {
                     try {
-                      final picked = await FilePicker.pickFiles();
-                      if (picked.isEmpty) return;
-                      final chosen = picked.first.xFile;
-                      if (await chosen.length() > Locker.ceiling) {
+                      final chosen = await Picker.file();
+                      if (chosen == null) return;
+                      if (chosen.size > Locker.ceiling) {
                         warn('Files are limited to 25 MB.');
                         return;
                       }
-                      final bytes = await chosen.readAsBytes();
-                      final name = picked.first.name;
+                      final bytes = await chosen.bytes();
+                      final name = chosen.name;
                       final mime = Locker.mime(name);
                       final image = mime.startsWith('image/');
                       final size = image
