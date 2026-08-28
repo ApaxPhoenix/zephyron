@@ -11,6 +11,9 @@ If you discover a vulnerability, we would like to know about it so we can take
 steps to address it as quickly as possible. We would like to ask you to help us
 better protect our clients and our systems.
 
+The [threat model](#threat-model) at the end says what Zephyron is built
+to withstand and where that protection stops.
+
 ## Out of scope vulnerabilities
 
 * Attacks requiring physical access to a user's device.
@@ -57,3 +60,143 @@ better protect our clients and our systems.
   is resolved.
 * If all measures fail, contact us through social media, and we will provide a
   direct phone line to our security team.
+
+## Threat model
+
+This section says what Zephyron is built to protect, who it protects it
+from, and where that protection stops. It describes the Android app, the only
+platform where Tor runs today. Zephyron has not had an independent audit yet.
+
+### What it protects
+
+* **What you say:** messages, photos, files, voice and video messages, calls,
+  and community posts.
+* **Where you are:** your IP address, which your contacts never see.
+* **Who you are:** your identity's key, which never leaves your phone.
+* **What is on your phone:** your identities, contacts and chat history.
+
+### Anyone watching the network
+
+Your internet provider, the Wi-Fi you're on, or anyone else on the path sees
+only Tor traffic. They can't see who you talk to or what you say. Where Tor
+itself is blocked or watched, obfs4 bridges hide the fact that you use it.
+
+### Everyone in between
+
+There are no Zephyron servers. Messages go from your phone's onion service to
+the other phone's, so the only things in between are Tor relays.
+
+* Every frame is signed with the sender's key. Your address is your public
+  key, so nobody can pose as an address without holding its key.
+* Messages and files are end-to-end encrypted with the Double Ratchet, so a
+  key stolen later can't open older messages. After a key is stolen, the
+  session heals itself once both sides have sent new messages.
+* Encrypted messages are padded to fixed size classes (256 bytes, 512 bytes
+  and up), and attachments travel in chunks of one width. Each send waits a
+  random 150 to 1200 ms. Size and timing tell an observer less.
+
+### Recording now to decrypt later
+
+New sessions combine X25519 with ML-KEM-768 from the bundled liboqs. Traffic
+recorded today stays sealed even if a future quantum computer breaks X25519.
+
+Some things are still classical:
+
+* Frame signatures use Ed25519. Forging one would take a quantum computer
+  working in real time; recorded traffic doesn't help.
+* Tor's own encryption is classical.
+* On iOS, sessions fall back to classical until liboqs is built for it.
+
+The profile page of each trustee shows whether your session is post-quantum.
+
+### The people you talk to
+
+Trustees see your profile and what you send them. They also see when you're
+online, unless you set yourself to invisible. Zephyron can't stop them saving
+or forwarding what you send. Blocking screenshots only works on your own
+phone. Safety codes let you check, in person or over another channel, that a
+trustee's key is the one you meant.
+
+When someone is offline, a trustee or a mailbox phone you chose holds your
+messages until they're back. It can't read them. It does learn who wrote to
+whom, when, and how many messages were sent. A phone holds at most 200
+messages from one sender and 2,000 in all, and drops anything older than
+7 days.
+
+### Strangers, spam and bots
+
+Strangers can't reach your chats. Unless you turn message requests off, what
+they send waits in a separate list until you accept it. Only trustees can call
+you, and only trustees can pass you Discover listings.
+
+Joining a community takes proof of work, a few seconds of hashing on a phone,
+so mass joins get expensive. New members can't vote until they have been in
+the community for an hour, and anything past 30 posts a minute from one member
+is dropped.
+
+### Community and group members
+
+Everyone in a community or group holds its key. They can read everything
+posted, including the history from before they joined. They can also see one
+another's addresses. More than half of the seasoned members can vote someone
+out. The key then changes, so the removed person can't read anything new,
+though they keep whatever they already had.
+
+Voice rooms and group calls are sealed with a key derived from the community
+key. Any member can listen in, and members can see who is on a call.
+
+A direct call's key is made fresh for each call and sent inside your
+end-to-end session, so only the person you call can listen.
+
+### Discover
+
+Nothing is listed unless you ask. A listing is public to every phone it
+reaches: your name, bio, picture and address for a person, and a community's
+name, description, picture and keys. A listed community is effectively
+public, and anyone who finds it can join and read it.
+
+Listings are signed, cost proof of work, and lapse after 14 days unless they
+are renewed. One person can list at most 5 communities. Taking a listing down
+sends a signed notice that replaces it on every phone. Hiding a listing stops
+your phone passing it on, and you can turn off passing listings along
+entirely.
+
+### Someone holding your phone
+
+* **Storage.** Identities, contacts and messages are kept in a SQLCipher
+  database. Its key comes from your passphrase through Argon2id, mixed with
+  a secret held in your phone's secure hardware, so a copy of the database
+  can't be brute forced somewhere else. Photos and files are encrypted
+  separately.
+* **Wrong passphrases.** Five wrong passphrases within 15 minutes lock the
+  identity for a while. Ten in a row erase it. Six failures across all
+  identities within 15 minutes lock every identity, and patterns that look
+  like an attack erase them all.
+* **Coercion.** A duress passphrase opens a decoy identity and quietly erases
+  the rest. A panic wipe erases everything after a five-second countdown.
+* **Everyday exposure.** The app locks after 10 minutes without use. It
+  blocks screenshots and screen recording, and hides chats in the app
+  switcher.
+* **Plain copies.** Opening or sharing an attachment leaves a decrypted copy
+  in the cache until the vault locks. Picked photos and files are deleted as
+  soon as they are read. Anything you share to another app leaves
+  Zephyron's protection.
+
+### Where protection stops
+
+* **A compromised phone.** Malware or root access on an unlocked phone can
+  read what Zephyron shows. Release builds watch for root, hooking and
+  tampering, but that only raises the bar.
+* **Global watchers.** An adversary watching both ends of the Tor network
+  could still match traffic by timing. The random delays make this harder,
+  not impossible.
+* **The offline map.** The map downloads straight from Cloudflare R2, not
+  through Tor, so Cloudflare sees your IP address when you download it.
+  Storage credentials are built into the app, so anyone can extract them.
+  They should only ever allow reading the public map files.
+* **What you choose to share.** Listing yourself, joining a public community
+  or forwarding a file makes that information public on purpose.
+* **Software you rely on.** Zephyron keeps third-party packages to a short
+  list. It builds native libraries such as liboqs from pinned source with
+  scripts in this repository. Even so, a compromised dependency or toolchain
+  could compromise the app. Releases aren't reproducible yet.
