@@ -33,7 +33,15 @@ class Community {
   final DateTime created;
   DateTime joined;
   bool pinned;
+
+  /// A private group chat: listed with chats, one conversation, never
+  /// discoverable. Otherwise a community with channels.
+  final bool group;
   bool muted;
+
+  /// Whether the founder lists it in the directory, where anyone can find
+  /// and join it.
+  bool listed;
 
   /// Time of the description post now shown, so the newest one wins.
   int revised;
@@ -52,7 +60,9 @@ class Community {
     DateTime? created,
     DateTime? joined,
     this.pinned = false,
+    this.group = false,
     this.muted = false,
+    this.listed = false,
     this.revised = 0,
   }) : keys = keys ?? {fingerprint(key): key},
        epoch = epoch ?? fingerprint(key),
@@ -107,6 +117,8 @@ class Community {
       created: DateTime.fromMillisecondsSinceEpoch(row['created'] as int? ?? 0),
       joined: DateTime.fromMillisecondsSinceEpoch(row['joined'] as int? ?? 0),
       pinned: (row['pinned'] as int? ?? 0) == 1,
+      group: (row['grouped'] as int? ?? 0) == 1,
+      listed: (row['listed'] as int? ?? 0) == 1,
       muted: (row['muted'] as int? ?? 0) == 1,
       revised: row['revised'] as int? ?? 0,
     );
@@ -128,6 +140,8 @@ class Community {
     'created': created.millisecondsSinceEpoch,
     'joined': joined.millisecondsSinceEpoch,
     'pinned': pinned ? 1 : 0,
+    'grouped': group ? 1 : 0,
+    'listed': listed ? 1 : 0,
     'muted': muted ? 1 : 0,
     'revised': revised,
   };

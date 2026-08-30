@@ -357,13 +357,19 @@ class Mesh extends ChangeNotifier {
   }
 
   /// Communities with pinned ones first, then by latest activity.
-  List<Community> ordered() {
-    DateTime active(Community group) => latest(group.id)?.time ?? group.joined;
-    return communities.values.toList()..sort((alpha, beta) {
-      if (alpha.pinned != beta.pinned) return alpha.pinned ? -1 : 1;
-      return active(beta).compareTo(active(alpha));
-    });
+  List<Community> ordered({bool groups = false}) {
+    return communities.values.where((item) => item.group == groups).toList()
+      ..sort((alpha, beta) {
+        if (alpha.pinned != beta.pinned) return alpha.pinned ? -1 : 1;
+        return active(beta).compareTo(active(alpha));
+      });
   }
+
+  /// When anything last happened in [group].
+  DateTime active(Community group) => latest(group.id)?.time ?? group.joined;
+
+  /// Private group chats, newest activity first.
+  List<Community> groups() => ordered(groups: true);
 
   /// The highest post number held from each author with no gaps below it.
   Map<String, int> clock(String community) {
@@ -714,6 +720,7 @@ class Mesh extends ChangeNotifier {
     String about = '',
     Uint8List? icon,
     Uint8List? banner,
+    bool group = false,
   }) async {
     final self = courier.self!;
     final community = Community(
@@ -724,6 +731,7 @@ class Mesh extends ChangeNotifier {
       founder: self.address,
       icon: icon,
       banner: banner,
+      group: group,
     );
     communities[community.id] = community;
     await Ledger.gather(community);
@@ -821,6 +829,7 @@ class Mesh extends ChangeNotifier {
     },
     'founder': community.founder,
     'created': community.created.millisecondsSinceEpoch,
+    if (community.group) 'group': true,
   };
 
   /// Sends [community]'s invitation to a trustee as a chat message.
@@ -874,6 +883,7 @@ class Mesh extends ChangeNotifier {
       'key': key,
       'founder': founder,
       'created': created,
+      'group': meta['group'] == true,
       'by': from,
     };
   }
@@ -899,6 +909,7 @@ class Mesh extends ChangeNotifier {
       created: DateTime.fromMillisecondsSinceEpoch(
         invitation['created'] as int,
       ),
+      group: invitation['group'] == true,
     );
     communities[id] = community;
     await Ledger.gather(community);
