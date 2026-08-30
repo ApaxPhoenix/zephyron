@@ -1,16 +1,17 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:developer' as developer;
-import 'dart:io';
-import 'dart:isolate';
 import 'package:bip39/bip39.dart' as bip39;
+import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:zephyron/models/identity.dart';
-import 'package:cryptography/cryptography.dart';
+import 'package:zephyron/sql/session.dart';
 import 'package:zephyron/wrappers/tor.dart';
+
+Identity make(String seed) => Identity.fromInput(seed);
+
+dynamic pack(String key) => blob(key);
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
@@ -23,11 +24,10 @@ class SignUpPageState extends State<SignUpPage> {
   final GlobalKey<FormState> key = GlobalKey<FormState>();
   final TextEditingController passphrase = TextEditingController();
   final TextEditingController confirmation = TextEditingController();
-  final FlutterSecureStorage storage = const FlutterSecureStorage();
 
-  bool obscured = true;
-  bool toggled = false;
-  bool loading = false;
+  bool hidden = true;
+  bool agreed = false;
+  bool busy = false;
   String? seed;
   String? warning;
   Timer? timer;
@@ -37,49 +37,42 @@ class SignUpPageState extends State<SignUpPage> {
     super.initState();
     try {
       seed = bip39.generateMnemonic();
+      developer.log(
+        'Generated mnemonic seed phrase',
+        name: 'SignUpPageState.initState',
+        level: 800,
+      );
     } catch (error) {
       developer.log(
-        'Failed to generate mnemonic seed: $error',
+        'Failed to generate mnemonic seed phrase',
+        name: 'SignUpPageState.initState',
+        level: 1000,
         error: error,
         stackTrace: StackTrace.current,
-        name: 'SignUpPage.initState',
       );
     }
   }
 
   void copy(String text) {
     Clipboard.setData(ClipboardData(text: text));
+    developer.log(
+      'Copied seed phrase to clipboard',
+      name: 'SignUpPageState.copy',
+      level: 800,
+    );
 
     timer?.cancel();
     timer = Timer(const Duration(seconds: 30), () async {
       final data = await Clipboard.getData(Clipboard.kTextPlain);
       if (data?.text == text) {
         await Clipboard.setData(const ClipboardData(text: ''));
-        developer.log('Clipboard automatically cleared', name: 'SignUpPage.clipboard');
+        developer.log(
+          'Cleared seed phrase from clipboard',
+          name: 'SignUpPageState.copy',
+          level: 500,
+        );
       }
     });
-  }
-
-  Future<String> encrypt(String text, String pass) async {
-    final cipher = AesGcm.with256bits();
-    final hasher = Pbkdf2(
-      macAlgorithm: Hmac.sha256(),
-      iterations: 100000,
-      bits: 256,
-    );
-
-    final salt = List<int>.generate(16, (count) => count);
-    final unlock = await hasher.deriveKeyFromPassword(
-      password: pass,
-      nonce: salt,
-    );
-
-    final box = await cipher.encrypt(
-      utf8.encode(text),
-      secretKey: unlock,
-    );
-
-    return base64.encode(box.concatenation());
   }
 
   @override
@@ -147,19 +140,18 @@ class SignUpPageState extends State<SignUpPage> {
                         const SizedBox(height: 12),
                         TextFormField(
                           controller: passphrase,
-                          obscureText: obscured,
+                          obscureText: hidden,
                           textInputAction: TextInputAction.next,
                           decoration: InputDecoration(
                             hintText: 'Enter encryption passphrase',
                             errorText: warning,
                             suffixIcon: IconButton(
                               icon: Icon(
-                                obscured
+                                hidden
                                     ? Icons.visibility
                                     : Icons.visibility_off,
                               ),
-                              onPressed: () =>
-                                  setState(() => obscured = !obscured),
+                              onPressed: () => setState(() => hidden = !hidden),
                             ),
                           ),
                           autovalidateMode: AutovalidateMode.onUserInteraction,
@@ -168,24 +160,14 @@ class SignUpPageState extends State<SignUpPage> {
                               setState(() => warning = null);
                             }
                           },
-                          validator: (value) {
-                            try {
-                              if (value == null || value.isEmpty) {
-                                return 'Please enter a local passphrase';
-                              }
-                              if (value.length < 8) {
-                                return 'Passphrase must be at least 8 characters';
-                              }
-                              return null;
-                            } catch (error) {
-                              developer.log(
-                                'Failed to evaluate passphrase validation rule: $error',
-                                error: error,
-                                stackTrace: StackTrace.current,
-                                name: 'SignUpPage.validation',
-                              );
-                              return 'An unexpected error occurred.';
+                          validator: (input) {
+                            if (input == null || input.isEmpty) {
+                              return 'Please enter a local passphrase';
                             }
+                            if (input.length < 8) {
+                              return 'Passphrase must be at least 8 characters';
+                            }
+                            return null;
                           },
                         ),
                         const SizedBox(height: 12),
@@ -196,155 +178,123 @@ class SignUpPageState extends State<SignUpPage> {
                         const SizedBox(height: 12),
                         TextFormField(
                           controller: confirmation,
-                          obscureText: obscured,
+                          obscureText: hidden,
                           textInputAction: TextInputAction.done,
                           decoration: const InputDecoration(
                             hintText: 'Re-enter encryption passphrase',
                           ),
                           autovalidateMode: AutovalidateMode.onUserInteraction,
-                          validator: (value) {
-                            try {
-                              if (value != passphrase.text) {
-                                return 'Passphrases do not match';
-                              }
-                              return null;
-                            } catch (error) {
-                              developer.log(
-                                'Failed to evaluate confirmation passphrase validation: $error',
-                                error: error,
-                                stackTrace: StackTrace.current,
-                                name: 'SignUpPage.validation',
-                              );
-                              return 'An unexpected error occurred.';
+                          validator: (input) {
+                            if (input != passphrase.text) {
+                              return 'Passphrases do not match';
                             }
+                            return null;
                           },
                         ),
                         const SizedBox(height: 24),
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
-                            onPressed: toggled && !loading && seed != null
+                            onPressed: agreed && !busy && seed != null
                                 ? () async {
                               try {
                                 if (key.currentState!.validate()) {
-                                  final navigator = Navigator.of(context);
+                                  developer.log(
+                                    'Starting identity creation workflow',
+                                    name: 'SignUpPageState.createIdentity',
+                                    level: 800,
+                                  );
+
+                                  final mnemonic = seed!;
+
                                   setState(() {
-                                    loading = true;
+                                    busy = true;
                                     warning = null;
                                   });
 
-                                  final encryptedSeed = await encrypt(
-                                    seed!,
-                                    passphrase.text,
-                                  );
+                                  final user = await compute(make, mnemonic);
 
-                                  const options = AndroidOptions();
-
-                                  await storage.write(
-                                    key: 'seed',
-                                    value: encryptedSeed,
-                                    aOptions: options,
-                                  );
-
-                                  final path = '${(await getApplicationSupportDirectory()).path}/tor';
-                                  final torDir = Directory(path);
-                                  if (!await torDir.exists()) {
-                                    await torDir.create(recursive: true);
-                                  }
-
-                                  if (Platform.isAndroid || Platform.isLinux || Platform.isMacOS) {
-                                    await Process.run('chmod', ['700', path]);
-                                  }
-
-                                  final socketFile = File('$path/control.sock');
-                                  if (!await socketFile.exists()) {
-                                    unawaited(Isolate.run(() {
-                                      final daemon = Tor(path: path, binary: '');
-                                      daemon.boot();
-                                    }).catchError((err, stack) {
-                                      developer.log('Tor daemon error: $err', error: err, stackTrace: stack);
-                                    }));
-
-                                    int retries = 0;
-                                    while (!await socketFile.exists() && retries < 30) {
-                                      await Future.delayed(const Duration(milliseconds: 500));
-                                      retries++;
-                                    }
-                                  }
-
-                                  final cookie = File('$path/cookie');
-                                  if (await cookie.exists() && (Platform.isAndroid || Platform.isLinux || Platform.isMacOS)) {
-                                    await Process.run('chmod', ['600', cookie.path]);
-                                  }
-
-                                  if (!await socketFile.exists()) {
-                                    throw Exception('Timed out waiting for Tor control socket.');
-                                  }
-
-                                  final identity = Identity.fromInput(seed!);
-                                  if (identity.private.length != 128) {
-                                    throw Exception('Invalid key length: expected 128 hex chars');
-                                  }
-
-                                  final raw = Uint8List(64);
-                                  for (var i = 0; i < 64; i++) {
-                                    raw[i] = int.parse(
-                                      identity.private.substring(i * 2, i * 2 + 2),
-                                      radix: 16,
+                                  if (user.private.length != 128) {
+                                    developer.log(
+                                      'Private key length validation failed',
+                                      name: 'SignUpPageState.createIdentity',
+                                      level: 1000,
+                                      stackTrace: StackTrace.current,
+                                    );
+                                    throw StateError(
+                                      'Invalid key length: expected 128 hex chars',
                                     );
                                   }
-                                  final secretKey = base64.encode(raw);
-                                  raw.fillRange(0, raw.length, 0);
 
-                                  final socket = await Socket.connect(
-                                    InternetAddress('$path/control.sock', type: InternetAddressType.unix),
-                                    0,
+                                  await Session.compose(
+                                    Session.label,
+                                    passphrase.text,
+                                    user,
+                                    mnemonic,
                                   );
 
-                                  final lines = socket.cast<List<int>>().transform(utf8.decoder).transform(const LineSplitter());
+                                  final folder = await getApplicationSupportDirectory();
+                                  final path = '${folder.path}/tor';
 
-                                  final bytes = await cookie.readAsBytes();
-                                  final hex = bytes.map((bytes) => bytes.toRadixString(16).padLeft(2, '0')).join();
+                                  final rawKey = user.private;
+                                  final encoded = await compute(pack, rawKey);
+                                  final host = await publish(path, encoded);
 
-                                  socket.write('AUTHENTICATE $hex\r\n');
-                                  socket.write('ADD_ONION ED25519-V3:$secretKey Port=80,127.0.0.1:8080\r\n');
-                                  await socket.flush();
+                                  final tor = host.replaceAll('.onion', '');
+                                  final base = user.address.replaceAll('.onion', '');
 
-                                  final response = await lines.first;
-                                  if (!response.startsWith('250')) {
-                                    throw Exception('Tor control command failed: $response');
+                                  if (tor.length >= 50 && base.length >= 50 && tor.substring(0, 50) != base.substring(0, 50)) {
+                                    developer.log(
+                                      'Published Tor address public key mismatch: tor=$host expected=${user.address}',
+                                      name: 'SignUpPageState.createIdentity',
+                                      level: 1000,
+                                      stackTrace: StackTrace.current,
+                                    );
+                                    throw StateError(
+                                      'Published address pubkey does not match identity '
+                                          '(tor=$host expected=${user.address}).',
+                                    );
                                   }
 
-                                  await socket.close();
-
                                   developer.log(
-                                    'Created, secured, and published Tor Identity: ${identity.address}',
-                                    name: 'SignUpPage.identity',
+                                    'Completed identity creation successfully',
+                                    name: 'SignUpPageState.createIdentity',
+                                    level: 800,
                                   );
 
-                                  navigator.pushReplacementNamed(
-                                    '/dashboard',
-                                    arguments: identity,
+                                  if (mounted) {
+                                    Navigator.of(context).pushReplacementNamed(
+                                      '/dashboard',
+                                      arguments: user,
+                                    );
+                                  }
+                                } else {
+                                  developer.log(
+                                    'Form validation failed',
+                                    name: 'SignUpPageState.createIdentity',
+                                    level: 900,
                                   );
                                 }
                               } catch (error) {
-                                setState(
-                                      () => warning = 'Network initialization failed: ${error.toString().split('\n').first}',
-                                );
                                 developer.log(
-                                  'Failed to complete secure signup: $error',
+                                  'Network or identity initialization failed',
+                                  name: 'SignUpPageState.createIdentity',
+                                  level: 1000,
                                   error: error,
                                   stackTrace: StackTrace.current,
-                                  name: 'SignUpPage.submission',
+                                );
+
+                                setState(
+                                      () => warning = 'Failed to initialize network or save identity credentials',
                                 );
                               } finally {
                                 if (mounted) {
-                                  setState(() => loading = false);
+                                  setState(() => busy = false);
                                 }
                               }
                             }
                                 : null,
-                            child: loading
+                            child: busy
                                 ? const SizedBox(
                               height: 20,
                               width: 20,
@@ -373,9 +323,9 @@ class SignUpPageState extends State<SignUpPage> {
                               ],
                             ),
                           ),
-                          value: toggled,
-                          onChanged: (value) =>
-                              setState(() => toggled = value ?? false),
+                          value: agreed,
+                          onChanged: (input) =>
+                              setState(() => agreed = input ?? false),
                         ),
                       ],
                     ),
@@ -388,10 +338,11 @@ class SignUpPageState extends State<SignUpPage> {
       );
     } catch (error) {
       developer.log(
-        'Failed to render identity creation view layout: $error',
+        'Failed to build SignUpPage UI widget tree',
+        name: 'SignUpPage.build',
+        level: 1000,
         error: error,
         stackTrace: StackTrace.current,
-        name: 'SignUpPage.build',
       );
       return const SizedBox.shrink();
     }
@@ -401,23 +352,28 @@ class SignUpPageState extends State<SignUpPage> {
   void dispose() {
     timer?.cancel();
     try {
-      passphrase.text = '0' * passphrase.text.length;
       passphrase.clear();
       passphrase.dispose();
 
-      confirmation.text = '0' * confirmation.text.length;
       confirmation.clear();
       confirmation.dispose();
 
       seed = null;
       warning = null;
+
+      developer.log(
+        'Disposed SignUpPageState controller and state resources',
+        name: 'SignUpPageState.dispose',
+        level: 500,
+      );
       super.dispose();
     } catch (error) {
       developer.log(
-        'Failed to release input controllers cleanly: $error',
+        'Failed to release input controllers cleanly during dispose',
+        name: 'SignUpPageState.dispose',
+        level: 1000,
         error: error,
         stackTrace: StackTrace.current,
-        name: 'SignUpPage.dispose',
       );
     }
   }

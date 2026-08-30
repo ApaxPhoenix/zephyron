@@ -17,11 +17,13 @@ const channel = MethodChannel('zephyron/security');
 
 Future<void> main() async {
   runZonedGuarded(
-        () async {
+    () async {
       WidgetsFlutterBinding.ensureInitialized();
 
       try {
-        final authorized = await channel.invokeMethod<bool>('verifyAppSignature');
+        final authorized = await channel.invokeMethod<bool>(
+          'verifyAppSignature',
+        );
         if (kReleaseMode && authorized != true) {
           exit(0);
         }
@@ -68,15 +70,12 @@ Future<void> main() async {
       final path = '${folder.path}/tor';
 
       const binary = '/data/data/com.aveloux.zephyron/lib/libobfs4proxy.so';
-      const bridge = 'obfs4 192.0.2.1:443 74A91B415C22D956A41B32E0B4AD7B02844E3D5C cert=q2325A... iat-mode=0';
+      const bridge =
+          'obfs4 192.0.2.1:443 74A91B415C22D956A41B32E0B4AD7B02844E3D5C cert=q2325A... iat-mode=0';
 
       if (File(binary).existsSync()) {
         await Isolate.run(() {
-          final client = Tor(
-            path: path,
-            binary: binary,
-            bridge: bridge,
-          );
+          final client = Tor(path: path, binary: binary, bridge: bridge);
           client.boot();
         });
       } else {
@@ -97,7 +96,7 @@ Future<void> main() async {
       );
       runApp(const MyApp());
     },
-        (dynamic error, dynamic stack) {
+    (dynamic error, dynamic stack) {
       developer.log(
         'Error',
         name: 'main',
@@ -157,7 +156,9 @@ class MyAppState extends State<MyApp> with WidgetsBindingObserver {
       theme: MediaQuery.of(context).platformBrightness == Brightness.light
           ? Pallete.lightTheme(context)
           : Pallete.darkTheme(context),
-      home: builder?.call(context) ?? const Scaffold(body: Center(child: CircularProgressIndicator())),
+      home:
+          builder?.call(context) ??
+          const Scaffold(body: Center(child: CircularProgressIndicator())),
       onGenerateRoute: (RouteSettings settings) {
         final maker = routes[settings.name];
         if (maker != null) {

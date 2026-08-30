@@ -43,18 +43,12 @@ class DropdownFieldState extends State<DropdownField>
       duration: const Duration(milliseconds: 200),
     );
 
-    fade = CurvedAnimation(
-      parent: controller,
-      curve: Curves.easeOut,
-    );
+    fade = CurvedAnimation(parent: controller, curve: Curves.easeOut);
 
     slide = Tween<Offset>(
       begin: const Offset(0.0, -0.05),
       end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: controller,
-      curve: Curves.easeOutCubic,
-    ));
+    ).animate(CurvedAnimation(parent: controller, curve: Curves.easeOutCubic));
 
     focus.addListener(() {
       if (!focus.hasFocus) {
@@ -120,56 +114,81 @@ class DropdownFieldState extends State<DropdownField>
                                 child: Material(
                                   elevation: 8.0,
                                   color: theme.colorScheme.surface,
-                                  shadowColor: Colors.black.withValues(alpha: 0.25),
+                                  shadowColor: Colors.black.withValues(
+                                    alpha: 0.25,
+                                  ),
                                   borderRadius: BorderRadius.circular(16),
                                   clipBehavior: Clip.antiAlias,
                                   child: Container(
-                                    constraints: const BoxConstraints(maxHeight: 300),
+                                    constraints: const BoxConstraints(
+                                      maxHeight: 300,
+                                    ),
                                     decoration: BoxDecoration(
                                       borderRadius: BorderRadius.circular(16),
                                       border: Border.all(
-                                        color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+                                        color: theme.colorScheme.outlineVariant
+                                            .withValues(alpha: 0.5),
                                         width: 1,
                                       ),
                                     ),
                                     child: ListView.separated(
-                                      padding: const EdgeInsets.symmetric(vertical: 4),
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 4,
+                                      ),
                                       shrinkWrap: true,
                                       itemCount: items.length,
-                                      separatorBuilder: (context, index) => Divider(
-                                        height: 1,
-                                        indent: 16,
-                                        endIndent: 16,
-                                        color: theme.colorScheme.outlineVariant.withValues(alpha: 0.2),
-                                      ),
+                                      separatorBuilder: (context, index) =>
+                                          Divider(
+                                            height: 1,
+                                            indent: 16,
+                                            endIndent: 16,
+                                            color: theme
+                                                .colorScheme
+                                                .outlineVariant
+                                                .withValues(alpha: 0.2),
+                                          ),
                                       itemBuilder: (context, index) {
                                         final location = items[index];
-                                        final name = location.ascii.isNotEmpty ? location.ascii : 'Unknown Location';
+                                        final name = location.ascii.isNotEmpty
+                                            ? location.ascii
+                                            : 'Unknown Location';
 
                                         return ListTile(
                                           dense: true,
-                                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                                          contentPadding:
+                                              const EdgeInsets.symmetric(
+                                                horizontal: 16,
+                                                vertical: 4,
+                                              ),
                                           leading: CircleAvatar(
                                             radius: 16,
-                                            backgroundColor: theme.colorScheme.primaryContainer,
+                                            backgroundColor: theme
+                                                .colorScheme
+                                                .primaryContainer,
                                             child: Icon(
                                               Icons.location_on_rounded,
                                               size: 18,
-                                              color: theme.colorScheme.onPrimaryContainer,
+                                              color: theme
+                                                  .colorScheme
+                                                  .onPrimaryContainer,
                                             ),
                                           ),
                                           title: Text(
                                             name,
-                                            style: theme.textTheme.bodyMedium?.copyWith(
-                                              fontWeight: FontWeight.w600,
-                                            ),
+                                            style: theme.textTheme.bodyMedium
+                                                ?.copyWith(
+                                                  fontWeight: FontWeight.w600,
+                                                ),
                                             overflow: TextOverflow.ellipsis,
                                           ),
                                           subtitle: Text(
                                             '${location.latitude.toStringAsFixed(4)}, ${location.longitude.toStringAsFixed(4)}',
-                                            style: theme.textTheme.bodySmall?.copyWith(
-                                              color: theme.colorScheme.onSurfaceVariant,
-                                            ),
+                                            style: theme.textTheme.bodySmall
+                                                ?.copyWith(
+                                                  color: theme
+                                                      .colorScheme
+                                                      .onSurfaceVariant,
+                                                ),
                                           ),
                                           onTap: () {
                                             widget.controller.text = name;
@@ -226,13 +245,13 @@ class DropdownFieldState extends State<DropdownField>
         decoration: widget.decoration.copyWith(
           suffixIcon: active
               ? const SizedBox(
-            width: 20,
-            height: 20,
-            child: Padding(
-              padding: EdgeInsets.all(14.0),
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-          )
+                  width: 20,
+                  height: 20,
+                  child: Padding(
+                    padding: EdgeInsets.all(14.0),
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                )
               : widget.decoration.suffixIcon,
         ),
       ),

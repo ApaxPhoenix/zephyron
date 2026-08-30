@@ -6,20 +6,21 @@ class NodePage extends StatelessWidget {
   final String? name;
   final String? address;
 
-  const NodePage({
-    super.key,
-    this.id,
-    this.name,
-    this.address,
-  });
+  const NodePage({super.key, this.id, this.name, this.address});
 
   @override
   Widget build(BuildContext context) {
-    final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    final args =
+        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
 
     final nodeId = id ?? args?['id'] as String? ?? 'N/A';
-    final nodeName = name ?? args?['name'] as String? ?? args?['title'] as String? ?? 'Node Details';
-    final nodeAddress = address ?? args?['address'] as String? ?? 'Unknown Address';
+    final nodeName =
+        name ??
+        args?['name'] as String? ??
+        args?['title'] as String? ??
+        'Node Details';
+    final nodeAddress =
+        address ?? args?['address'] as String? ?? 'Unknown Address';
 
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -77,7 +78,9 @@ class NodePage extends StatelessWidget {
             Card(
               elevation: 0,
               color: Theme.of(context).colorScheme.surfaceContainerLow,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
               child: Column(
                 children: [
                   ListTile(
@@ -99,7 +102,9 @@ class NodePage extends StatelessWidget {
                   ),
                   Divider(
                     height: 1,
-                    color: Theme.of(context).colorScheme.outlineVariant.withAlpha(50),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.outlineVariant.withAlpha(50),
                   ),
                   ListTile(
                     leading: Icon(
@@ -120,7 +125,9 @@ class NodePage extends StatelessWidget {
                   ),
                   Divider(
                     height: 1,
-                    color: Theme.of(context).colorScheme.outlineVariant.withAlpha(50),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.outlineVariant.withAlpha(50),
                   ),
                   ListTile(
                     leading: Icon(

@@ -12,14 +12,19 @@ final Map<String, WidgetBuilder> routes = {
   '/auth': (context) => const AuthScreen(),
   '/dashboard': (context) => const DashboardScreen(),
   '/dashboard/chats/message': (context) {
-    final arguments = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    final arguments =
+        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
     return MessagePage(
       id: arguments?['id'] as String? ?? '1',
-      title: arguments?['name'] as String? ?? arguments?['title'] as String? ?? 'Alpha Node',
+      title:
+          arguments?['name'] as String? ??
+          arguments?['title'] as String? ??
+          'Alpha Node',
     );
   },
   '/dashboard/peers/node': (context) {
-    final arguments = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    final arguments =
+        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
     return NodePage(
       id: arguments?['id'] as String?,
       name: arguments?['name'] as String? ?? arguments?['title'] as String?,
