@@ -1,12 +1,11 @@
 import 'dart:isolate';
 import 'dart:typed_data';
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:zephyron/dashboard/chats/gifs.dart';
 import 'package:zephyron/enums.dart';
 import 'package:zephyron/models/profile.dart';
 import 'package:zephyron/services/courier.dart';
+import 'package:zephyron/services/picker.dart';
 import 'package:zephyron/services/web.dart';
 import 'package:zephyron/widgets/avatar.dart';
 import 'package:zephyron/widgets/crop.dart';
@@ -62,16 +61,15 @@ class ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  Future<Uint8List?> gallery(ImageSource source) async {
+  Future<Uint8List?> gallery({bool camera = false}) async {
     try {
-      final picked = await ImagePicker().pickImage(
-        source: source,
-        maxWidth: 2048,
-        maxHeight: 2048,
-        imageQuality: 92,
-        preferredCameraDevice: CameraDevice.front,
+      final picked = await Picker.photo(
+        camera: camera,
+        front: true,
+        limit: 2048,
+        quality: 92,
       );
-      return picked == null ? null : await picked.readAsBytes();
+      return picked == null ? null : await picked.bytes();
     } catch (_) {
       warn('Could not open that picture.');
       return null;
@@ -79,8 +77,8 @@ class ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> picture() async {
-    Future<void> pick(ImageSource source) async {
-      final bytes = await gallery(source);
+    Future<void> pick({bool camera = false}) async {
+      final bytes = await gallery(camera: camera);
       if (bytes == null || !mounted) return;
       if (Cropper.animated(bytes)) {
         final fitted = await squeeze(bytes, Courier.portrait);
@@ -102,12 +100,12 @@ class ProfilePageState extends State<ProfilePage> {
         SheetAction(
           icon: Icons.photo_library_outlined,
           label: 'Choose from Gallery',
-          onTap: () => pick(ImageSource.gallery),
+          onTap: () => pick(),
         ),
         SheetAction(
           icon: Icons.photo_camera_outlined,
           label: 'Take a Photo',
-          onTap: () => pick(ImageSource.camera),
+          onTap: () => pick(camera: true),
         ),
         if (draft.avatar != null)
           SheetAction(
@@ -122,7 +120,7 @@ class ProfilePageState extends State<ProfilePage> {
 
   Future<void> banner() async {
     Future<void> photo() async {
-      final bytes = await gallery(ImageSource.gallery);
+      final bytes = await gallery();
       if (bytes == null || !mounted) return;
       if (Cropper.animated(bytes)) {
         final fitted = await squeeze(bytes, Courier.banner);
@@ -149,12 +147,9 @@ class ProfilePageState extends State<ProfilePage> {
 
     Future<void> file() async {
       try {
-        final picked = await FilePicker.pickFiles(
-          type: FileType.custom,
-          allowedExtensions: const ['gif'],
-        );
-        if (picked.isEmpty) return;
-        final bytes = await picked.first.xFile.readAsBytes();
+        final picked = await Picker.file(type: 'image/gif');
+        if (picked == null) return;
+        final bytes = await picked.bytes();
         if (!Cropper.animated(bytes)) {
           warn('Choose a GIF file.');
           return;
