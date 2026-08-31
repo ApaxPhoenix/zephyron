@@ -21,7 +21,8 @@ class Session {
       return List<String>.from(json.decode(raw) as List);
     } catch (error) {
       developer.log(
-        'Failed to read sessions from secure storage',
+        'Failed to read active session entries from secure storage',
+        name: 'Session.sessions',
         level: 1000,
         error: error,
         stackTrace: StackTrace.current,
@@ -39,7 +40,8 @@ class Session {
       }
     } catch (error) {
       developer.log(
-        'Failed to record session in secure storage',
+        'Failed to record session entry in secure storage for profile: $name',
+        name: 'Session.record',
         level: 1000,
         error: error,
         stackTrace: StackTrace.current,
@@ -54,7 +56,8 @@ class Session {
       await storage.write(key: label, value: json.encode(items));
     } catch (error) {
       developer.log(
-        'Failed to erase session from secure storage',
+        'Failed to erase session entry from secure storage for profile: $name',
+        name: 'Session.erase',
         level: 1000,
         error: error,
         stackTrace: StackTrace.current,
@@ -69,21 +72,30 @@ class Session {
 
       if (data == null) {
         await Database.dispose();
+        final exception = Exception('Database record missing.');
         developer.log(
-          'Database record missing during session open',
+          'Target session database record missing or null for profile: $name',
+          name: 'Session.open',
           level: 900,
+          error: exception,
+          stackTrace: StackTrace.current,
         );
-        throw Exception('Database record missing.');
+        throw exception;
       }
 
       user = Identity.fromInput(data['seed'] as String);
       await record(name);
       touch();
-      developer.log('Session opened successfully', level: 800);
+      developer.log(
+        'User session opened and identity loaded successfully for profile: $name',
+        name: 'Session.open',
+        level: 800,
+      );
       return user!;
     } catch (error) {
       developer.log(
-        'Failed to open session',
+        'Failed to open and authenticate user session for profile: $name',
+        name: 'Session.open',
         level: 1000,
         error: error,
         stackTrace: StackTrace.current,
@@ -104,11 +116,16 @@ class Session {
       await record(name);
       user = identity;
       touch();
-      developer.log('Session composed successfully', level: 800);
+      developer.log(
+        'New user session composed and persisted successfully for profile: $name',
+        name: 'Session.compose',
+        level: 800,
+      );
       return user!;
     } catch (error) {
       developer.log(
-        'Failed to compose session',
+        'Failed to compose new user session and database for profile: $name',
+        name: 'Session.compose',
         level: 1000,
         error: error,
         stackTrace: StackTrace.current,
@@ -123,10 +140,24 @@ class Session {
   }
 
   static Future<void> dispose() async {
-    timer?.cancel();
-    timer = null;
-    user = null;
-    await Database.dispose();
-    developer.log('Disposed session instance', level: 500);
+    try {
+      timer?.cancel();
+      timer = null;
+      user = null;
+      await Database.dispose();
+      developer.log(
+        'Disposed active session and wiped user identity credentials from memory',
+        name: 'Session.dispose',
+        level: 500,
+      );
+    } catch (error) {
+      developer.log(
+        'Failed to cleanly dispose user session context',
+        name: 'Session.dispose',
+        level: 1000,
+        error: error,
+        stackTrace: StackTrace.current,
+      );
+    }
   }
 }

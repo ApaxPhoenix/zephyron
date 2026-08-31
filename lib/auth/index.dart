@@ -1,7 +1,7 @@
+import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:zephyron/auth/login.dart';
 import 'package:zephyron/auth/signup.dart';
-import 'dart:developer' as developer;
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -13,28 +13,14 @@ class AuthScreen extends StatefulWidget {
 class AuthScreenState extends State<AuthScreen> {
   final PageController controller = PageController(initialPage: 0);
   int index = 0;
-  late List<Widget> items;
-
-  @override
-  void initState() {
-    super.initState();
-    try {
-      items = [
-        Builder(builder: (BuildContext context) => const LogInPage()),
-        Builder(builder: (BuildContext context) => const SignUpPage()),
-      ];
-    } catch (error) {
-      developer.log(
-        'Failed to initialize authentication sub-pages: $error',
-        name: 'AuthScreen.setup',
-        error: error,
-        stackTrace: StackTrace.current,
-      );
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
+    final items = const <Widget>[
+      LogInPage(),
+      SignUpPage(),
+    ];
+
     try {
       return Scaffold(
         resizeToAvoidBottomInset: false,
@@ -86,8 +72,8 @@ class AuthScreenState extends State<AuthScreen> {
             Container(
               margin: EdgeInsets.symmetric(
                 vertical:
-                    (MediaQuery.of(context).viewPadding.top > 0 ||
-                        MediaQuery.of(context).viewPadding.bottom > 0)
+                (MediaQuery.of(context).viewPadding.top > 0 ||
+                    MediaQuery.of(context).viewPadding.bottom > 0)
                     ? 20.0
                     : 0.0,
               ),
@@ -96,7 +82,7 @@ class AuthScreenState extends State<AuthScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: List.generate(
                   items.length,
-                  (i) => AnimatedContainer(
+                      (i) => AnimatedContainer(
                     duration: const Duration(milliseconds: 300),
                     curve: Curves.easeInOut,
                     margin: const EdgeInsets.symmetric(horizontal: 4.0),

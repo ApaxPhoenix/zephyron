@@ -38,13 +38,13 @@ class SignUpPageState extends State<SignUpPage> {
     try {
       seed = bip39.generateMnemonic();
       developer.log(
-        'Generated mnemonic seed phrase',
+        'Generated new mnemonic seed phrase for identity creation',
         name: 'SignUpPageState.initState',
         level: 800,
       );
     } catch (error) {
       developer.log(
-        'Failed to generate mnemonic seed phrase',
+        'Failed to generate random mnemonic seed phrase via BIP-39',
         name: 'SignUpPageState.initState',
         level: 1000,
         error: error,
@@ -54,25 +54,45 @@ class SignUpPageState extends State<SignUpPage> {
   }
 
   void copy(String text) {
-    Clipboard.setData(ClipboardData(text: text));
-    developer.log(
-      'Copied seed phrase to clipboard',
-      name: 'SignUpPageState.copy',
-      level: 800,
-    );
+    try {
+      Clipboard.setData(ClipboardData(text: text));
+      developer.log(
+        'Copied mnemonic seed phrase to system clipboard',
+        name: 'SignUpPageState.copy',
+        level: 800,
+      );
 
-    timer?.cancel();
-    timer = Timer(const Duration(seconds: 30), () async {
-      final data = await Clipboard.getData(Clipboard.kTextPlain);
-      if (data?.text == text) {
-        await Clipboard.setData(const ClipboardData(text: ''));
-        developer.log(
-          'Cleared seed phrase from clipboard',
-          name: 'SignUpPageState.copy',
-          level: 500,
-        );
-      }
-    });
+      timer?.cancel();
+      timer = Timer(const Duration(seconds: 30), () async {
+        try {
+          final data = await Clipboard.getData(Clipboard.kTextPlain);
+          if (data?.text == text) {
+            await Clipboard.setData(const ClipboardData(text: ''));
+            developer.log(
+              'Cleared copied mnemonic seed phrase from system clipboard after timeout',
+              name: 'SignUpPageState.copy',
+              level: 500,
+            );
+          }
+        } catch (error) {
+          developer.log(
+            'Failed to auto-clear mnemonic seed phrase from clipboard during timer execution',
+            name: 'SignUpPageState.copy',
+            level: 1000,
+            error: error,
+            stackTrace: StackTrace.current,
+          );
+        }
+      });
+    } catch (error) {
+      developer.log(
+        'Failed to copy mnemonic seed phrase to system clipboard',
+        name: 'SignUpPageState.copy',
+        level: 1000,
+        error: error,
+        stackTrace: StackTrace.current,
+      );
+    }
   }
 
   @override
@@ -200,7 +220,7 @@ class SignUpPageState extends State<SignUpPage> {
                               try {
                                 if (key.currentState!.validate()) {
                                   developer.log(
-                                    'Starting identity creation workflow',
+                                    'Starting identity generation and network initialization workflow',
                                     name: 'SignUpPageState.createIdentity',
                                     level: 800,
                                   );
@@ -215,15 +235,17 @@ class SignUpPageState extends State<SignUpPage> {
                                   final user = await compute(make, mnemonic);
 
                                   if (user.private.length != 128) {
-                                    developer.log(
-                                      'Private key length validation failed',
-                                      name: 'SignUpPageState.createIdentity',
-                                      level: 1000,
-                                      stackTrace: StackTrace.current,
-                                    );
-                                    throw StateError(
+                                    final exception = StateError(
                                       'Invalid key length: expected 128 hex chars',
                                     );
+                                    developer.log(
+                                      'Private key validation failed: generated seed resulted in invalid key length',
+                                      name: 'SignUpPageState.createIdentity',
+                                      level: 1000,
+                                      error: exception,
+                                      stackTrace: StackTrace.current,
+                                    );
+                                    throw exception;
                                   }
 
                                   await Session.compose(
@@ -244,20 +266,22 @@ class SignUpPageState extends State<SignUpPage> {
                                   final base = user.address.replaceAll('.onion', '');
 
                                   if (tor.length >= 50 && base.length >= 50 && tor.substring(0, 50) != base.substring(0, 50)) {
-                                    developer.log(
-                                      'Published Tor address public key mismatch: tor=$host expected=${user.address}',
-                                      name: 'SignUpPageState.createIdentity',
-                                      level: 1000,
-                                      stackTrace: StackTrace.current,
-                                    );
-                                    throw StateError(
+                                    final exception = StateError(
                                       'Published address pubkey does not match identity '
                                           '(tor=$host expected=${user.address}).',
                                     );
+                                    developer.log(
+                                      'Published Tor address public key mismatch: published host address does not match generated identity address',
+                                      name: 'SignUpPageState.createIdentity',
+                                      level: 1000,
+                                      error: exception,
+                                      stackTrace: StackTrace.current,
+                                    );
+                                    throw exception;
                                   }
 
                                   developer.log(
-                                    'Completed identity creation successfully',
+                                    'Completed identity creation, session composition, and network publishing successfully',
                                     name: 'SignUpPageState.createIdentity',
                                     level: 800,
                                   );
@@ -270,14 +294,14 @@ class SignUpPageState extends State<SignUpPage> {
                                   }
                                 } else {
                                   developer.log(
-                                    'Form validation failed',
+                                    'Identity creation form validation failed due to invalid user input',
                                     name: 'SignUpPageState.createIdentity',
                                     level: 900,
                                   );
                                 }
                               } catch (error) {
                                 developer.log(
-                                  'Network or identity initialization failed',
+                                  'Failed to initialize network or save identity credentials',
                                   name: 'SignUpPageState.createIdentity',
                                   level: 1000,
                                   error: error,
@@ -362,14 +386,14 @@ class SignUpPageState extends State<SignUpPage> {
       warning = null;
 
       developer.log(
-        'Disposed SignUpPageState controller and state resources',
+        'Disposed SignUpPageState input controllers, state resources, and clipboard timers',
         name: 'SignUpPageState.dispose',
         level: 500,
       );
       super.dispose();
     } catch (error) {
       developer.log(
-        'Failed to release input controllers cleanly during dispose',
+        'Failed to cleanly release input controllers or cancel timers during dispose',
         name: 'SignUpPageState.dispose',
         level: 1000,
         error: error,

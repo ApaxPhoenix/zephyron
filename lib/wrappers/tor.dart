@@ -58,7 +58,7 @@ final int Function(Pointer<Void>) socket = library.lookupFunction<
     Int32 Function(Pointer<Void>),
     int Function(Pointer<Void>)>('tor_main_configuration_setup_control_socket');
 
-final void Function(Pointer<Void>) freeState =
+final void Function(Pointer<Void>) free =
 library.lookupFunction<Void Function(Pointer<Void>), void Function(Pointer<Void>)>(
   'tor_main_configuration_free',
 );
@@ -78,7 +78,7 @@ class Tor {
   final int port;
   final String binary;
   final String bridge;
-  final List<String> args;
+  final List<String> arguments;
 
   Pointer<Void> state = nullptr;
 
@@ -88,7 +88,7 @@ class Tor {
     this.bridge = '',
     this.host = '127.0.0.1',
     this.port = 9050,
-    this.args = const [],
+    this.arguments = const [],
   });
 
   static String get version {
@@ -105,21 +105,43 @@ class Tor {
     developer.log('Starting Tor boot sequence', level: 800);
     harden();
 
+    bool native = true;
     try {
       state = allocate();
-    } catch (error, stackTrace) {
-      // This is where a missing/incompatible libtor.so, or running on a
-      // non-Android platform, actually throws (UnsupportedError or the
-      // DynamicLibrary.open failure from the `library` lazy initializer).
-      // Previously this exception escaped boot() uncaught, so callers only
-      // ever saw a generic 15s timeout instead of the real cause.
+    } catch (error, trace) {
+      native = false;
       developer.log(
         'Failed to allocate Tor configuration: native library unavailable',
         level: 1000,
         error: error,
-        stackTrace: stackTrace,
+        stackTrace: trace,
       );
-      rethrow;
+    }
+
+    bool proxy = true;
+    if (binary.isNotEmpty) {
+      try {
+        final target = File(binary);
+        if (!target.existsSync() || target.lengthSync() == 0) {
+          proxy = false;
+        }
+      } catch (error) {
+        proxy = false;
+      }
+    }
+
+    if (!native && !proxy) {
+      developer.log(
+        'Installation is wrong: both native library and executable binary failed',
+        level: 1000,
+      );
+      throw StateError('Installation is wrong');
+    } else if (!native || (!proxy && binary.isNotEmpty)) {
+      developer.log(
+        'Installation is correct, but given binary is corrupted or missing: $binary',
+        level: 1000,
+      );
+      throw StateError('Installation is correct, but given binary is corrupted or missing');
     }
 
     final flags = <List<int>>[
@@ -156,7 +178,7 @@ class Tor {
         utf8.encode('--Bridge'),
         utf8.encode(bridge),
       ],
-      for (final arg in args) utf8.encode(arg),
+      for (final argument in arguments) utf8.encode(argument),
     ];
 
     final array = calloc<Pointer<Utf8>>(flags.length);
@@ -220,7 +242,7 @@ class Tor {
 
   void dispose() {
     if (state != nullptr) {
-      freeState(state);
+      free(state);
       state = nullptr;
       developer.log('Disposed Tor state configuration', level: 500);
     }
@@ -235,34 +257,15 @@ class Tor {
   }
 }
 
-/// Expands a 32-byte Ed25519 seed into the 64-byte "expanded" secret key
-/// format that Tor's `ADD_ONION ED25519-V3:` command expects: SHA-512 of
-/// the seed, clamped, and used directly as `scalar (32 bytes) || signing
-/// prefix (32 bytes)`. This is NOT the same as a libsodium-style secret
-/// key (`seed || public key`) - handing Tor that instead makes it derive
-/// a different keypair (and therefore a different onion address) than
-/// whatever your app computed independently from the same seed.
 Uint8List _expand(Uint8List seed) {
   assert(seed.length == 32, 'Ed25519 seed must be 32 bytes, got ${seed.length}');
   final hash = Uint8List.fromList(sha512.convert(seed).bytes);
   hash[0] &= 248;
   hash[31] &= 127;
   hash[31] |= 64;
-  return hash; // bytes 0-31 = clamped scalar, bytes 32-63 = signing prefix
+  return hash;
 }
 
-/// Builds the base64 blob for Tor's `ADD_ONION ED25519-V3:` command.
-///
-/// `text` is the 128-hex-char (64-byte) private key coming out of
-/// Identity.fromInput. If that 64 bytes is `seed || public key` (the
-/// common libsodium/bip39-Ed25519 convention), only the first 32 bytes
-/// are the actual seed - the rest is the public key, which Tor doesn't
-/// want here at all. We take that seed and expand it into Tor's format.
-///
-/// If Identity.fromInput already produces Tor's expanded format (i.e. it
-/// isn't seed||pubkey), delete the `_expand(seed)` step below and go back
-/// to base64-encoding `raw` directly - check that against how `.address`
-/// is derived if the mismatch persists after this change.
 String blob(String text) {
   final raw = Uint8List(64);
   for (var index = 0; index < 64; index++) {
@@ -280,7 +283,12 @@ String blob(String text) {
   return result;
 }
 
-Future<String> publish(String path, String identifier) async {
+Future<String> publish(
+    String path,
+    String identifier, {
+      String obfs4BinaryPath = '',
+      List<String> arguments = const [],
+    }) async {
   final directory = Directory(path);
   if (!await directory.exists()) {
     await directory.create(recursive: true);
@@ -300,52 +308,52 @@ Future<String> publish(String path, String identifier) async {
 
     if (await control.exists()) await control.delete();
 
-    // Capture what actually goes wrong in the daemon isolate instead of
-    // just logging it and discarding it. `daemonError` is what was hiding
-    // behind the old generic "Timed out waiting for control socket" /
-    // "Failed to initialize network..." messages.
-    Object? daemonError;
-    StackTrace? daemonStack;
+    Object? cause;
+    StackTrace? trace;
 
     unawaited(
-      Isolate.run(() => Tor(path: path, binary: '').boot()).then((status) {
+      Isolate.run(
+            () => Tor(
+          path: path,
+          binary: obfs4BinaryPath,
+          arguments: arguments,
+        ).boot(),
+      ).then((status) {
         if (status != 0) {
-          daemonError = StateError('Tor daemon exited with status $status');
-          daemonStack = StackTrace.current;
+          cause = StateError('Tor daemon exited with status $status');
+          trace = StackTrace.current;
         }
-      }).catchError((error, trace) {
-        daemonError = error;
-        daemonStack = trace;
+      }).catchError((error, stack) {
+        cause = error;
+        trace = stack;
         developer.log(
           'Background Tor daemon failed to start',
           level: 1000,
           error: error,
-          stackTrace: trace,
+          stackTrace: stack,
         );
       }),
     );
 
     int counter = 0;
     while (!await control.exists() && counter < 30) {
-      if (daemonError != null) {
-        // Fail immediately with the real cause rather than waiting out
-        // the full timeout window and reporting something generic.
+      if (cause != null) {
         developer.log(
           'Control socket never appeared because the daemon failed',
           level: 1000,
-          error: daemonError,
-          stackTrace: daemonStack,
+          error: cause,
+          stackTrace: trace,
         );
         Error.throwWithStackTrace(
-          StateError('Tor daemon failed to start: $daemonError'),
-          daemonStack ?? StackTrace.current,
+          StateError('Tor daemon failed to start: $cause'),
+          trace ?? StackTrace.current,
         );
       }
       await Future.delayed(const Duration(milliseconds: 500));
       counter++;
     }
     if (!await control.exists()) {
-      final reason = daemonError != null ? ' Last known error: $daemonError' : '';
+      final reason = cause != null ? ' Last known error: $cause' : '';
       developer.log(
         'Timed out waiting for control socket creation',
         level: 1000,
@@ -407,11 +415,11 @@ Future<String> publish(String path, String identifier) async {
   }
 
   final secret = await cookie.readAsBytes();
-  final hexCookie = secret
+  final hex = secret
       .map((byte) => byte.toRadixString(16).padLeft(2, '0'))
       .join();
 
-  await send('AUTHENTICATE $hexCookie');
+  await send('AUTHENTICATE $hex');
 
   final result = await send(
     'ADD_ONION ED25519-V3:$identifier Port=80,127.0.0.1:8080 Flags=Detach',

@@ -90,7 +90,7 @@ class LogInPageState extends State<LogInPage> {
                               try {
                                 if (key.currentState!.validate()) {
                                   developer.log(
-                                    'Starting database decryption workflow',
+                                    'Starting database decryption and Tor service publication workflow',
                                     name: 'LogInPageState.unlockDatabase',
                                     level: 800,
                                   );
@@ -117,20 +117,22 @@ class LogInPageState extends State<LogInPage> {
                                   final base = identity.address.replaceAll('.onion', '');
 
                                   if (tor.length >= 50 && base.length >= 50 && tor.substring(0, 50) != base.substring(0, 50)) {
-                                    developer.log(
-                                      'Published Tor address public key mismatch: tor=$address expected=${identity.address}',
-                                      name: 'LogInPageState.unlockDatabase',
-                                      level: 1000,
-                                      stackTrace: StackTrace.current,
-                                    );
-                                    throw StateError(
+                                    final exception = StateError(
                                       'Published address pubkey does not match identity '
                                           '(tor=$address expected=${identity.address}).',
                                     );
+                                    developer.log(
+                                      'Published Tor address public key mismatch: derived service address does not match expected identity address',
+                                      name: 'LogInPageState.unlockDatabase',
+                                      level: 1000,
+                                      error: exception,
+                                      stackTrace: StackTrace.current,
+                                    );
+                                    throw exception;
                                   }
 
                                   developer.log(
-                                    'Completed database decryption and network publish successfully',
+                                    'Database decryption and network publishing completed successfully',
                                     name: 'LogInPageState.unlockDatabase',
                                     level: 800,
                                   );
@@ -144,14 +146,14 @@ class LogInPageState extends State<LogInPage> {
                                   }
                                 } else {
                                   developer.log(
-                                    'Form validation failed',
+                                    'Database decryption form validation failed due to invalid user input',
                                     name: 'LogInPageState.unlockDatabase',
                                     level: 900,
                                   );
                                 }
                               } catch (error) {
                                 developer.log(
-                                  'Failed to decrypt store with provided credentials',
+                                  'Failed to decrypt store or publish Tor onion service with provided credentials',
                                   name: 'LogInPageState.unlockDatabase',
                                   level: 1000,
                                   error: error,
@@ -206,14 +208,14 @@ class LogInPageState extends State<LogInPage> {
       passphrase.dispose();
 
       developer.log(
-        'Disposed LogInPageState controller and state resources',
+        'Disposed LogInPageState input controllers and state resources',
         name: 'LogInPageState.dispose',
         level: 500,
       );
       super.dispose();
     } catch (error) {
       developer.log(
-        'Failed to release input controllers cleanly during dispose',
+        'Failed to release input text controllers cleanly during dispose',
         name: 'LogInPageState.dispose',
         level: 1000,
         error: error,
