@@ -14,9 +14,9 @@ external void terminate(Pointer<Void> context);
   symbol: 'libusb_get_device_list',
 )
 external int enumerate(
-    Pointer<Void> context,
-    Pointer<Pointer<Pointer<Void>>> devices,
-    );
+  Pointer<Void> context,
+  Pointer<Pointer<Pointer<Void>>> devices,
+);
 
 @Native<Void Function(Pointer<Pointer<Void>>, Int32)>(
   symbol: 'libusb_free_device_list',
@@ -37,23 +37,23 @@ external void disconnect(Pointer<Void> handle);
 external int describe(Pointer<Void> device, Pointer<Uint8> output);
 
 @Native<
-    Int32 Function(
-        Pointer<Void>,
-        Pointer<Void>,
-        Uint8,
-        Uint16,
-        Pointer<Uint8>,
-        Int32,
-        )
+  Int32 Function(
+    Pointer<Void>,
+    Pointer<Void>,
+    Uint8,
+    Uint16,
+    Pointer<Uint8>,
+    Int32,
+  )
 >(symbol: 'libusb_get_string_descriptor_ascii')
 external int label(
-    Pointer<Void> context,
-    Pointer<Void> handle,
-    int index,
-    int lang,
-    Pointer<Uint8> buffer,
-    int length,
-    );
+  Pointer<Void> context,
+  Pointer<Void> handle,
+  int index,
+  int lang,
+  Pointer<Uint8> buffer,
+  int length,
+);
 
 @Native<Uint8 Function(Pointer<Void>)>(symbol: 'libusb_get_bus_number')
 external int bus(Pointer<Void> device);
@@ -70,23 +70,23 @@ external int speed(Pointer<Void> device);
 external int attach(Pointer<Void> device, Pointer<Pointer<Void>> output);
 
 @Native<
-    Int32 Function(
-        Pointer<Void>,
-        Uint8,
-        Pointer<Uint8>,
-        Int32,
-        Pointer<Int32>,
-        Uint32,
-        )
+  Int32 Function(
+    Pointer<Void>,
+    Uint8,
+    Pointer<Uint8>,
+    Int32,
+    Pointer<Int32>,
+    Uint32,
+  )
 >(symbol: 'libusb_bulk_transfer')
 external int transfer(
-    Pointer<Void> handle,
-    int endpoint,
-    Pointer<Uint8> buffer,
-    int length,
-    Pointer<Int32> sent,
-    int timeout,
-    );
+  Pointer<Void> handle,
+  int endpoint,
+  Pointer<Uint8> buffer,
+  int length,
+  Pointer<Int32> sent,
+  int timeout,
+);
 
 final DynamicLibrary library = () {
   if (Platform.isIOS) {
@@ -109,30 +109,32 @@ final DynamicLibrary library = () {
   }
 
   return [
-    if (Platform.isWindows) ...['libusb-1.0.dll', 'libusb-1.0-0.dll'],
-    if (Platform.isLinux || Platform.isAndroid) ...[
-      'libusb-1.0.so',
-      'libusb-1.0.so.0',
-      '/usr/lib/x86_64-linux-gnu/libusb-1.0.so.0',
-      '/usr/lib/aarch64-linux-gnu/libusb-1.0.so.0',
-      '/usr/local/lib/libusb-1.0.so',
-    ],
-    if (Platform.isMacOS) ...[
-      'libusb-1.0.dylib',
-      '/opt/homebrew/lib/libusb-1.0.dylib',
-      '/usr/local/lib/libusb-1.0.dylib',
-      '/usr/local/opt/libusb/lib/libusb-1.0.dylib',
-    ],
-  ].fold<DynamicLibrary?>(null, (current, path) {
-    if (current != null) return current;
-    try {
-      return DynamicLibrary.open(path);
-    } catch (_) {
-      return null;
-    }
-  }) ??
-          () {
-        final exception = StateError('libusb not found on ${Platform.operatingSystem}.');
+        if (Platform.isWindows) ...['libusb-1.0.dll', 'libusb-1.0-0.dll'],
+        if (Platform.isLinux || Platform.isAndroid) ...[
+          'libusb-1.0.so',
+          'libusb-1.0.so.0',
+          '/usr/lib/x86_64-linux-gnu/libusb-1.0.so.0',
+          '/usr/lib/aarch64-linux-gnu/libusb-1.0.so.0',
+          '/usr/local/lib/libusb-1.0.so',
+        ],
+        if (Platform.isMacOS) ...[
+          'libusb-1.0.dylib',
+          '/opt/homebrew/lib/libusb-1.0.dylib',
+          '/usr/local/lib/libusb-1.0.dylib',
+          '/usr/local/opt/libusb/lib/libusb-1.0.dylib',
+        ],
+      ].fold<DynamicLibrary?>(null, (current, path) {
+        if (current != null) return current;
+        try {
+          return DynamicLibrary.open(path);
+        } catch (_) {
+          return null;
+        }
+      }) ??
+      () {
+        final exception = StateError(
+          'libusb not found on ${Platform.operatingSystem}.',
+        );
         developer.log(
           'Failed to locate or load libusb dynamic library on host operating system',
           name: 'library.usb',
@@ -267,7 +269,7 @@ class USB {
     final matches = list()
         .where(
           (device) => device.product.toLowerCase().contains(name.toLowerCase()),
-    )
+        )
         .toList();
 
     if (matches.isEmpty) {
@@ -306,9 +308,7 @@ class USB {
       final epHex = endpoint.toRadixString(16);
       if (transfer(handle, endpoint, buffer, length, transferred, timeout) <
           0) {
-        final exception = StateError(
-          'Read from endpoint 0x$epHex failed.',
-        );
+        final exception = StateError('Read from endpoint 0x$epHex failed.');
         developer.log(
           'Bulk read transfer failed on USB endpoint 0x$epHex',
           name: 'USB.pull',
@@ -331,17 +331,15 @@ class USB {
         buffer[index] = bytes[index];
       }
       if (transfer(
-        handle,
-        endpoint,
-        buffer,
-        bytes.length,
-        transferred,
-        timeout,
-      ) <
+            handle,
+            endpoint,
+            buffer,
+            bytes.length,
+            transferred,
+            timeout,
+          ) <
           0) {
-        final exception = StateError(
-          'Write to endpoint 0x$epHex failed.',
-        );
+        final exception = StateError('Write to endpoint 0x$epHex failed.');
         developer.log(
           'Bulk write transfer failed on USB endpoint 0x$epHex',
           name: 'USB.push',

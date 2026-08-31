@@ -105,11 +105,11 @@ class Session {
   }
 
   static Future<Identity> compose(
-      String name,
-      String pass,
-      Identity identity,
-      String seed,
-      ) async {
+    String name,
+    String pass,
+    Identity identity,
+    String seed,
+  ) async {
     try {
       final base = await Database.open(name, pass);
       await Database.save(base, identity, seed);

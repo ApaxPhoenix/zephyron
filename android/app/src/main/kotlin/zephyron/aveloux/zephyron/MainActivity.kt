@@ -17,6 +17,7 @@ class MainActivity : FlutterActivity() {
             when (call.method) {
                 "authorized" -> result.success(signature() != null)
                 "signature" -> result.success(signature())
+                "packages" -> result.success(applicationInfo.nativeLibraryDir)
                 else -> result.notImplemented()
             }
         }

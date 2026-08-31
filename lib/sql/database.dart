@@ -56,7 +56,9 @@ class Database {
       );
 
       final array = Uint8List.fromList(await secret.extractBytes());
-      final hex = array.map((bytes) => bytes.toRadixString(16).padLeft(2, '0')).join();
+      final hex = array
+          .map((bytes) => bytes.toRadixString(16).padLeft(2, '0'))
+          .join();
 
       array.fillRange(0, array.length, 0);
 
@@ -133,10 +135,10 @@ class Database {
   }
 
   static Future<void> save(
-      sqlite.Database base,
-      Identity identity,
-      String seed,
-      ) async {
+    sqlite.Database base,
+    Identity identity,
+    String seed,
+  ) async {
     try {
       await base.insert('identity', {
         'address': identity.address,

@@ -87,96 +87,106 @@ class LogInPageState extends State<LogInPage> {
                             onPressed: loading
                                 ? null
                                 : () async {
-                              try {
-                                if (key.currentState!.validate()) {
-                                  developer.log(
-                                    'Starting database decryption and Tor service publication workflow',
-                                    name: 'LogInPageState.unlockDatabase',
-                                    level: 800,
-                                  );
+                                    try {
+                                      if (key.currentState!.validate()) {
+                                        developer.log(
+                                          'Starting database decryption and Tor service publication workflow',
+                                          name: 'LogInPageState.unlockDatabase',
+                                          level: 800,
+                                        );
 
-                                  final navigator = Navigator.of(context);
-                                  setState(() {
-                                    loading = true;
-                                    warning = null;
-                                  });
+                                        final navigator = Navigator.of(context);
+                                        setState(() {
+                                          loading = true;
+                                          warning = null;
+                                        });
 
-                                  final identity = await Session.open(
-                                    Session.label,
-                                    passphrase.text,
-                                  );
+                                        final identity = await Session.open(
+                                          Session.label,
+                                          passphrase.text,
+                                        );
 
-                                  final folder = await getApplicationSupportDirectory();
-                                  final path = '${folder.path}/tor';
-                                  final address = await publish(
-                                    path,
-                                    blob(identity.private),
-                                  );
+                                        final folder =
+                                            await getApplicationSupportDirectory();
+                                        final path = '${folder.path}/tor';
+                                        final address = await publish(
+                                          path,
+                                          blob(identity.private),
+                                        );
 
-                                  final tor = address.replaceAll('.onion', '');
-                                  final base = identity.address.replaceAll('.onion', '');
+                                        final tor = address.replaceAll(
+                                          '.onion',
+                                          '',
+                                        );
+                                        final base = identity.address
+                                            .replaceAll('.onion', '');
 
-                                  if (tor.length >= 50 && base.length >= 50 && tor.substring(0, 50) != base.substring(0, 50)) {
-                                    final exception = StateError(
-                                      'Published address pubkey does not match identity '
-                                          '(tor=$address expected=${identity.address}).',
-                                    );
-                                    developer.log(
-                                      'Published Tor address public key mismatch: derived service address does not match expected identity address',
-                                      name: 'LogInPageState.unlockDatabase',
-                                      level: 1000,
-                                      error: exception,
-                                      stackTrace: StackTrace.current,
-                                    );
-                                    throw exception;
-                                  }
+                                        if (tor.length >= 50 &&
+                                            base.length >= 50 &&
+                                            tor.substring(0, 50) !=
+                                                base.substring(0, 50)) {
+                                          final exception = StateError(
+                                            'Published address pubkey does not match identity '
+                                            '(tor=$address expected=${identity.address}).',
+                                          );
+                                          developer.log(
+                                            'Published Tor address public key mismatch: derived service address does not match expected identity address',
+                                            name:
+                                                'LogInPageState.unlockDatabase',
+                                            level: 1000,
+                                            error: exception,
+                                            stackTrace: StackTrace.current,
+                                          );
+                                          throw exception;
+                                        }
 
-                                  developer.log(
-                                    'Database decryption and network publishing completed successfully',
-                                    name: 'LogInPageState.unlockDatabase',
-                                    level: 800,
-                                  );
+                                        developer.log(
+                                          'Database decryption and network publishing completed successfully',
+                                          name: 'LogInPageState.unlockDatabase',
+                                          level: 800,
+                                        );
 
-                                  if (mounted) {
-                                    navigator.pushNamedAndRemoveUntil(
-                                      '/dashboard',
-                                          (route) => false,
-                                      arguments: identity,
-                                    );
-                                  }
-                                } else {
-                                  developer.log(
-                                    'Database decryption form validation failed due to invalid user input',
-                                    name: 'LogInPageState.unlockDatabase',
-                                    level: 900,
-                                  );
-                                }
-                              } catch (error) {
-                                developer.log(
-                                  'Failed to decrypt store or publish Tor onion service with provided credentials',
-                                  name: 'LogInPageState.unlockDatabase',
-                                  level: 1000,
-                                  error: error,
-                                  stackTrace: StackTrace.current,
-                                );
+                                        if (mounted) {
+                                          navigator.pushNamedAndRemoveUntil(
+                                            '/dashboard',
+                                            (route) => false,
+                                            arguments: identity,
+                                          );
+                                        }
+                                      } else {
+                                        developer.log(
+                                          'Database decryption form validation failed due to invalid user input',
+                                          name: 'LogInPageState.unlockDatabase',
+                                          level: 900,
+                                        );
+                                      }
+                                    } catch (error) {
+                                      developer.log(
+                                        'Failed to decrypt store or publish Tor onion service with provided credentials',
+                                        name: 'LogInPageState.unlockDatabase',
+                                        level: 1000,
+                                        error: error,
+                                        stackTrace: StackTrace.current,
+                                      );
 
-                                setState(
-                                      () => warning = 'Failed to decrypt store with provided credentials',
-                                );
-                              } finally {
-                                if (mounted) {
-                                  setState(() => loading = false);
-                                }
-                              }
-                            },
+                                      setState(
+                                        () => warning =
+                                            'Failed to decrypt store with provided credentials',
+                                      );
+                                    } finally {
+                                      if (mounted) {
+                                        setState(() => loading = false);
+                                      }
+                                    }
+                                  },
                             child: loading
                                 ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                              ),
-                            )
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
                                 : const Text('Decrypt Identity'),
                           ),
                         ),
