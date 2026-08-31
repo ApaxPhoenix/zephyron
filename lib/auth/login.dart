@@ -32,7 +32,7 @@ class LogInPageState extends State<LogInPage> {
                   Image.asset('assets/logo.png', width: 100, height: 100),
                   SizedBox(height: MediaQuery.of(context).size.height * 0.05),
                   Text(
-                    'Unlock Database',
+                    'Unlock Identity',
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 12),
