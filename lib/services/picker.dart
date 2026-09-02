@@ -18,7 +18,22 @@ class Picked {
 
   File get file => File(path);
 
-  Future<Uint8List> bytes() => file.readAsBytes();
+  /// Reads the copy and deletes it, so no plain copy is left behind once
+  /// the app has encrypted what it needs.
+  Future<Uint8List> bytes() async {
+    final data = await file.readAsBytes();
+    try {
+      await file.delete();
+    } catch (_) {}
+    return data;
+  }
+
+  /// Deletes the copy of something the app turned down.
+  Future<void> discard() async {
+    try {
+      await file.delete();
+    } catch (_) {}
+  }
 }
 
 /// The phone's own photo, video and file pickers and its camera app, through
