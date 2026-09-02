@@ -20,11 +20,9 @@ Future<void> announce(Identity identity, {int attempts = 6}) async {
         blob(identity.private),
       );
 
-      final network = host.replaceAll('.onion', '');
-      final base = identity.address.replaceAll('.onion', '');
-      if (network.length >= 50 &&
-          base.length >= 50 &&
-          network.substring(0, 50) != base.substring(0, 50)) {
+      // Compare the whole address, checksum included: Tor computes it, so a
+      // mismatch means the app would hand out an address Tor refuses.
+      if ('${host.replaceAll('.onion', '')}.onion' != identity.address) {
         developer.log(
           'Published onion address does not match the identity address',
           name: 'announce',

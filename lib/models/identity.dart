@@ -4,6 +4,7 @@ import 'package:base32/base32.dart';
 import 'package:bip39/bip39.dart' as bip39;
 import 'package:crypto/crypto.dart';
 import 'package:ed25519_edwards/ed25519_edwards.dart' as ed25519;
+import 'package:zephyron/services/keccak.dart';
 
 class Identity {
   String address;
@@ -39,13 +40,19 @@ class Identity {
     );
   }
 
-  static String onion(List<int> pub) {
-    final hash = sha256
-        .convert(
-          Uint8List.fromList([...utf8.encode('.onion checksum'), ...pub, 3]),
-        )
-        .bytes;
-    return '${base32.encode(Uint8List.fromList([...pub, ...hash.sublist(0, 2), 3])).toLowerCase()}.onion';
+  /// The v3 onion address of an Ed25519 public key, with the checksum Tor
+  /// expects: the first two bytes of SHA3-256 over ".onion checksum", the
+  /// key and the version.
+  static String onion(List<int> pub) => encode(pub, Keccak.digest);
+
+  /// The address older builds made, whose checksum used SHA-256 by mistake.
+  /// Tor refuses those, so they are only recognised to be mended.
+  static String legacy(List<int> pub) =>
+      encode(pub, (data) => sha256.convert(data).bytes);
+
+  static String encode(List<int> pub, List<int> Function(List<int>) hash) {
+    final sum = hash([...utf8.encode('.onion checksum'), ...pub, 3]);
+    return '${base32.encode(Uint8List.fromList([...pub, ...sum.sublist(0, 2), 3])).toLowerCase()}.onion';
   }
 
   static Uint8List key(String address) {
@@ -53,16 +60,31 @@ class Identity {
     return Uint8List.fromList(base32.decode(text.toUpperCase()).sublist(0, 32));
   }
 
-  static bool valid(String address) {
+  /// The key inside a well-formed address, whatever its checksum.
+  static List<int>? unpack(String address) {
     final text = address.trim().toLowerCase();
-    if (!RegExp(r'^[a-z2-7]{56}\.onion$').hasMatch(text)) return false;
+    if (!RegExp(r'^[a-z2-7]{56}\.onion$').hasMatch(text)) return null;
     try {
       final bytes = base32.decode(text.substring(0, 56).toUpperCase());
-      if (bytes.length != 35 || bytes[34] != 3) return false;
-      return onion(bytes.sublist(0, 32)) == text;
+      if (bytes.length != 35 || bytes[34] != 3) return null;
+      return bytes.sublist(0, 32);
     } catch (_) {
-      return false;
+      return null;
     }
+  }
+
+  static bool valid(String address) {
+    final pub = unpack(address);
+    return pub != null && onion(pub) == address.trim().toLowerCase();
+  }
+
+  /// [address] with Tor's checksum, when it came from an older build;
+  /// anything else is returned unchanged.
+  static String mend(String address) {
+    final text = address.trim().toLowerCase();
+    final pub = unpack(text);
+    if (pub == null || legacy(pub) != text) return address;
+    return onion(pub);
   }
 
   factory Identity.fromJson(Map<String, dynamic> json) {

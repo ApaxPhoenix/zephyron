@@ -3,6 +3,7 @@ import 'dart:developer' as developer;
 import 'package:sqflite_sqlcipher/sqflite.dart' as cipher;
 import 'package:zephyron/enums.dart';
 import 'package:zephyron/models/community.dart';
+import 'package:zephyron/models/identity.dart';
 import 'package:zephyron/models/message.dart';
 import 'package:zephyron/models/trustee.dart';
 import 'package:zephyron/sql/database.dart';
@@ -133,6 +134,8 @@ class Ledger {
         }
       }
 
+      await mend();
+
       final legacy = await base.rawQuery(
         "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'contacts'",
       );
@@ -161,6 +164,96 @@ class Ledger {
       );
       rethrow;
     }
+  }
+
+  /// Rewrites addresses saved by builds whose onion checksum used SHA-256,
+  /// which Tor refuses, to the real address of the same key. Sessions,
+  /// parcels and listings made under the old addresses are dropped and are
+  /// made again on the next contact. Runs once per identity.
+  static Future<void> mend() async {
+    final done = await base.query(
+      'preferences',
+      where: 'key = ?',
+      whereArgs: ['mended'],
+      limit: 1,
+    );
+    if (done.isNotEmpty) return;
+    String fix(String text) => text.replaceAllMapped(
+      RegExp(r'[a-z2-7]{56}\.onion'),
+      (match) => Identity.mend(match.group(0)!),
+    );
+    await base.transaction((batch) async {
+      for (final row in await batch.query('trustees', columns: ['address'])) {
+        final old = row['address'] as String;
+        final fresh = Identity.mend(old);
+        if (fresh == old) continue;
+        final taken = await batch.query(
+          'trustees',
+          where: 'address = ?',
+          whereArgs: [fresh],
+          limit: 1,
+        );
+        if (taken.isEmpty) {
+          await batch.update(
+            'trustees',
+            {'address': fresh},
+            where: 'address = ?',
+            whereArgs: [old],
+          );
+        } else {
+          await batch.delete(
+            'trustees',
+            where: 'address = ?',
+            whereArgs: [old],
+          );
+        }
+      }
+      for (final (table, column) in [
+        ('history', 'peer'),
+        ('communities', 'founder'),
+        ('posts', 'author'),
+      ]) {
+        final rows = await batch.rawQuery(
+          'SELECT DISTINCT $column FROM $table',
+        );
+        for (final row in rows) {
+          final old = row[column] as String;
+          final fresh = Identity.mend(old);
+          if (fresh == old) continue;
+          await batch.update(
+            table,
+            {column: fresh},
+            where: '$column = ?',
+            whereArgs: [old],
+          );
+        }
+      }
+      await batch.delete('parcels');
+      await batch.delete('listings');
+      for (final row in await batch.query('preferences')) {
+        final key = row['key'] as String;
+        final value = row['value'] as String;
+        if (key.startsWith('ratchet:') ||
+            key.startsWith('bundle:') ||
+            key.startsWith('prekeys:')) {
+          await batch.delete('preferences', where: 'key = ?', whereArgs: [key]);
+          continue;
+        }
+        final fresh = fix(value);
+        if (fresh != value) {
+          await batch.update(
+            'preferences',
+            {'value': fresh},
+            where: 'key = ?',
+            whereArgs: [key],
+          );
+        }
+      }
+      await batch.insert('preferences', {
+        'key': 'mended',
+        'value': '{}',
+      }, conflictAlgorithm: cipher.ConflictAlgorithm.replace);
+    });
   }
 
   static Future<Map<String, dynamic>?> read(String key) async {
