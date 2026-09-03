@@ -52,6 +52,46 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(engine: FlutterEngine) {
         super.configureFlutterEngine(engine)
 
+        MethodChannel(engine.dartExecutor.binaryMessenger, "zephyron/alerts").setMethodCallHandler { call, result ->
+            when (call.method) {
+                "permit" -> {
+                    if (Build.VERSION.SDK_INT >= 33 &&
+                        checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED
+                    ) {
+                        requestPermissions(arrayOf("android.permission.POST_NOTIFICATIONS"), 4201)
+                    }
+                    result.success(null)
+                }
+                "show" -> {
+                    Alerts.show(
+                        this,
+                        call.argument<Int>("id") ?: 0,
+                        call.argument<String>("title") ?: "Zephyron",
+                        call.argument<String>("text") ?: "",
+                    )
+                    result.success(null)
+                }
+                "cancel" -> {
+                    Alerts.cancel(this, call.argument<Int>("id") ?: 0)
+                    result.success(null)
+                }
+                "stand" -> {
+                    val standby = Intent(this, Standby::class.java)
+                    try {
+                        if (call.argument<Boolean>("on") == true) {
+                            if (Build.VERSION.SDK_INT >= 26) startForegroundService(standby) else startService(standby)
+                        } else {
+                            stopService(standby)
+                        }
+                        result.success(null)
+                    } catch (error: Exception) {
+                        result.error("stand", error.message, null)
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+
         MethodChannel(engine.dartExecutor.binaryMessenger, "zephyron/picker").setMethodCallHandler { call, result ->
             picker.handle(call, result)
         }

@@ -4,6 +4,7 @@ import MobileCoreServices
 import PhotosUI
 import UIKit
 import UniformTypeIdentifiers
+import UserNotifications
 
 @main
 @objc class AppDelegate: FlutterAppDelegate {
@@ -63,6 +64,36 @@ import UniformTypeIdentifiers
         self.players = players
         playback.setMethodCallHandler { call, result in players.handle(call, result: result) }
       }
+
+      // Notifications only ever say who wrote and how many messages there
+      // are, never what they say.
+      FlutterMethodChannel(name: "zephyron/alerts", binaryMessenger: controller.binaryMessenger)
+        .setMethodCallHandler { call, result in
+          let center = UNUserNotificationCenter.current()
+          let arguments = call.arguments as? [String: Any] ?? [:]
+          switch call.method {
+          case "permit":
+            center.requestAuthorization(options: [.alert, .badge, .sound]) { _, _ in }
+            result(nil)
+          case "show":
+            let content = UNMutableNotificationContent()
+            content.title = arguments["title"] as? String ?? "Zephyron"
+            content.body = arguments["text"] as? String ?? ""
+            content.sound = .default
+            let id = "zephyron-\(arguments["id"] as? Int ?? 0)"
+            center.add(UNNotificationRequest(identifier: id, content: content, trigger: nil))
+            result(nil)
+          case "cancel":
+            let id = "zephyron-\(arguments["id"] as? Int ?? 0)"
+            center.removeDeliveredNotifications(withIdentifiers: [id])
+            result(nil)
+          case "stand":
+            // iOS gives no way to keep Tor running in the background.
+            result(nil)
+          default:
+            result(FlutterMethodNotImplemented)
+          }
+        }
 
       FlutterMethodChannel(name: "zephyron/share", binaryMessenger: controller.binaryMessenger)
         .setMethodCallHandler { [weak controller] call, result in
