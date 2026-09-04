@@ -441,7 +441,13 @@ class Courier extends ChangeNotifier {
     return dialing[peer] ??= () async {
       final epoch = generation;
       try {
-        final tunnel = await Tor.connect(peer, 80);
+        final Tunnel tunnel;
+        try {
+          tunnel = await Tor.connect(peer, 80);
+        } on StateError catch (error) {
+          if (stale(error)) unawaited(refresh());
+          rethrow;
+        }
         final channel = Channel(tunnel.socket, peer: peer);
         if (epoch != generation) {
           channel.close();
@@ -455,6 +461,26 @@ class Courier extends ChangeNotifier {
         dialing.remove(peer);
       }
     }();
+  }
+
+  /// When Tor last forgot its cached onion service descriptors.
+  DateTime? refreshed;
+
+  /// Whether a failed dial looks like a stale descriptor for a peer who came
+  /// back online with new introduction points.
+  static bool stale(StateError error) =>
+      error.message.contains('introduction') ||
+      error.message.contains('descriptor not found');
+
+  /// Asks Tor to forget stale descriptors, at most once a minute.
+  Future<void> refresh() async {
+    final now = DateTime.now();
+    if (refreshed != null &&
+        now.difference(refreshed!) < const Duration(minutes: 1)) {
+      return;
+    }
+    refreshed = now;
+    await Sentinel.summon().forget();
   }
 
   void greet(String peer, Channel channel) {
@@ -782,9 +808,8 @@ class Courier extends ChangeNotifier {
           final profile = Profile.fromJson(
             Map<String, dynamic>.from(jsonDecode(body) as Map),
           );
-          known.mailbox = Identity.valid(profile.mailbox)
-              ? profile.mailbox
-              : '';
+          final mailbox = Identity.mend(profile.mailbox);
+          known.mailbox = Identity.valid(mailbox) ? mailbox : '';
           known
             ..alias = profile.name
             ..bio = profile.bio
@@ -1077,7 +1102,7 @@ class Courier extends ChangeNotifier {
       meta = invitation;
       words = '';
     } else if (kind == Kind.card) {
-      final address = '${meta['address'] ?? ''}'.toLowerCase();
+      final address = Identity.mend('${meta['address'] ?? ''}'.toLowerCase());
       if (!Identity.valid(address)) return;
       meta = {'address': address, 'name': Profile.clip(meta['name'], 64)};
       words = '';
@@ -1702,7 +1727,7 @@ class Courier extends ChangeNotifier {
   }
 
   Future<Trustee> add(String address, String nickname) async {
-    final target = address.trim().toLowerCase();
+    final target = Identity.mend(address.trim().toLowerCase());
     if (!Identity.valid(target)) {
       throw const FormatException('That is not a valid v3 onion address.');
     }
@@ -1799,7 +1824,7 @@ class Courier extends ChangeNotifier {
     try {
       name = Uri.parse(text.trim()).queryParameters['name'] ?? '';
     } catch (_) {}
-    return (address: match.group(0)!, name: name);
+    return (address: Identity.mend(match.group(0)!), name: name);
   }
 
   static List<String> safety(String alpha, String beta) {
