@@ -7,11 +7,11 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:cryptography/cryptography.dart';
 import 'package:path/path.dart';
-import 'package:sqflite_sqlcipher/sqflite.dart' as sqlite;
+import 'package:sqflite_sqlcipher/sqflite.dart' as sqlCipherDatabase;
 import 'package:zephyron/models/identity.dart';
 
 class Database {
-  static sqlite.Database? instance;
+  static sqlCipherDatabase.Database? databaseInstance;
 
   static String hash(String text) {
     return sha256.convert(utf8.encode(text)).toString();
@@ -41,7 +41,7 @@ class Database {
     }
   }
 
-  static Future<String> key(String pass, Uint8List bytes) async {
+  static Future<String> key(String passphrase, Uint8List bytes) async {
     try {
       final hasher = Argon2id(
         parallelism: 2,
@@ -51,18 +51,18 @@ class Database {
       );
 
       final secret = await hasher.deriveKeyFromPassword(
-        password: pass,
+        password: passphrase,
         nonce: bytes,
       );
 
       final array = Uint8List.fromList(await secret.extractBytes());
-      final hex = array
-          .map((bytes) => bytes.toRadixString(16).padLeft(2, '0'))
+      final hexadecimal = array
+          .map((byte) => byte.toRadixString(16).padLeft(2, '0'))
           .join();
 
       array.fillRange(0, array.length, 0);
 
-      return "x'$hex'";
+      return "x'$hexadecimal'";
     } catch (error) {
       developer.log(
         'Failed to derive database encryption key via Argon2id',
@@ -75,53 +75,138 @@ class Database {
     }
   }
 
-  static Future<sqlite.Database> open(String name, String pass) async {
+  static Future<void> discard(String route) async {
     try {
-      if (instance != null && instance!.isOpen) {
+      final database = File(route);
+      if (await database.exists()) {
+        await database.delete();
+      }
+      final companion = File('$route.salt');
+      if (await companion.exists()) {
+        await companion.delete();
+      }
+      developer.log(
+        'Discarded stale database and salt files at route: $route',
+        name: 'Database.discard',
+        level: 500,
+      );
+    } catch (error) {
+      developer.log(
+        'Failed to discard stale database and salt files at route: $route',
+        name: 'Database.discard',
+        level: 1000,
+        error: error,
+        stackTrace: StackTrace.current,
+      );
+    }
+  }
+
+  static Future<void> wipe(String name) async {
+    try {
+      await dispose();
+      final folder = await sqlCipherDatabase.getDatabasesPath();
+      final digest = hash(name);
+      final route = join(folder, '$digest.db');
+      await discard(route);
+      developer.log(
+        'Deleted local encrypted database for profile: $name',
+        name: 'Database.wipe',
+        level: 900,
+      );
+    } catch (error) {
+      developer.log(
+        'Failed to delete local encrypted database for profile: $name',
+        name: 'Database.wipe',
+        level: 1000,
+        error: error,
+        stackTrace: StackTrace.current,
+      );
+      rethrow;
+    }
+  }
+
+  static Future<sqlCipherDatabase.Database> open(String name, String passphrase) async {
+    try {
+      if (databaseInstance != null && databaseInstance!.isOpen) {
         await dispose();
       }
 
-      final folder = await sqlite.getDatabasesPath();
+      final folder = await sqlCipherDatabase.getDatabasesPath();
+      await Directory(folder).create(recursive: true);
+
       final digest = hash(name);
       final route = join(folder, '$digest.db');
+      final established = await File(route).exists();
 
-      final bytes = await salt(route);
-      final raw = await key(pass, bytes);
+      Future<void> onCreate(sqlCipherDatabase.Database instance, int version) async {
+        await instance.execute('''
+          CREATE TABLE identity (
+            identifier INTEGER PRIMARY KEY AUTOINCREMENT,
+            address TEXT NOT NULL,
+            seed TEXT NOT NULL,
+            private TEXT NOT NULL,
+            created TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          )
+        ''');
+        await instance.execute('''
+          CREATE TABLE messages (
+            identifier INTEGER PRIMARY KEY AUTOINCREMENT,
+            sender TEXT NOT NULL,
+            text TEXT NOT NULL,
+            time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          )
+        ''');
+      }
 
-      instance = await sqlite.openDatabase(
-        route,
-        password: raw,
-        version: 1,
-        onOpen: (base) async {
-          await base.execute('PRAGMA cipher_memory_security = ON;');
-        },
-        onCreate: (base, version) async {
-          await base.execute('''
-            CREATE TABLE identity (
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              address TEXT NOT NULL,
-              seed TEXT NOT NULL,
-              private TEXT NOT NULL,
-              created TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-          ''');
-          await base.execute('''
-            CREATE TABLE messages (
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              sender TEXT NOT NULL,
-              text TEXT NOT NULL,
-              time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-          ''');
-        },
-      );
+      try {
+        final bytes = await salt(route);
+        final derivedKey = await key(passphrase, bytes);
+
+        databaseInstance = await sqlCipherDatabase.openDatabase(
+          route,
+          password: derivedKey,
+          version: 1,
+          onCreate: onCreate,
+        );
+      } catch (error) {
+        if (established) {
+          developer.log(
+            'Refusing to discard an already-established identity store after a single failed open attempt for profile: $name',
+            name: 'Database.open',
+            level: 900,
+            error: error,
+            stackTrace: StackTrace.current,
+          );
+          rethrow;
+        }
+
+        developer.log(
+          'Initial provisioning attempt failed for brand-new identity store, discarding partial artifacts and retrying once for profile: $name',
+          name: 'Database.open',
+          level: 900,
+          error: error,
+          stackTrace: StackTrace.current,
+        );
+
+        await discard(route);
+
+        final bytes = await salt(route);
+        final derivedKey = await key(passphrase, bytes);
+
+        databaseInstance = await sqlCipherDatabase.openDatabase(
+          route,
+          password: derivedKey,
+          version: 1,
+          onCreate: onCreate,
+        );
+      }
 
       developer.log(
         'SQLCipher database instance opened successfully for target profile: $name',
         name: 'Database.open',
         level: 800,
       );
-      return instance!;
+      return databaseInstance!;
     } catch (error) {
       developer.log(
         'Failed to open or initialize SQLCipher encrypted database for profile: $name',
@@ -135,16 +220,16 @@ class Database {
   }
 
   static Future<void> save(
-    sqlite.Database base,
-    Identity identity,
-    String seed,
-  ) async {
+      sqlCipherDatabase.Database instance,
+      Identity identity,
+      String seed,
+      ) async {
     try {
-      await base.insert('identity', {
+      await instance.insert('identity', {
         'address': identity.address,
         'seed': seed,
         'private': identity.private,
-      }, conflictAlgorithm: sqlite.ConflictAlgorithm.replace);
+      }, conflictAlgorithm: sqlCipherDatabase.ConflictAlgorithm.replace);
       developer.log(
         'Successfully persisted identity record into local database table',
         name: 'Database.save',
@@ -162,9 +247,9 @@ class Database {
     }
   }
 
-  static Future<Map<String, dynamic>?> fetch(sqlite.Database base) async {
+  static Future<Map<String, dynamic>?> fetch(sqlCipherDatabase.Database instance) async {
     try {
-      final rows = await base.query('identity', limit: 1);
+      final rows = await instance.query('identity', limit: 1);
       if (rows.isNotEmpty) return rows.first;
       return null;
     } catch (error) {
@@ -181,9 +266,9 @@ class Database {
 
   static Future<void> dispose() async {
     try {
-      if (instance != null) {
-        await instance!.close();
-        instance = null;
+      if (databaseInstance != null) {
+        await databaseInstance!.close();
+        databaseInstance = null;
         developer.log(
           'Closed and cleared active SQLCipher database instance',
           name: 'Database.dispose',
