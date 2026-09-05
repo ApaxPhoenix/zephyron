@@ -1,13 +1,10 @@
 /// Top level destinations of the dashboard navigation bar.
 enum Menu {
-  /// Conversation list.
+  /// Conversations, message requests and every trustee.
   chats,
 
   /// Communities this identity belongs to, with their channels.
   communities,
-
-  /// People this identity knows, grouped by trust.
-  trustees,
 
   /// Who is connected to your node, the Tor relays carrying your traffic and
   /// the bridges used to reach Tor.
@@ -21,11 +18,13 @@ enum Menu {
 enum ChatFilters {
   all('All'),
   unread('Unread'),
+  requests('Requests'),
   groups('Groups'),
   direct('Direct'),
   pinned('Pinned'),
   ephemeral('Ephemeral'),
-  archived('Archived');
+  archived('Archived'),
+  blocked('Blocked');
 
   const ChatFilters(this.label);
   final String label;

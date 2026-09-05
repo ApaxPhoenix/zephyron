@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:zephyron/enums.dart';
+import 'package:zephyron/models/identity.dart';
 import 'package:zephyron/models/message.dart';
 import 'package:zephyron/models/profile.dart';
 import 'package:zephyron/models/trustee.dart';
@@ -131,5 +132,39 @@ void main() {
 
     await Ledger.ensure();
     expect(await Ledger.trustees(), hasLength(2));
+  });
+
+  test('addresses saved by older builds are mended once', () async {
+    final pub = Identity.unpack(alice.address)!;
+    final old = Identity.legacy(pub);
+    expect(old, isNot(alice.address));
+    await Ledger.keep(Trustee(address: old, nickname: 'Al'));
+    await Ledger.record(
+      Message(
+        id: 'old',
+        peer: old,
+        mine: false,
+        text: 'from before the fix',
+        time: DateTime(2026, 1, 1),
+      ),
+    );
+    await Ledger.write('ratchet:${bob.address}:$old', {'state': 1});
+    await Ledger.write('preferences', {'serve': old});
+    await Ledger.remove('mended');
+
+    await Ledger.mend();
+    expect((await Ledger.trustees()).single.address, alice.address);
+    expect((await Ledger.trustees()).single.label, 'Al');
+    expect((await Ledger.everything()).single.peer, alice.address);
+    expect(await Ledger.read('ratchet:${bob.address}:$old'), isNull);
+    expect((await Ledger.read('preferences'))!['serve'], alice.address);
+
+    await Ledger.keep(Trustee(address: old));
+    await Ledger.mend();
+    expect(
+      (await Ledger.trustees()).map((item) => item.address),
+      contains(old),
+      reason: 'it only runs once',
+    );
   });
 }

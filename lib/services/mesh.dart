@@ -485,7 +485,12 @@ class Mesh extends ChangeNotifier {
       }
       if (time is! int || sealed is! String) return null;
       final key = Courier.decode(frame['k'] as String);
-      if (key.length != 32 || Identity.onion(key) != author) return null;
+      if (key.length != 32) return null;
+      // Posts made by older builds carry an address with the wrong checksum;
+      // the signature still holds, so they are kept under the real address.
+      if (Identity.onion(key) != author && Identity.legacy(key) != author) {
+        return null;
+      }
       if (!ed25519.verify(
         ed25519.PublicKey(key),
         canonical(frame),
@@ -534,7 +539,7 @@ class Mesh extends ChangeNotifier {
         id: id,
         community: community.id,
         channel: '${body['ch'] ?? ''}',
-        author: author,
+        author: Identity.onion(key),
         seq: seq,
         time: stamp.isAfter(now) ? now : stamp,
         note: note.first,
@@ -854,7 +859,7 @@ class Mesh extends ChangeNotifier {
   static Map<String, dynamic>? valid(Map<String, dynamic> meta, String from) {
     final id = meta['community'];
     final key = meta['key'];
-    final founder = '${meta['founder'] ?? ''}'.toLowerCase();
+    final founder = Identity.mend('${meta['founder'] ?? ''}'.toLowerCase());
     final created = meta['created'];
     if (id is! String || !RegExp(r'^[0-9a-f]{32}$').hasMatch(id)) return null;
     if (key is! String || created is! int || !Identity.valid(founder)) {
