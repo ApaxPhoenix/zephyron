@@ -386,7 +386,9 @@ class VaultPageState extends State<VaultPage> {
                   ListTile(
                     leading: const Icon(Icons.block),
                     title: const Text('Blocked'),
-                    subtitle: const Text('Manage blocked keys in Trustees'),
+                    subtitle: const Text(
+                      'Manage blocked keys under Blocked in Chats',
+                    ),
                     trailing: Pill(count: blocked),
                   ),
                 ],

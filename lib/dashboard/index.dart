@@ -4,7 +4,6 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:zephyron/dashboard/chats/index.dart';
 import 'package:zephyron/dashboard/communities/index.dart';
-import 'package:zephyron/dashboard/peers/index.dart';
 import 'package:zephyron/dashboard/relays/index.dart';
 import 'package:zephyron/dashboard/vault/index.dart';
 import 'package:zephyron/enums.dart';
@@ -129,13 +128,7 @@ class DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    const pages = [
-      ChatsPage(),
-      CommunitiesPage(),
-      PeersPage(),
-      RelaysPage(),
-      VaultPage(),
-    ];
+    const pages = [ChatsPage(), CommunitiesPage(), RelaysPage(), VaultPage()];
     final calm = MediaQuery.disableAnimationsOf(context);
 
     return Listener(
@@ -184,6 +177,7 @@ class DashboardScreenState extends State<DashboardScreen> {
             final requests = Courier.instance.roster.values
                 .where((item) => item.stranger)
                 .length;
+            final waiting = unread + requests;
             return ClipRect(
               child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
@@ -201,13 +195,13 @@ class DashboardScreenState extends State<DashboardScreen> {
                     destinations: [
                       NavigationDestination(
                         icon: Badge(
-                          isLabelVisible: unread > 0,
-                          label: Text(unread > 99 ? '99+' : '$unread'),
+                          isLabelVisible: waiting > 0,
+                          label: Text(waiting > 99 ? '99+' : '$waiting'),
                           child: const Icon(Icons.chat_bubble_outline),
                         ),
                         selectedIcon: Badge(
-                          isLabelVisible: unread > 0,
-                          label: Text(unread > 99 ? '99+' : '$unread'),
+                          isLabelVisible: waiting > 0,
+                          label: Text(waiting > 99 ? '99+' : '$waiting'),
                           child: const Icon(Icons.chat_bubble),
                         ),
                         label: 'Chats',
@@ -216,19 +210,6 @@ class DashboardScreenState extends State<DashboardScreen> {
                         icon: Icon(Icons.diversity_3_outlined),
                         selectedIcon: Icon(Icons.diversity_3),
                         label: 'Communities',
-                      ),
-                      NavigationDestination(
-                        icon: Badge(
-                          isLabelVisible: requests > 0,
-                          label: Text('$requests'),
-                          child: const Icon(Icons.people_outline),
-                        ),
-                        selectedIcon: Badge(
-                          isLabelVisible: requests > 0,
-                          label: Text('$requests'),
-                          child: const Icon(Icons.people),
-                        ),
-                        label: 'Trustees',
                       ),
                       NavigationDestination(
                         icon: Badge(
