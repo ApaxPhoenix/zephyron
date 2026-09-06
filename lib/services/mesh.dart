@@ -14,6 +14,7 @@ import 'package:zephyron/models/message.dart';
 import 'package:zephyron/models/profile.dart';
 import 'package:zephyron/services/broadcast.dart';
 import 'package:zephyron/services/courier.dart';
+import 'package:zephyron/services/catalog.dart';
 import 'package:zephyron/services/ratchet.dart';
 import 'package:zephyron/services/stage.dart';
 import 'package:zephyron/sql/ledger.dart';
@@ -938,6 +939,7 @@ class Mesh extends ChangeNotifier {
     }
     await Ledger.disband(id);
     notifyListeners();
+    unawaited(Catalog.instance.refresh());
   }
 
   Future<void> amend(Community community) async {

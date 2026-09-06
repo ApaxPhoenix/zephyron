@@ -428,6 +428,45 @@ class VaultPageState extends State<VaultPage> {
                   ),
                 ],
               ),
+              const Heading(
+                'Discover',
+                description:
+                    'An opt-in directory that travels between trustees\' phones, so people can find each other without a server.',
+              ),
+              Group(
+                children: [
+                  SwitchListTile(
+                    secondary: const Icon(Icons.travel_explore),
+                    title: const Text('List Me in Discover'),
+                    subtitle: const Text(
+                      'Anyone the listing reaches sees your name, bio, picture and discovery key, and can send you a request',
+                    ),
+                    value: prefs.listed,
+                    onChanged: (value) => tune((next) => next.listed = value),
+                  ),
+                  SwitchListTile(
+                    secondary: const Icon(Icons.share_outlined),
+                    title: const Text('Pass Along Listings'),
+                    subtitle: const Text(
+                      'Share the listings this phone holds with your trustees, so discovery reaches further',
+                    ),
+                    value: prefs.spread,
+                    onChanged: (value) => tune((next) => next.spread = value),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.explore_outlined),
+                    title: const Text('Browse Discover'),
+                    trailing: Icon(
+                      Icons.chevron_right,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                    onTap: () => Navigator.pushNamed(
+                      context,
+                      '/dashboard/communities/discover',
+                    ),
+                  ),
+                ],
+              ),
               const Heading('Notifications'),
               Group(
                 children: [

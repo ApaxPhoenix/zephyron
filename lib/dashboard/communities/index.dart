@@ -29,6 +29,9 @@ class CommunitiesPageState extends State<CommunitiesPage> {
   void create() =>
       Navigator.pushNamed(context, '/dashboard/communities/create');
 
+  void discover() =>
+      Navigator.pushNamed(context, '/dashboard/communities/discover');
+
   void open(Community community) => Navigator.pushNamed(
     context,
     '/dashboard/communities/community',
@@ -47,6 +50,11 @@ class CommunitiesPageState extends State<CommunitiesPage> {
         title: const Text('Communities'),
         actions: [
           const Center(child: Beacon()),
+          IconButton(
+            icon: const Icon(Icons.travel_explore),
+            tooltip: 'Discover',
+            onPressed: discover,
+          ),
           Padding(
             padding: const EdgeInsets.only(right: 4),
             child: IconButton(
@@ -186,7 +194,7 @@ class CommunitiesPageState extends State<CommunitiesPage> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Start one for your people, or join from an invitation a trustee sends you. Nobody owns a community; members keep it alive for each other.',
+                      'Start one for your people, join from an invitation a trustee sends you, or find an open one in Discover. Nobody owns a community; members keep it alive for each other.',
                       textAlign: TextAlign.center,
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: scheme.onSurfaceVariant,
@@ -197,6 +205,12 @@ class CommunitiesPageState extends State<CommunitiesPage> {
                       onPressed: create,
                       icon: const Icon(Icons.add),
                       label: const Text('Create a Community'),
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton.icon(
+                      onPressed: discover,
+                      icon: const Icon(Icons.travel_explore),
+                      label: const Text('Discover Communities'),
                     ),
                   ],
                 ),
