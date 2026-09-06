@@ -37,22 +37,22 @@ external Pointer<Utf8> describe(Pointer<Void> port);
 external int allocate(Pointer<Pointer<Void>> output);
 
 @Native<Void Function(Pointer<Void>)>(symbol: 'sp_free_config')
-external void clean(Pointer<Void> config);
+external void clean(Pointer<Void> configuration);
 
 @Native<Int32 Function(Pointer<Void>, Pointer<Void>)>(symbol: 'sp_set_config')
-external int apply(Pointer<Void> port, Pointer<Void> config);
+external int apply(Pointer<Void> port, Pointer<Void> configuration);
 
 @Native<Int32 Function(Pointer<Void>, Int32)>(symbol: 'sp_set_config_baudrate')
-external int baud(Pointer<Void> config, int rate);
+external int baud(Pointer<Void> configuration, int rate);
 
 @Native<Int32 Function(Pointer<Void>, Int32)>(symbol: 'sp_set_config_bits')
-external int bits(Pointer<Void> config, int count);
+external int bits(Pointer<Void> configuration, int count);
 
 @Native<Int32 Function(Pointer<Void>, Int32)>(symbol: 'sp_set_config_stopbits')
-external int stop(Pointer<Void> config, int count);
+external int stop(Pointer<Void> configuration, int count);
 
 @Native<Int32 Function(Pointer<Void>, Int32)>(symbol: 'sp_set_config_parity')
-external int parity(Pointer<Void> config, int mode);
+external int parity(Pointer<Void> configuration, int mode);
 
 @Native<Int32 Function(Pointer<Void>, Pointer<Void>, Size, Uint32)>(
   symbol: 'sp_blocking_read',
@@ -138,7 +138,7 @@ final DynamicLibrary library = () {
 
 class Serial {
   final Pointer<Void> port;
-  Pointer<Void> config = nullptr;
+  Pointer<Void> configuration = nullptr;
 
   Serial._(this.port);
 
@@ -175,10 +175,10 @@ class Serial {
     return using((arena) {
       final pointer = arena<Pointer<Void>>();
       if (resolve(pointer, path.toNativeUtf8(allocator: arena)) != 0) {
-        final errStr = error().toDartString();
-        final exception = StateError('Port $path not found: $errStr');
+        final error_ = error().toDartString();
+        final exception = StateError('Port $path not found: $error_');
         developer.log(
-          'Failed to resolve serial port path: $path ($errStr)',
+          'Failed to resolve serial port path: $path ($error_)',
           name: 'Serial.open',
           level: 1000,
           error: exception,
@@ -189,10 +189,10 @@ class Serial {
 
       final port = pointer.value;
       if (launch(port, 3) != 0) {
-        final errStr = error().toDartString();
-        final exception = StateError('Open failed: $errStr');
+        final error_ = error().toDartString();
+        final exception = StateError('Open failed: $error_');
         developer.log(
-          'Failed to open connection to serial port path: $path ($errStr)',
+          'Failed to open connection to serial port path: $path ($error_)',
           name: 'Serial.open',
           level: 1000,
           error: exception,
@@ -203,10 +203,10 @@ class Serial {
 
       final setup = arena<Pointer<Void>>();
       if (allocate(setup) != 0) {
-        final errStr = error().toDartString();
-        final exception = StateError('Config failed: $errStr');
+        final error_ = error().toDartString();
+        final exception = StateError('Config failed: $error_');
         developer.log(
-          'Failed to allocate configuration object for serial port path: $path ($errStr)',
+          'Failed to allocate configuration object for serial port path: $path ($error_)',
           name: 'Serial.open',
           level: 1000,
           error: exception,
@@ -221,10 +221,10 @@ class Serial {
       parity(setup.value, 0);
 
       if (apply(port, setup.value) != 0) {
-        final errStr = error().toDartString();
-        final exception = StateError('Apply failed: $errStr');
+        final error_ = error().toDartString();
+        final exception = StateError('Apply failed: $error_');
         developer.log(
-          'Failed to apply baud rate ($rate) and frame configuration to serial port path: $path ($errStr)',
+          'Failed to apply baud rate ($rate) and frame configuration to serial port path: $path ($error_)',
           name: 'Serial.open',
           level: 1000,
           error: exception,
@@ -233,7 +233,7 @@ class Serial {
         throw exception;
       }
 
-      return Serial._(port)..config = setup.value;
+      return Serial._(port)..configuration = setup.value;
     });
   }
 
@@ -283,10 +283,10 @@ class Serial {
       }
       final sent = send(port, buffer.cast(), bytes.length, timeout);
       if (sent < 0) {
-        final errStr = error().toDartString();
-        final exception = StateError('Write failed: $errStr');
+        final error_ = error().toDartString();
+        final exception = StateError('Write failed: $error_');
         developer.log(
-          'Blocking write operation failed on target serial port ($errStr)',
+          'Blocking write operation failed on target serial port ($error_)',
           name: 'Serial.push',
           level: 1000,
           error: exception,
@@ -303,10 +303,10 @@ class Serial {
       final buffer = arena<Uint8>(length);
       final count = recv(port, buffer.cast(), length, timeout);
       if (count < 0) {
-        final errStr = error().toDartString();
-        final exception = StateError('Read failed: $errStr');
+        final error_ = error().toDartString();
+        final exception = StateError('Read failed: $error_');
         developer.log(
-          'Blocking read operation failed on target serial port ($errStr)',
+          'Blocking read operation failed on target serial port ($error_)',
           name: 'Serial.pull',
           level: 1000,
           error: exception,
@@ -324,8 +324,8 @@ class Serial {
         close(port);
         free(port);
       }
-      if (config != nullptr) clean(config);
-      config = nullptr;
+      if (configuration != nullptr) clean(configuration);
+      configuration = nullptr;
     } catch (error) {
       developer.log(
         'Failed to cleanly release native serial port handles during dispose',
