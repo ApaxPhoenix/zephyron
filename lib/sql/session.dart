@@ -5,6 +5,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:sqflite_sqlcipher/sqflite.dart' as cipher;
+import 'package:zephyron/services/keeper.dart';
 import 'package:zephyron/services/duress.dart';
 import 'package:zephyron/services/locker.dart';
 import 'package:zephyron/services/warden.dart';
@@ -276,6 +277,7 @@ class Session {
         }
         await storage.write(key: key, value: json.encode([spare]));
       }
+      await Keeper.wipe();
       Warden.forget();
       developer.log(
         'Purged every identity, store and secret from this device',
