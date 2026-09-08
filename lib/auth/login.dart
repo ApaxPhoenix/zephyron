@@ -303,6 +303,7 @@ class LogInPageState extends State<LogInPage> {
                                 )
                               : DropdownButtonFormField<String>(
                                   initialValue: selection,
+                                  isExpanded: true,
                                   decoration: const InputDecoration(
                                     hintText: 'Choose an identity',
                                   ),
@@ -310,7 +311,10 @@ class LogInPageState extends State<LogInPage> {
                                       .map(
                                         (entry) => DropdownMenuItem(
                                           value: entry,
-                                          child: Text(entry),
+                                          child: Text(
+                                            entry,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
                                         ),
                                       )
                                       .toList(),
