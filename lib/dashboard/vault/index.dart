@@ -80,7 +80,7 @@ class VaultPageState extends State<VaultPage> {
       context,
       title: 'Lock Vault?',
       message:
-          'Your onion service goes offline and the encrypted store is closed until you unlock it again.',
+          'The encrypted store closes until you unlock it again. Your address stays online and keeps new messages sealed until then.',
       action: 'Lock',
     );
     if (sure) await Session.dispose();
