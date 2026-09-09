@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Zephyron
+Comment=Private peer-to-peer messaging over Tor
+Exec=/opt/zephyron/zephyron
+Icon=zephyron
+Terminal=false
+Categories=Network;InstantMessaging;Chat;
+StartupWMClass=zephyron
