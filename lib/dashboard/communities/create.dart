@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:zephyron/dashboard/chats/gifs.dart';
 import 'package:zephyron/models/community.dart';
 import 'package:zephyron/services/mesh.dart';
-import 'package:zephyron/services/picker.dart';
+import 'package:zephyron/services/explorer.dart';
 import 'package:zephyron/services/web.dart';
 import 'package:zephyron/widgets/avatar.dart';
 import 'package:zephyron/widgets/crop.dart';
@@ -51,7 +51,7 @@ class CreatePageState extends State<CreatePage> {
 
   Future<Uint8List?> pick() async {
     try {
-      final picked = await Picker.photo(limit: 2048, quality: 92);
+      final picked = await Explorer.photo(limit: 2048, quality: 92);
       return picked == null ? null : await picked.bytes();
     } catch (_) {
       warn('Could not open that picture.');

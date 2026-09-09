@@ -39,8 +39,8 @@ class Picked {
 /// The phone's own photo, video and file pickers and its camera app, through
 /// a small channel: Android's system pickers or iOS's PHPicker and document
 /// picker. None of them need storage permissions.
-class Picker {
-  static const MethodChannel link = MethodChannel('zephyron/picker');
+class Explorer {
+  static const MethodChannel link = MethodChannel('explorer');
 
   /// A photo from the gallery, or a new one from the [camera], scaled to
   /// [limit] on its long side and turned upright. GIFs come as they are.

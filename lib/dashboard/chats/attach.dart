@@ -8,7 +8,7 @@ import 'package:zephyron/models/message.dart';
 import 'package:zephyron/models/trustee.dart';
 import 'package:zephyron/services/courier.dart';
 import 'package:zephyron/services/locker.dart';
-import 'package:zephyron/services/picker.dart';
+import 'package:zephyron/services/explorer.dart';
 import 'package:zephyron/services/still.dart';
 import 'package:zephyron/widgets/avatar.dart';
 import 'package:zephyron/widgets/sheet.dart';
@@ -41,7 +41,7 @@ class Attach {
 
     Future<void> photo({bool camera = false}) async {
       try {
-        final picked = await Picker.photo(camera: camera);
+        final picked = await Explorer.photo(camera: camera);
         if (picked == null) return;
         final bytes = await picked.bytes();
         final size = await dimensions(bytes);
@@ -72,7 +72,7 @@ class Attach {
 
     Future<void> clip() async {
       try {
-        final picked = await Picker.video();
+        final picked = await Explorer.video();
         if (picked == null) return;
         if (picked.size > Locker.ceiling) {
           await picked.discard();
@@ -194,7 +194,7 @@ class Attach {
                   }),
                   option(Icons.insert_drive_file_outlined, 'File', () async {
                     try {
-                      final chosen = await Picker.file();
+                      final chosen = await Explorer.file();
                       if (chosen == null) return;
                       if (chosen.size > Locker.ceiling) {
                         await chosen.discard();

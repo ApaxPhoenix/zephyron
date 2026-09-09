@@ -24,7 +24,7 @@
         android:fullBackupContent="false"
         android:dataExtractionRules="@xml/data_extraction_rules">
         <activity
-            android:name=".MainActivity"
+            android:name=".Main"
             android:exported="true"
             android:launchMode="singleTop"
             android:taskAffinity=""

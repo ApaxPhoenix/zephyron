@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:zephyron/models/message.dart';
 import 'package:zephyron/services/locker.dart';
-import 'package:zephyron/services/player.dart';
+import 'package:zephyron/services/playback.dart';
 import 'package:zephyron/services/still.dart';
 
 /// Reads a video's length and upright size.
@@ -126,7 +126,7 @@ class Screening extends StatefulWidget {
 }
 
 class ScreeningState extends State<Screening> {
-  Player? player;
+  Playback? player;
   bool failed = false;
 
   @override
@@ -138,7 +138,7 @@ class ScreeningState extends State<Screening> {
   Future<void> prepare() async {
     try {
       final file = await Locker.export(widget.message);
-      final next = await Player.open(file.path, video: true);
+      final next = await Playback.open(file.path, video: true);
       if (!mounted) {
         await next.close();
         return;

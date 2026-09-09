@@ -302,7 +302,7 @@ class Tor {
     if (binary == null) {
       try {
         final bundle = await const MethodChannel(
-          'zephyron/security',
+          'security',
         ).invokeMethod<String>('packages');
 
         if (bundle != null && bundle.isNotEmpty) {

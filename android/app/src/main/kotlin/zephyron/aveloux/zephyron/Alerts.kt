@@ -50,7 +50,7 @@ object Alerts {
         PendingIntent.getActivity(
             context,
             0,
-            Intent(context, MainActivity::class.java)
+            Intent(context, Main::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
