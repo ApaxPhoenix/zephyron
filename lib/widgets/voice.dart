@@ -7,7 +7,7 @@ import 'package:zephyron/theme.dart';
 import 'package:record/record.dart';
 import 'package:zephyron/models/message.dart';
 import 'package:zephyron/services/locker.dart';
-import 'package:zephyron/services/player.dart';
+import 'package:zephyron/services/playback.dart';
 
 /// What a finished recording hands back.
 typedef Recording = ({Uint8List bytes, Duration duration});
@@ -264,15 +264,15 @@ class VoiceNote extends StatefulWidget {
 
 class VoiceNoteState extends State<VoiceNote> {
   late final List<double> bars = Wave.shape(widget.message.id, 40);
-  Player? player;
+  Playback? player;
   Duration position = Duration.zero;
   Duration? total;
   bool playing = false;
   bool loading = false;
 
   /// Made on first play, so a long chat does not open a player per note.
-  Future<Player> open(String path) async {
-    final made = await Player.open(path);
+  Future<Playback> open(String path) async {
+    final made = await Playback.open(path);
     made.addListener(() {
       if (!mounted) return;
       setState(() {

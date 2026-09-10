@@ -5,9 +5,9 @@ import 'package:flutter/services.dart';
 /// Plays a voice message, an episode or a video with the phone's own media
 /// player, through a small channel: MediaPlayer on Android and AVPlayer on
 /// iOS. A video draws into a texture shown with Flutter's [Texture].
-class Player extends ChangeNotifier {
-  static const MethodChannel link = MethodChannel('zephyron/player');
-  static final Map<int, Player> live = {};
+class Playback extends ChangeNotifier {
+  static const MethodChannel link = MethodChannel('playback');
+  static final Map<int, Playback> live = {};
   static int counter = 0;
   static bool listening = false;
 
@@ -26,7 +26,7 @@ class Player extends ChangeNotifier {
   int rotation = 0;
   Timer? ticker;
 
-  Player._(this.id);
+  Playback._(this.id);
 
   /// Width over height, as the picture is meant to be seen.
   double get aspect {
@@ -45,9 +45,9 @@ class Player extends ChangeNotifier {
   }
 
   /// Opens [path]; a [video] gets a texture to draw into.
-  static Future<Player> open(String path, {bool video = false}) async {
+  static Future<Playback> open(String path, {bool video = false}) async {
     listen();
-    final player = Player._(counter++);
+    final player = Playback._(counter++);
     live[player.id] = player;
     try {
       final facts = await link.invokeMapMethod<String, Object?>('open', {

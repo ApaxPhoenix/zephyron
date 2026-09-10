@@ -10,8 +10,8 @@ import 'package:zephyron/services/broadcast.dart';
 import 'package:zephyron/services/courier.dart';
 import 'package:zephyron/services/locker.dart';
 import 'package:zephyron/services/mesh.dart';
-import 'package:zephyron/services/picker.dart';
-import 'package:zephyron/services/player.dart';
+import 'package:zephyron/services/explorer.dart';
+import 'package:zephyron/services/playback.dart';
 import 'package:zephyron/services/still.dart';
 import 'package:zephyron/widgets/avatar.dart';
 import 'package:zephyron/widgets/sheet.dart';
@@ -84,7 +84,7 @@ class PodcastPageState extends State<PodcastPage> {
 
   Future<({Uint8List bytes, Duration duration, String mime})?> file() async {
     try {
-      final chosen = await Picker.file(type: 'audio/*');
+      final chosen = await Explorer.file(type: 'audio/*');
       if (chosen == null) return null;
       if (chosen.size > Broadcast.ceiling) {
         await chosen.discard();
@@ -355,7 +355,7 @@ class EpisodeCard extends StatefulWidget {
 }
 
 class EpisodeCardState extends State<EpisodeCard> {
-  Player? player;
+  Playback? player;
   bool? kept;
   bool playing = false;
   bool opening = false;
@@ -394,7 +394,7 @@ class EpisodeCardState extends State<EpisodeCard> {
     try {
       final bytes = await broadcast.audio(blob);
       final file = await Locker.stage(blob, 'episode.m4a', bytes);
-      final made = await Player.open(file.path);
+      final made = await Playback.open(file.path);
       made.addListener(() {
         if (!mounted) return;
         setState(() {

@@ -16,7 +16,7 @@ import 'package:zephyron/theme.dart';
 import 'package:zephyron/wrappers/tor.dart';
 
 late final R2API bucket;
-const link = MethodChannel('zephyron/security');
+const link = MethodChannel('security');
 
 Future<void> main() async {
   runZonedGuarded(
