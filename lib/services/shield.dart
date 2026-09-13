@@ -9,7 +9,7 @@ import 'package:flutter/services.dart';
 /// recording and blanks the app in Recents. It starts on before Flutter runs,
 /// so the unlock screen is covered too.
 class Shield {
-  static const MethodChannel link = MethodChannel('zephyron/security');
+  static const MethodChannel link = MethodChannel('security');
 
   static Future<void> apply(bool on) async {
     try {

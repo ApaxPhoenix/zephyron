@@ -18,14 +18,29 @@ class Picked {
 
   File get file => File(path);
 
-  Future<Uint8List> bytes() => file.readAsBytes();
+  /// Reads the copy and deletes it, so no plain copy is left behind once
+  /// the app has encrypted what it needs.
+  Future<Uint8List> bytes() async {
+    final data = await file.readAsBytes();
+    try {
+      await file.delete();
+    } catch (_) {}
+    return data;
+  }
+
+  /// Deletes the copy of something the app turned down.
+  Future<void> discard() async {
+    try {
+      await file.delete();
+    } catch (_) {}
+  }
 }
 
 /// The phone's own photo, video and file pickers and its camera app, through
 /// a small channel: Android's system pickers or iOS's PHPicker and document
 /// picker. None of them need storage permissions.
-class Picker {
-  static const MethodChannel link = MethodChannel('zephyron/picker');
+class Explorer {
+  static const MethodChannel link = MethodChannel('explorer');
 
   /// A photo from the gallery, or a new one from the [camera], scaled to
   /// [limit] on its long side and turned upright. GIFs come as they are.

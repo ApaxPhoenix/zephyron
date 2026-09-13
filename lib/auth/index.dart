@@ -2,6 +2,7 @@ import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:zephyron/auth/login.dart';
 import 'package:zephyron/auth/signup.dart';
+import 'package:zephyron/sql/session.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -13,6 +14,18 @@ class AuthScreen extends StatefulWidget {
 class AuthScreenState extends State<AuthScreen> {
   final PageController controller = PageController(initialPage: 0);
   int index = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // A phone that already has an identity, such as one just locked, opens
+    // on the unlock page rather than registration.
+    Session.sessions().then((roster) {
+      if (roster.isNotEmpty && mounted && controller.hasClients) {
+        controller.jumpToPage(1);
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {

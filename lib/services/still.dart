@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 /// to Android's MediaMetadataRetriever or iOS's AVAssetImageGenerator, so no
 /// extra package is needed.
 class Still {
-  static const MethodChannel link = MethodChannel('zephyron/media');
+  static const MethodChannel link = MethodChannel('media');
 
   /// Largest thumbnail kept, so it fits inside an encrypted manifest.
   static const int ceiling = 64 * 1024;

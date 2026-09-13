@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zephyron/auth/index.dart';
 import 'package:zephyron/theme.dart';
 
 void main() {
+  setUp(() => FlutterSecureStorage.setMockInitialValues({}));
+
   Future<void> show(WidgetTester tester) async {
     tester.view.physicalSize = const Size(1080, 2340);
     tester.view.devicePixelRatio = 3;
@@ -76,5 +79,15 @@ void main() {
     await tester.tap(find.text('Create your first identity'));
     await tester.pumpAndSettle();
     expect(find.text('Create your identity'), findsOneWidget);
+  });
+
+  testWidgets('a phone with an identity opens on the unlock page', (
+    tester,
+  ) async {
+    FlutterSecureStorage.setMockInitialValues({'sessions': '["Personal"]'});
+    await show(tester);
+
+    expect(find.text('Welcome back'), findsOneWidget);
+    expect(find.text('Create your identity'), findsNothing);
   });
 }

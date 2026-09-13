@@ -21,8 +21,6 @@ import java.io.FileNotFoundException
  */
 class Vault : ContentProvider() {
     companion object {
-        fun authority(context: Context) = "${context.packageName}.vault"
-
         fun outbox(context: Context): File =
             File(context.cacheDir, "outbox").also { it.mkdirs() }
 
@@ -34,7 +32,7 @@ class Vault : ContentProvider() {
             val relative = target.path.substring(root.path.length + 1).replace(File.separatorChar, '/')
             return Uri.Builder()
                 .scheme("content")
-                .authority(authority(context))
+                .authority("${context.packageName}.vault")
                 .encodedPath("/" + relative.split('/').joinToString("/") { Uri.encode(it) })
                 .build()
         }

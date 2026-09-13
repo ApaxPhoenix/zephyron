@@ -10,6 +10,10 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
     <!-- Records voice messages and talks in voice rooms -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <!-- Says who sent messages and how many, never what they say -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- Keeps the address online in the background so messages can arrive -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING"/>
 
     <application
         android:label="zephyron"
@@ -20,7 +24,7 @@
         android:fullBackupContent="false"
         android:dataExtractionRules="@xml/data_extraction_rules">
         <activity
-            android:name=".MainActivity"
+            android:name=".Main"
             android:exported="true"
             android:launchMode="singleTop"
             android:taskAffinity=""
@@ -40,6 +44,12 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+
+        <!-- Keeps Tor and the onion service running while the vault is locked -->
+        <service
+            android:name=".Standby"
+            android:exported="false"
+            android:foregroundServiceType="remoteMessaging" />
 
         <!-- Lends single files from the outbox to a share target or the camera -->
         <provider

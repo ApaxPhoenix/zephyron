@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zephyron/dashboard/chats/index.dart';
 import 'package:zephyron/dashboard/chats/message.dart';
-import 'package:zephyron/dashboard/peers/index.dart';
 import 'package:zephyron/dashboard/peers/node.dart';
 import 'package:zephyron/dashboard/relays/index.dart';
 import 'package:zephyron/dashboard/vault/index.dart';
@@ -122,10 +121,14 @@ void main() {
     expect(find.text('Request'), findsOneWidget);
     expect(find.text('Dana'), findsNothing);
 
+    await tester.ensureVisible(find.widgetWithText(FilterChip, 'Unread'));
+
     await tester.tap(find.widgetWithText(FilterChip, 'Unread'));
     await tester.pumpAndSettle();
     expect(find.text('Alice Moreau'), findsNothing);
     expect(find.text('found your key on the forum'), findsOneWidget);
+
+    await tester.ensureVisible(find.widgetWithText(FilterChip, 'All'));
 
     await tester.tap(find.widgetWithText(FilterChip, 'All'));
     await tester.enterText(find.byType(TextField), 'alice');
@@ -161,20 +164,35 @@ void main() {
     expect(find.text('Block'), findsOneWidget);
   });
 
-  testWidgets('trustees are grouped and blocked keys stay folded', (
+  testWidgets('chats hold requests, conversations and quiet trustees', (
     tester,
   ) async {
-    await show(tester, const PeersPage());
+    courier.roster[dana.address]!.trust = Trust.trustee;
+    courier.roster[dana.address]!.alias = 'Dana';
+    await show(tester, const ChatsPage());
 
-    expect(find.text('Requests'), findsOneWidget);
-    expect(find.text('Online'), findsOneWidget);
-    expect(find.text('Blocked'), findsOneWidget);
-    expect(find.text('1'), findsNWidgets(3));
-    expect(find.text('Dana'), findsNothing);
+    Finder heading(String text) =>
+        find.descendant(of: find.byType(Heading), matching: find.text(text));
+    expect(heading('Requests'), findsOneWidget);
+    expect(heading('Conversations'), findsOneWidget);
+    expect(heading('Trustees'), findsOneWidget);
+    expect(find.text('Dana'), findsOneWidget);
+    expect(find.byTooltip('Accept as Trustee'), findsOneWidget);
+    expect(find.byTooltip('Discover People'), findsOneWidget);
 
-    await tester.tap(find.byIcon(Icons.expand_more));
+    courier.roster[dana.address]!.trust = Trust.blocked;
+    await tester.ensureVisible(find.widgetWithText(FilterChip, 'Blocked'));
+    await tester.tap(find.widgetWithText(FilterChip, 'Blocked'));
     await tester.pumpAndSettle();
     expect(find.text('Dana'), findsOneWidget);
+    expect(find.text('Alice Moreau'), findsNothing);
+
+    await tester.ensureVisible(find.widgetWithText(FilterChip, 'Requests'));
+
+    await tester.tap(find.widgetWithText(FilterChip, 'Requests'));
+    await tester.pumpAndSettle();
+    expect(find.text('Dana'), findsNothing);
+    expect(find.byTooltip('Block'), findsOneWidget);
   });
 
   testWidgets('a peer profile shows trust, key and safety code', (
@@ -365,6 +383,8 @@ void main() {
     expect(find.text('Weekend Hikers'), findsOneWidget);
     expect(find.textContaining('Trail at 8?'), findsOneWidget);
     expect(find.text('Alice Moreau'), findsOneWidget);
+
+    await tester.ensureVisible(find.widgetWithText(FilterChip, 'Groups'));
 
     await tester.tap(find.widgetWithText(FilterChip, 'Groups'));
     await tester.pumpAndSettle();

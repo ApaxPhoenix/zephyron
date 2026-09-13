@@ -1,13 +1,14 @@
 import 'dart:async';
+import 'dart:math';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:zephyron/dashboard/chats/index.dart';
 import 'package:zephyron/dashboard/communities/index.dart';
-import 'package:zephyron/dashboard/peers/index.dart';
 import 'package:zephyron/dashboard/relays/index.dart';
 import 'package:zephyron/dashboard/vault/index.dart';
 import 'package:zephyron/enums.dart';
 import 'package:zephyron/models/message.dart';
+import 'package:zephyron/services/alerts.dart';
 import 'package:zephyron/services/courier.dart';
 import 'package:zephyron/services/stage.dart';
 import 'package:zephyron/sql/session.dart';
@@ -43,57 +44,9 @@ class DashboardScreenState extends State<DashboardScreen> {
       Courier.instance.start(identity);
       Stage.instance.addListener(ring);
       expiry = Session.expired.stream.listen((_) => relock());
-      arrivals = Courier.instance.arrivals.stream.listen((message) {
-        final courier = Courier.instance;
-        if (!mounted || !courier.prefs.banners) return;
-        if (courier.me.availability == Availability.busy) return;
-        final trustee = courier.roster[message.peer];
-        final name = trustee?.label ?? 'New message';
-        final messenger = ScaffoldMessenger.of(context);
-        messenger.hideCurrentSnackBar();
-        messenger.showSnackBar(
-          SnackBar(
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 4),
-            margin: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            content: Row(
-              children: [
-                Portrait(address: message.peer, size: 32, presence: false),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                      Text(
-                        message.preview,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            action: SnackBarAction(
-              label: 'Open',
-              onPressed: () => Navigator.of(context).pushNamed(
-                '/dashboard/chats/message',
-                arguments: {'id': message.peer},
-              ),
-            ),
-          ),
-        );
-      });
+      arrivals = Courier.instance.arrivals.stream.listen(announce);
+      unawaited(Alerts.permit());
+      unawaited(Alerts.stand(true));
     } catch (error) {
       developer.log(
         'Failed to start the messaging courier for the unlocked identity',
@@ -105,6 +58,58 @@ class DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  /// Says a message arrived without saying what it says: a banner inside
+  /// the app, or a system notification while the app is in the background.
+  void announce(Message message) {
+    final courier = Courier.instance;
+    if (!mounted || !courier.prefs.banners) return;
+    if (courier.me.availability == Availability.busy) return;
+    final name = courier.roster[message.peer]?.label ?? 'Someone';
+    final text = Alerts.count(max(1, courier.unread(message.peer)));
+    if (WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
+      unawaited(Alerts.show(Alerts.slot(message.peer), name, text));
+      return;
+    }
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 4),
+        margin: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        content: Row(
+          children: [
+            Portrait(address: message.peer, size: 32, presence: false),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  Text(text, maxLines: 1, overflow: TextOverflow.ellipsis),
+                ],
+              ),
+            ),
+          ],
+        ),
+        action: SnackBarAction(
+          label: 'Open',
+          onPressed: () => Navigator.of(context).pushNamed(
+            '/dashboard/chats/message',
+            arguments: {'id': message.peer},
+          ),
+        ),
+      ),
+    );
+  }
+
   /// Shows a call that starts ringing, wherever the person is in the app.
   void ring() {
     final call = Stage.instance.ringing;
@@ -113,8 +118,9 @@ class DashboardScreenState extends State<DashboardScreen> {
     Navigator.of(context).pushNamed('/dashboard/chats/call');
   }
 
+  /// Locking keeps the address online, holding what arrives sealed.
   Future<void> relock() async {
-    await Courier.instance.stop();
+    await Courier.instance.stop(keep: true);
     if (!mounted) return;
     Navigator.of(context).pushNamedAndRemoveUntil('/auth', (route) => false);
   }
@@ -122,13 +128,7 @@ class DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    const pages = [
-      ChatsPage(),
-      CommunitiesPage(),
-      PeersPage(),
-      RelaysPage(),
-      VaultPage(),
-    ];
+    const pages = [ChatsPage(), CommunitiesPage(), RelaysPage(), VaultPage()];
     final calm = MediaQuery.disableAnimationsOf(context);
 
     return Listener(
@@ -177,6 +177,7 @@ class DashboardScreenState extends State<DashboardScreen> {
             final requests = Courier.instance.roster.values
                 .where((item) => item.stranger)
                 .length;
+            final waiting = unread + requests;
             return ClipRect(
               child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
@@ -194,13 +195,13 @@ class DashboardScreenState extends State<DashboardScreen> {
                     destinations: [
                       NavigationDestination(
                         icon: Badge(
-                          isLabelVisible: unread > 0,
-                          label: Text(unread > 99 ? '99+' : '$unread'),
+                          isLabelVisible: waiting > 0,
+                          label: Text(waiting > 99 ? '99+' : '$waiting'),
                           child: const Icon(Icons.chat_bubble_outline),
                         ),
                         selectedIcon: Badge(
-                          isLabelVisible: unread > 0,
-                          label: Text(unread > 99 ? '99+' : '$unread'),
+                          isLabelVisible: waiting > 0,
+                          label: Text(waiting > 99 ? '99+' : '$waiting'),
                           child: const Icon(Icons.chat_bubble),
                         ),
                         label: 'Chats',
@@ -209,19 +210,6 @@ class DashboardScreenState extends State<DashboardScreen> {
                         icon: Icon(Icons.diversity_3_outlined),
                         selectedIcon: Icon(Icons.diversity_3),
                         label: 'Communities',
-                      ),
-                      NavigationDestination(
-                        icon: Badge(
-                          isLabelVisible: requests > 0,
-                          label: Text('$requests'),
-                          child: const Icon(Icons.people_outline),
-                        ),
-                        selectedIcon: Badge(
-                          isLabelVisible: requests > 0,
-                          label: Text('$requests'),
-                          child: const Icon(Icons.people),
-                        ),
-                        label: 'Trustees',
                       ),
                       NavigationDestination(
                         icon: Badge(
