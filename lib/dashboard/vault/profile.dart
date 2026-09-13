@@ -5,7 +5,7 @@ import 'package:zephyron/dashboard/chats/gifs.dart';
 import 'package:zephyron/enums.dart';
 import 'package:zephyron/models/profile.dart';
 import 'package:zephyron/services/courier.dart';
-import 'package:zephyron/services/picker.dart';
+import 'package:zephyron/services/explorer.dart';
 import 'package:zephyron/services/web.dart';
 import 'package:zephyron/widgets/avatar.dart';
 import 'package:zephyron/widgets/crop.dart';
@@ -63,7 +63,7 @@ class ProfilePageState extends State<ProfilePage> {
 
   Future<Uint8List?> gallery({bool camera = false}) async {
     try {
-      final picked = await Picker.photo(
+      final picked = await Explorer.photo(
         camera: camera,
         front: true,
         limit: 2048,
@@ -147,7 +147,7 @@ class ProfilePageState extends State<ProfilePage> {
 
     Future<void> file() async {
       try {
-        final picked = await Picker.file(type: 'image/gif');
+        final picked = await Explorer.file(type: 'image/gif');
         if (picked == null) return;
         final bytes = await picked.bytes();
         if (!Cropper.animated(bytes)) {

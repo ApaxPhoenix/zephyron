@@ -7,7 +7,7 @@ import 'package:flutter/services.dart';
 /// notification manager, so no package is needed. They only ever say who
 /// wrote and how many messages there are, never what they say.
 class Alerts {
-  static const MethodChannel link = MethodChannel('zephyron/alerts');
+  static const MethodChannel link = MethodChannel('alerts');
 
   /// The notification counting messages that arrived while locked.
   static const int held = 2;

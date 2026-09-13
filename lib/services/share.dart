@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 /// or an iOS activity sheet. Files go out from the outbox, lent to the one
 /// app picked and wiped when the vault locks.
 class Share {
-  static const MethodChannel link = MethodChannel('zephyron/share');
+  static const MethodChannel link = MethodChannel('share');
 
   static Future<void> text(String text, {String? subject}) =>
       link.invokeMethod<void>('text', {'text': text, 'subject': ?subject});

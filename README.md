@@ -84,10 +84,16 @@ where they are. Everyone deserves the right to privacy.
 - Private groups: small invite-only chats that sit next to your direct chats.
 - Messages still arrive when someone is offline. A trustee, or a mailbox phone
   you choose, holds them sealed until the recipient is back.
+- A locked phone stays reachable. Messages that come in while it is locked are
+  kept sealed on the phone and opened when you unlock.
+- Notifications only say who wrote and how many messages, never what they
+  say. While the phone is locked they don't even say who.
 - Delivery states: sending, sent, delivered and read.
 - Typing indicators, read receipts and in-app banners, each of which can be
   turned off.
 - Pin, archive and search conversations.
+- Chats, requests and trustees share one tab, with filters for unread,
+  groups, pinned, archived and blocked.
 - GIF search goes through Tor too, so GIPHY never sees your IP address.
 
 **Communities**
