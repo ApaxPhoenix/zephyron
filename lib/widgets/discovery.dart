@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:zephyron/theme.dart';
 import 'package:flutter/services.dart';
-import 'package:qr_flutter/qr_flutter.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:zephyron/services/courier.dart';
+import 'package:zephyron/services/share.dart';
+import 'package:zephyron/widgets/qr.dart';
 import 'package:zephyron/widgets/sheet.dart';
 
 class Discovery extends StatelessWidget {
@@ -49,12 +49,9 @@ class Discovery extends StatelessWidget {
     final intro = own
         ? 'Add me as a trustee on Zephyron'
         : 'Add $who as a trustee on Zephyron';
-    return SharePlus.instance.share(
-      ShareParams(
-        subject: intro,
-        text:
-            '$intro\n\n${Courier.link(address, name)}\n\nDiscovery key: $address',
-      ),
+    return Share.text(
+      '$intro\n\n${Courier.link(address, name)}\n\nDiscovery key: $address',
+      subject: intro,
     );
   }
 
@@ -88,19 +85,10 @@ class Discovery extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: Theme.of(context).dividerColor),
             ),
-            child: QrImageView(
+            child: QrCode(
               data: Courier.link(address, name),
               size: 220,
-              padding: EdgeInsets.zero,
-              errorCorrectionLevel: QrErrorCorrectLevel.M,
-              eyeStyle: QrEyeStyle(
-                eyeShape: QrEyeShape.circle,
-                color: scheme.primary,
-              ),
-              dataModuleStyle: const QrDataModuleStyle(
-                dataModuleShape: QrDataModuleShape.circle,
-                color: Color(0xFF1A1B21),
-              ),
+              eyes: scheme.primary,
             ),
           ),
           const SizedBox(height: 20),
