@@ -1,6 +1,12 @@
-import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:zephyron/theme.dart';
+import 'package:zephyron/dashboard/chats/compose.dart';
+import 'package:zephyron/enums.dart';
+import 'package:zephyron/models/trustee.dart';
+import 'package:zephyron/services/courier.dart';
+import 'package:zephyron/widgets/avatar.dart';
+import 'package:zephyron/widgets/beacon.dart';
+import 'package:zephyron/widgets/stamp.dart';
 
 class PeersPage extends StatefulWidget {
   const PeersPage({super.key});
@@ -11,770 +17,326 @@ class PeersPage extends StatefulWidget {
 
 class PeersPageState extends State<PeersPage> {
   final TextEditingController search = TextEditingController();
-  final Set<String> highlighted = {};
+  bool reveal = false;
 
-  List<Map<String, dynamic>> peers = [
-    {
-      'id': 'peer_01',
-      'name': 'Alpha Node',
-      'address': '192.168.1.10',
-      'latency': '24ms',
-      'online': true,
-      'pinned': true,
-      'pending': false,
-    },
-    {
-      'id': null,
-      'name': 'Beta Relay',
-      'address': '10.0.0.45',
-      'latency': '120ms',
-      'online': false,
-      'pinned': false,
-      'pending': true,
-    },
-    {
-      'id': 'peer_03',
-      'name': 'Gamma Gateway',
-      'address': '172.16.0.2',
-      'latency': '45ms',
-      'online': true,
-      'pinned': false,
-      'pending': false,
-    },
-  ];
+  Courier get courier => Courier.instance;
+
+  @override
+  void dispose() {
+    search.dispose();
+    super.dispose();
+  }
+
+  void open(Trustee trustee) {
+    Navigator.pushNamed(
+      context,
+      '/dashboard/peers/node',
+      arguments: {'id': trustee.address},
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    try {
-      final results = peers
-          .where(
-            (peer) =>
-                (peer['name']?.toString() ?? '').toLowerCase().contains(
-                  search.text.toLowerCase(),
-                ) ||
-                (peer['address']?.toString() ?? '').toLowerCase().contains(
-                  search.text.toLowerCase(),
-                ),
-          )
-          .toList();
+    final scheme = Theme.of(context).colorScheme;
 
-      return Scaffold(
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        appBar: AppBar(
-          backgroundColor: Theme.of(context).colorScheme.surface,
-          surfaceTintColor: Colors.transparent,
-          automaticallyImplyLeading: false,
-          titleSpacing: 16.0,
-          title: Text(
-            'Peer Nodes',
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurface,
-              fontWeight: FontWeight.bold,
+    return Scaffold(
+      backgroundColor: scheme.surface,
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        title: const Text('Trustees'),
+        actions: [
+          const Center(child: Beacon()),
+          Padding(
+            padding: const EdgeInsets.only(right: 4.0),
+            child: IconButton(
+              icon: const Icon(Icons.person_add_outlined),
+              onPressed: () => Compose.show(context),
+              tooltip: 'Add Trustee',
             ),
           ),
-          actions: [
-            IconButton(
-              icon: Icon(
-                Icons.qr_code_scanner_outlined,
-                color: Theme.of(context).colorScheme.primary,
+        ],
+      ),
+      body: ListenableBuilder(
+        listenable: courier,
+        builder: (context, _) {
+          final query = search.text.trim().toLowerCase();
+          final everyone =
+              courier.roster.values
+                  .where(
+                    (item) =>
+                        query.isEmpty ||
+                        item.label.toLowerCase().contains(query) ||
+                        item.alias.toLowerCase().contains(query) ||
+                        item.address.contains(query),
+                  )
+                  .toList()
+                ..sort(
+                  (alpha, beta) => alpha.label.toLowerCase().compareTo(
+                    beta.label.toLowerCase(),
+                  ),
+                );
+          final requests = everyone.where((item) => item.stranger).toList();
+          final trusted = everyone.where((item) => item.trusted);
+          final online = trusted
+              .where((item) => courier.online(item.address))
+              .toList();
+          final offline = trusted
+              .where((item) => !courier.online(item.address))
+              .toList();
+          final blocked = everyone.where((item) => item.blocked).toList();
+
+          Widget header(String text, int count, {Widget? trailing}) {
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(20, 24, 8, 6),
+              child: Row(
+                children: [
+                  Text(text, style: Theme.of(context).textTheme.titleSmall),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 7,
+                      vertical: 1,
+                    ),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: scheme.outline),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      '$count',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  ?trailing,
+                ],
               ),
-              onPressed: () {},
-              tooltip: 'Scan Peer QR',
-            ),
-            Padding(
-              padding: const EdgeInsets.only(right: 4.0),
-              child: IconButton(
-                icon: Icon(
-                  Icons.person_add_outlined,
-                  color: Theme.of(context).colorScheme.primary,
+            );
+          }
+
+          Widget tile(Trustee trustee) {
+            final presence = courier.status(trustee.address);
+            final live = courier.online(trustee.address);
+            final detail = trustee.blocked
+                ? null
+                : live
+                ? (trustee.availability != Availability.available
+                      ? trustee.availability.label
+                      : presence.latency != null
+                      ? '${presence.latency}ms'
+                      : 'Online')
+                : presence.seen != null &&
+                      trustee.availability != Availability.invisible
+                ? ago(presence.seen!)
+                : null;
+
+            return ListTile(
+              key: ValueKey(trustee.address),
+              onTap: () => open(trustee),
+              leading: AnimatedOpacity(
+                opacity: trustee.blocked ? 0.5 : 1,
+                duration: const Duration(milliseconds: 200),
+                child: Portrait(address: trustee.address, size: 48),
+              ),
+              title: Text(
+                trustee.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              subtitle: Text(
+                trustee.mood.isNotEmpty ? trustee.mood : trustee.address,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: trustee.mood.isNotEmpty
+                    ? null
+                    : const TextStyle(fontFamily: Pallete.mono, fontSize: 12),
+              ),
+              trailing: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child: Text(
+                  detail ?? '',
+                  key: ValueKey(detail),
+                  style: TextStyle(
+                    color: live
+                        ? Avatar.tone(trustee.availability)
+                        : scheme.onSurfaceVariant,
+                    fontWeight: live ? FontWeight.bold : FontWeight.normal,
+                  ),
                 ),
-                onPressed: () {},
-                tooltip: 'Add Peer Node',
               ),
-            ),
-          ],
-        ),
-        body: Column(
-          children: [
+            );
+          }
+
+          final children = <Widget>[
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
               child: TextField(
                 controller: search,
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurface,
-                ),
                 decoration: InputDecoration(
-                  hintText: 'Search peer name or address...',
-                  hintStyle: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                  prefixIcon: Icon(
-                    Icons.search,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+                  hintText: 'Search name or discovery key…',
+                  prefixIcon: const Icon(Icons.search, size: 20),
                   suffixIcon: search.text.isNotEmpty
                       ? IconButton(
                           icon: Icon(
                             Icons.clear,
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onSurfaceVariant,
+                            color: scheme.onSurfaceVariant,
                           ),
-                          onPressed: () => setState(() => search.clear()),
+                          onPressed: () => setState(search.clear),
                         )
                       : null,
-                  filled: true,
-                  fillColor: Theme.of(context).colorScheme.surfaceContainerLow,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 0),
                 ),
                 onChanged: (_) => setState(() {}),
               ),
             ),
             Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16.0,
-                vertical: 4.0,
-              ),
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 200),
-                child: highlighted.isNotEmpty
-                    ? Row(
-                        key: const ValueKey('selection_header'),
-                        children: [
-                          ActionChip(
-                            avatar: Icon(
-                              highlighted.length == results.length &&
-                                      results.isNotEmpty
-                                  ? Icons.radio_button_checked
-                                  : Icons.radio_button_unchecked,
-                              size: 18,
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
-                            label: Text(
-                              highlighted.length == results.length
-                                  ? 'Unhighlight All'
-                                  : 'Highlight All',
-                              style: TextStyle(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onPrimaryContainer,
-                              ),
-                            ),
-                            backgroundColor: Theme.of(
-                              context,
-                            ).colorScheme.primaryContainer,
-                            shape: const StadiumBorder(),
-                            side: BorderSide.none,
-                            onPressed: () {
-                              setState(() {
-                                if (highlighted.length == results.length) {
-                                  highlighted.clear();
-                                } else {
-                                  highlighted.addAll(
-                                    results.map(
-                                      (peer) =>
-                                          peer['id']?.toString() ??
-                                          peer['address']?.toString() ??
-                                          '',
-                                    ),
-                                  );
-                                }
-                              });
-                            },
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '${highlighted.length} Highlighted',
-                            style: Theme.of(context).textTheme.labelMedium
-                                ?.copyWith(
-                                  color: Theme.of(context).colorScheme.primary,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                          ),
-                          const Spacer(),
-                          IconButton(
-                            icon: Icon(
-                              Icons.delete_outline,
-                              color: Theme.of(context).colorScheme.error,
-                            ),
-                            onPressed: () async {
-                              final confirmed = await showModalBottomSheet<bool>(
-                                context: context,
-                                backgroundColor: Theme.of(
-                                  context,
-                                ).colorScheme.surfaceContainerHigh,
-                                shape: const RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.vertical(
-                                    top: Radius.circular(24),
-                                  ),
-                                ),
-                                builder: (ctx) => Padding(
-                                  padding: const EdgeInsets.fromLTRB(
-                                    24,
-                                    12,
-                                    24,
-                                    24,
-                                  ),
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Container(
-                                        width: 36,
-                                        height: 4,
-                                        decoration: BoxDecoration(
-                                          color: Theme.of(
-                                            context,
-                                          ).colorScheme.outlineVariant,
-                                          borderRadius: BorderRadius.circular(
-                                            2,
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 16),
-                                      Text(
-                                        highlighted.length > 1
-                                            ? 'Remove ${highlighted.length} Peers?'
-                                            : 'Remove Peer?',
-                                        style: TextStyle(
-                                          color: Theme.of(
-                                            context,
-                                          ).colorScheme.onSurface,
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        highlighted.length > 1
-                                            ? 'Are you sure you want to remove these ${highlighted.length} peers?'
-                                            : 'Are you sure you want to remove this peer node?',
-                                        textAlign: TextAlign.center,
-                                        style: TextStyle(
-                                          color: Theme.of(
-                                            context,
-                                          ).colorScheme.onSurfaceVariant,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 24),
-                                      Row(
-                                        children: [
-                                          Expanded(
-                                            child: TextButton(
-                                              onPressed: () =>
-                                                  Navigator.pop(ctx, false),
-                                              child: Text(
-                                                'Cancel',
-                                                style: TextStyle(
-                                                  color: Theme.of(
-                                                    context,
-                                                  ).colorScheme.primary,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 12),
-                                          Expanded(
-                                            child: FilledButton(
-                                              style: FilledButton.styleFrom(
-                                                backgroundColor: Theme.of(
-                                                  context,
-                                                ).colorScheme.error,
-                                                foregroundColor: Theme.of(
-                                                  context,
-                                                ).colorScheme.onError,
-                                              ),
-                                              onPressed: () =>
-                                                  Navigator.pop(ctx, true),
-                                              child: const Text('Remove'),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                              if (confirmed == true) {
-                                setState(() {
-                                  peers.removeWhere(
-                                    (peer) => highlighted.contains(
-                                      peer['id']?.toString() ??
-                                          peer['address']?.toString() ??
-                                          '',
-                                    ),
-                                  );
-                                  highlighted.clear();
-                                });
-                              }
-                            },
-                            tooltip: 'Remove Highlighted',
-                          ),
-                        ],
-                      )
-                    : const SizedBox.shrink(key: ValueKey('empty_header')),
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+              child: Identifier(
+                address: courier.self?.address ?? '',
+                name: courier.me.name,
+                compact: true,
               ),
             ),
-            Expanded(
-              child: results.isEmpty
-                  ? Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(32.0),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(20),
-                              decoration: BoxDecoration(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.surfaceContainerHigh,
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                Icons.hub_outlined,
-                                size: 48,
-                                color: Theme.of(context).colorScheme.primary,
-                              ),
-                            ),
-                            const SizedBox(height: 20),
-                            Text(
-                              'No Peer Nodes Found',
-                              style: Theme.of(context).textTheme.titleMedium
-                                  ?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.onSurface,
-                                  ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Scan a node QR code or manually specify a host address to establish peer connection.',
-                              textAlign: TextAlign.center,
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.onSurfaceVariant,
-                                  ),
-                            ),
-                            const SizedBox(height: 24),
-                            FilledButton.icon(
-                              style: FilledButton.styleFrom(
-                                backgroundColor: Theme.of(
-                                  context,
-                                ).colorScheme.primary,
-                                foregroundColor: Theme.of(
-                                  context,
-                                ).colorScheme.onPrimary,
-                              ),
-                              onPressed: () {},
-                              icon: const Icon(Icons.person_add_outlined),
-                              label: const Text('Add Peer Node'),
-                            ),
-                          ],
-                        ),
-                      ),
-                    )
-                  : ListView.separated(
-                      itemCount: results.length,
-                      separatorBuilder: (context, index) => Divider(
-                        height: 1,
-                        indent: highlighted.isNotEmpty ? 104 : 72,
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.outlineVariant.withAlpha(50),
-                      ),
-                      itemBuilder: (context, index) {
-                        final peer = results[index];
-                        final String id =
-                            peer['id']?.toString() ??
-                            peer['address']?.toString() ??
-                            index.toString();
+          ];
 
-                        return Dismissible(
-                          key: Key(id),
-                          direction: DismissDirection.endToStart,
-                          confirmDismiss: (direction) async {
-                            return await showModalBottomSheet<bool>(
-                              context: context,
-                              backgroundColor: Theme.of(
-                                context,
-                              ).colorScheme.surfaceContainerHigh,
-                              shape: const RoundedRectangleBorder(
-                                borderRadius: BorderRadius.vertical(
-                                  top: Radius.circular(24),
-                                ),
-                              ),
-                              builder: (ctx) => Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  24,
-                                  12,
-                                  24,
-                                  24,
-                                ),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Container(
-                                      width: 36,
-                                      height: 4,
-                                      decoration: BoxDecoration(
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.outlineVariant,
-                                        borderRadius: BorderRadius.circular(2),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Text(
-                                      'Remove Peer?',
-                                      style: TextStyle(
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.onSurface,
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      'Are you sure you want to remove this peer node?',
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.onSurfaceVariant,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 24),
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: TextButton(
-                                            onPressed: () =>
-                                                Navigator.pop(ctx, false),
-                                            child: Text(
-                                              'Cancel',
-                                              style: TextStyle(
-                                                color: Theme.of(
-                                                  context,
-                                                ).colorScheme.primary,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: FilledButton(
-                                            style: FilledButton.styleFrom(
-                                              backgroundColor: Theme.of(
-                                                context,
-                                              ).colorScheme.error,
-                                              foregroundColor: Theme.of(
-                                                context,
-                                              ).colorScheme.onError,
-                                            ),
-                                            onPressed: () =>
-                                                Navigator.pop(ctx, true),
-                                            child: const Text('Remove'),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                          onDismissed: (_) {
-                            setState(() {
-                              peers.removeWhere(
-                                (peer) =>
-                                    (peer['id']?.toString() ??
-                                        peer['address']?.toString() ??
-                                        '') ==
-                                    id,
-                              );
-                              highlighted.remove(id);
-                            });
-                          },
-                          background: Container(
-                            alignment: Alignment.centerRight,
-                            padding: const EdgeInsets.only(right: 24),
-                            color: Theme.of(context).colorScheme.errorContainer,
-                            child: Icon(
-                              Icons.delete_outline,
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onErrorContainer,
-                            ),
-                          ),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
-                            color: highlighted.contains(id)
-                                ? Theme.of(
-                                    context,
-                                  ).colorScheme.primaryContainer.withAlpha(60)
-                                : Theme.of(context).colorScheme.surface,
-                            child: ListTile(
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 16.0,
-                                vertical: 2.0,
-                              ),
-                              leading: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  AnimatedSize(
-                                    duration: const Duration(milliseconds: 200),
-                                    curve: Curves.fastOutSlowIn,
-                                    child: highlighted.isNotEmpty
-                                        ? Padding(
-                                            padding: const EdgeInsets.only(
-                                              right: 8.0,
-                                            ),
-                                            child: RadioGroup<bool>(
-                                              groupValue: highlighted.contains(
-                                                id,
-                                              ),
-                                              onChanged: (_) {
-                                                setState(() {
-                                                  if (highlighted.contains(
-                                                    id,
-                                                  )) {
-                                                    highlighted.remove(id);
-                                                  } else {
-                                                    highlighted.add(id);
-                                                  }
-                                                });
-                                              },
-                                              child: Radio<bool>(
-                                                value: true,
-                                                activeColor: Theme.of(
-                                                  context,
-                                                ).colorScheme.primary,
-                                              ),
-                                            ),
-                                          )
-                                        : const SizedBox.shrink(),
-                                  ),
-                                  Stack(
-                                    alignment: Alignment.bottomRight,
-                                    children: [
-                                      CircleAvatar(
-                                        radius: 24,
-                                        backgroundColor:
-                                            highlighted.contains(id)
-                                            ? Theme.of(
-                                                context,
-                                              ).colorScheme.primary
-                                            : Theme.of(context)
-                                                  .colorScheme
-                                                  .surfaceContainerHighest,
-                                        child: Text(
-                                          (peer['name']?.toString() ?? 'U')
-                                                  .isNotEmpty
-                                              ? (peer['name']?.toString() ??
-                                                        'U')[0]
-                                                    .toUpperCase()
-                                              : '?',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            color: highlighted.contains(id)
-                                                ? Theme.of(
-                                                    context,
-                                                  ).colorScheme.onPrimary
-                                                : Theme.of(context)
-                                                      .colorScheme
-                                                      .onSurfaceVariant,
-                                          ),
-                                        ),
-                                      ),
-                                      Container(
-                                        width: 14,
-                                        height: 14,
-                                        decoration: BoxDecoration(
-                                          color: peer['pending'] == true
-                                              ? Theme.of(
-                                                  context,
-                                                ).colorScheme.tertiary
-                                              : (peer['online'] == true
-                                                    ? Pallete.success500
-                                                    : Theme.of(
-                                                        context,
-                                                      ).colorScheme.outline),
-                                          shape: BoxShape.circle,
-                                          border: Border.all(
-                                            color: Theme.of(
-                                              context,
-                                            ).colorScheme.surface,
-                                            width: 2,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                              title: Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      peer['name']?.toString() ??
-                                          'Unknown Peer',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.onSurface,
-                                        fontWeight: peer['pending'] == true
-                                            ? FontWeight.bold
-                                            : FontWeight.normal,
-                                      ),
-                                    ),
-                                  ),
-                                  Text(
-                                    peer['latency']?.toString() ?? 'Offline',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .labelSmall
-                                        ?.copyWith(
-                                          color: peer['online'] == true
-                                              ? Theme.of(
-                                                  context,
-                                                ).colorScheme.primary
-                                              : Theme.of(
-                                                  context,
-                                                ).colorScheme.onSurfaceVariant,
-                                          fontWeight: peer['online'] == true
-                                              ? FontWeight.bold
-                                              : FontWeight.normal,
-                                        ),
-                                  ),
-                                ],
-                              ),
-                              subtitle: Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      peer['address']?.toString() ??
-                                          'No address',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodyMedium
-                                          ?.copyWith(
-                                            color: Theme.of(
-                                              context,
-                                            ).colorScheme.onSurfaceVariant,
-                                          ),
-                                    ),
-                                  ),
-                                  if (peer['pinned'] == true) ...[
-                                    const SizedBox(width: 6),
-                                    Icon(
-                                      Icons.push_pin,
-                                      size: 14,
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.onSurfaceVariant,
-                                    ),
-                                  ],
-                                  if (peer['pending'] == true) ...[
-                                    const SizedBox(width: 6),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 6,
-                                        vertical: 2,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.tertiaryContainer,
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      child: Text(
-                                        'Pending',
-                                        style: TextStyle(
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.bold,
-                                          color: Theme.of(
-                                            context,
-                                          ).colorScheme.onTertiaryContainer,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                              onLongPress: () {
-                                setState(() {
-                                  if (highlighted.contains(id)) {
-                                    highlighted.remove(id);
-                                  } else {
-                                    highlighted.add(id);
-                                  }
-                                });
-                              },
-                              onTap: () {
-                                if (highlighted.isNotEmpty) {
-                                  setState(() {
-                                    if (highlighted.contains(id)) {
-                                      highlighted.remove(id);
-                                    } else {
-                                      highlighted.add(id);
-                                    }
-                                  });
-                                } else {
-                                  Navigator.pushNamed(
-                                    context,
-                                    '/dashboard/peers/node',
-                                    arguments: {
-                                      'id': peer['id'],
-                                      'name': peer['name'],
-                                      'address': peer['address'],
-                                    },
-                                  );
-                                }
-                              },
-                            ),
-                          ),
-                        );
-                      },
+          if (courier.roster.isEmpty) {
+            children.add(
+              Padding(
+                padding: const EdgeInsets.fromLTRB(32, 64, 32, 32),
+                child: Column(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: scheme.surfaceContainerHigh,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.verified_user_outlined,
+                        size: 48,
+                        color: scheme.primary,
+                      ),
                     ),
-            ),
-          ],
-        ),
-      );
-    } catch (error) {
-      developer.log(
-        'Failed to render peers view layout: $error',
-        name: 'PeersPage.build',
-        error: error,
-        stackTrace: StackTrace.current,
-      );
-      return const SizedBox.shrink();
-    }
-  }
+                    const SizedBox(height: 20),
+                    Text(
+                      'No Trustees Yet',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Share your discovery key above, or add someone by theirs. Only trustees see your profile.',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          } else {
+            if (requests.isNotEmpty) {
+              children.add(header('Requests', requests.length));
+              for (final trustee in requests) {
+                children.add(
+                  ListTile(
+                    key: ValueKey('request:${trustee.address}'),
+                    onTap: () => open(trustee),
+                    leading: Portrait(
+                      address: trustee.address,
+                      size: 48,
+                      presence: false,
+                    ),
+                    title: Text(
+                      trustee.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: Text(
+                      courier.last(trustee.address)?.preview ??
+                          'Wants to message you',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          tooltip: 'Block',
+                          icon: Icon(Icons.block, color: scheme.error),
+                          onPressed: () =>
+                              courier.trust(trustee.address, Trust.blocked),
+                        ),
+                        IconButton(
+                          tooltip: 'Accept as Trustee',
+                          icon: Icon(
+                            Icons.check_circle_outline,
+                            color: scheme.primary,
+                          ),
+                          onPressed: () =>
+                              courier.trust(trustee.address, Trust.trustee),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+            }
+            if (online.isNotEmpty) {
+              children.add(header('Online', online.length));
+              children.addAll(online.map(tile));
+            }
+            if (offline.isNotEmpty) {
+              children.add(header('Offline', offline.length));
+              children.addAll(offline.map(tile));
+            }
+            if (blocked.isNotEmpty) {
+              children.add(
+                header(
+                  'Blocked',
+                  blocked.length,
+                  trailing: IconButton(
+                    icon: AnimatedRotation(
+                      turns: reveal ? 0.5 : 0,
+                      duration: const Duration(milliseconds: 200),
+                      child: Icon(
+                        Icons.expand_more,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                    onPressed: () => setState(() => reveal = !reveal),
+                  ),
+                ),
+              );
+              children.add(
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  alignment: Alignment.topCenter,
+                  child: reveal
+                      ? Column(children: blocked.map(tile).toList())
+                      : const SizedBox(width: double.infinity),
+                ),
+              );
+            }
+            children.add(const SizedBox(height: 24));
+          }
 
-  @override
-  void dispose() {
-    try {
-      search.dispose();
-      super.dispose();
-    } catch (error) {
-      developer.log(
-        'Failed to dispose text controller resources: $error',
-        name: 'PeersPage.dispose',
-        error: error,
-        stackTrace: StackTrace.current,
-      );
-    }
+          return RefreshIndicator(
+            onRefresh: () => Future.wait(
+              courier.roster.values
+                  .where((item) => item.trusted)
+                  .map((item) => courier.ping(item.address)),
+            ),
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: children,
+            ),
+          );
+        },
+      ),
+    );
   }
 }
