@@ -14,14 +14,14 @@ import 'package:zephyron/widgets/section.dart';
 import 'package:zephyron/widgets/sheet.dart';
 import 'package:zephyron/wrappers/tor.dart';
 
-class VaultPage extends StatefulWidget {
-  const VaultPage({super.key});
+class Vault extends StatefulWidget {
+  const Vault({super.key});
 
   @override
-  State<VaultPage> createState() => VaultPageState();
+  State<Vault> createState() => _Vault();
 }
 
-class VaultPageState extends State<VaultPage> {
+class _Vault extends State<Vault> {
   late final String version = Tor.version;
   String? decoy;
 
@@ -42,7 +42,7 @@ class VaultPageState extends State<VaultPage> {
       await Sheets.actions(
         context,
         items: [
-          SheetAction(
+          Command(
             icon: Icons.edit_outlined,
             label: 'Change Duress Passphrase',
             onTap: () async {
@@ -50,7 +50,7 @@ class VaultPageState extends State<VaultPage> {
               await refresh();
             },
           ),
-          SheetAction(
+          Command(
             icon: Icons.remove_moderator_outlined,
             label: 'Turn Off',
             destructive: true,
@@ -635,7 +635,7 @@ class VaultPageState extends State<VaultPage> {
                     leading: Icon(Icons.crisis_alert_outlined),
                     title: Text('Panic Wipe'),
                     subtitle: Text(
-                      'Long-press the app icon or the unlock screen title to erase everything after a ${PanicPage.grace} second countdown',
+                      'Long-press the app icon or the unlock screen title to erase everything after a ${Panic.grace} second countdown',
                     ),
                   ),
                   ListTile(

@@ -11,14 +11,14 @@ import 'package:zephyron/widgets/avatar.dart';
 import 'package:zephyron/widgets/crop.dart';
 import 'package:zephyron/widgets/sheet.dart';
 
-class ProfilePage extends StatefulWidget {
-  const ProfilePage({super.key});
+class Persona extends StatefulWidget {
+  const Persona({super.key});
 
   @override
-  State<ProfilePage> createState() => ProfilePageState();
+  State<Persona> createState() => _Persona();
 }
 
-class ProfilePageState extends State<ProfilePage> {
+class _Persona extends State<Persona> {
   final GlobalKey<FormState> key = GlobalKey<FormState>();
   final Profile draft = Courier.instance.me.copy();
   late final TextEditingController name = TextEditingController(
@@ -97,18 +97,18 @@ class ProfilePageState extends State<ProfilePage> {
     await Sheets.actions(
       context,
       items: [
-        SheetAction(
+        Command(
           icon: Icons.photo_library_outlined,
           label: 'Choose from Gallery',
           onTap: () => pick(),
         ),
-        SheetAction(
+        Command(
           icon: Icons.photo_camera_outlined,
           label: 'Take a Photo',
           onTap: () => pick(camera: true),
         ),
         if (draft.avatar != null)
-          SheetAction(
+          Command(
             icon: Icons.delete_outline,
             label: 'Remove Photo',
             destructive: true,
@@ -164,24 +164,24 @@ class ProfilePageState extends State<ProfilePage> {
     await Sheets.actions(
       context,
       items: [
-        SheetAction(
+        Command(
           icon: Icons.photo_library_outlined,
           label: 'Choose a Photo',
           onTap: photo,
         ),
         if (Giphy.ready)
-          SheetAction(
+          Command(
             icon: Icons.gif_box_outlined,
             label: 'Search GIPHY',
             onTap: giphy,
           ),
-        SheetAction(
+        Command(
           icon: Icons.folder_open_outlined,
           label: 'GIF from Files',
           onTap: file,
         ),
         if (draft.banner != null)
-          SheetAction(
+          Command(
             icon: Icons.delete_outline,
             label: 'Remove Banner',
             destructive: true,

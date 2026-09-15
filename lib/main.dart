@@ -132,7 +132,7 @@ Future<void> main() async {
         SystemUiMode.immersiveSticky,
         overlays: [],
       );
-      runApp(const MyApp());
+      runApp(const Zephyron());
     },
     (dynamic error, dynamic _) {
       developer.log(
@@ -146,14 +146,14 @@ Future<void> main() async {
   );
 }
 
-class MyApp extends StatefulWidget {
-  const MyApp({super.key});
+class Zephyron extends StatefulWidget {
+  const Zephyron({super.key});
 
   @override
-  State<MyApp> createState() => MyAppState();
+  State<Zephyron> createState() => _Zephyron();
 }
 
-class MyAppState extends State<MyApp> with WidgetsBindingObserver {
+class _Zephyron extends State<Zephyron> with WidgetsBindingObserver {
   static final GlobalKey<NavigatorState> navigator = GlobalKey();
   String route = '/';
 
@@ -180,7 +180,7 @@ class MyAppState extends State<MyApp> with WidgetsBindingObserver {
     } catch (error) {
       developer.log(
         'Failed to register the panic wipe launcher shortcut',
-        name: 'MyAppState.shortcuts',
+        name: '_Zephyron.shortcuts',
         level: 900,
         error: error,
       );
@@ -193,8 +193,8 @@ class MyAppState extends State<MyApp> with WidgetsBindingObserver {
       WidgetsBinding.instance.removeObserver(this);
     } catch (error) {
       developer.log(
-        'Failed to cleanly unbind lifecycle observer during MyAppState disposal',
-        name: 'MyAppState.dispose',
+        'Failed to cleanly unbind lifecycle observer during _Zephyron disposal',
+        name: '_Zephyron.dispose',
         level: 800,
         error: error,
         stackTrace: StackTrace.current,
@@ -251,7 +251,7 @@ class MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
             developer.log(
               'Requested route resolution failed: "${info.name}" is not registered in routes table',
-              name: 'MyAppState.onGenerateRoute',
+              name: '_Zephyron.onGenerateRoute',
               level: 900,
               stackTrace: StackTrace.current,
             );

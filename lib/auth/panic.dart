@@ -9,18 +9,18 @@ import 'package:zephyron/sql/session.dart';
 /// Reached from Settings, from a long press on the unlock screen's title and
 /// from the app icon's shortcut menu. The countdown is the only chance to
 /// back out; nothing asks for a passphrase.
-class PanicPage extends StatefulWidget {
+class Panic extends StatefulWidget {
   /// Seconds before the wipe starts.
   static const int grace = 5;
 
-  const PanicPage({super.key});
+  const Panic({super.key});
 
   @override
-  State<PanicPage> createState() => PanicPageState();
+  State<Panic> createState() => _Panic();
 }
 
-class PanicPageState extends State<PanicPage> {
-  int left = PanicPage.grace;
+class _Panic extends State<Panic> {
+  int left = Panic.grace;
   bool erasing = false;
   bool erased = false;
   Timer? ticker;
@@ -53,7 +53,7 @@ class PanicPageState extends State<PanicPage> {
     } catch (error) {
       developer.log(
         'Panic wipe did not finish cleanly',
-        name: 'PanicPage.wipe',
+        name: 'Panic.wipe',
         level: 1200,
         error: error,
       );
@@ -70,8 +70,7 @@ class PanicPageState extends State<PanicPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final progress =
-        (PanicPage.grace - left.clamp(0, PanicPage.grace)) / PanicPage.grace;
+    final progress = (Panic.grace - left.clamp(0, Panic.grace)) / Panic.grace;
 
     return PopScope(
       canPop: !erasing,
@@ -120,7 +119,7 @@ class PanicPageState extends State<PanicPage> {
                                   color: scheme.error,
                                 )
                               : Text(
-                                  '${left.clamp(1, PanicPage.grace)}',
+                                  '${left.clamp(1, Panic.grace)}',
                                   key: ValueKey(left),
                                   style: theme.textTheme.displayMedium
                                       ?.copyWith(

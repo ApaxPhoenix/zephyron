@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:zephyron/services/qr.dart';
 
 /// A QR code drawn as dots, with round finder eyes in their own color.
-class QrCode extends StatelessWidget {
+class Barcode extends StatelessWidget {
   final String data;
   final double size;
   final Color color;
   final Color eyes;
   final Correction correction;
 
-  const QrCode({
+  const Barcode({
     super.key,
     required this.data,
     required this.eyes,

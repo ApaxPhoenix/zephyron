@@ -15,14 +15,14 @@ import 'package:zephyron/sql/session.dart';
 import 'package:zephyron/widgets/avatar.dart';
 import 'dart:developer' as developer;
 
-class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key});
+class Dashboard extends StatefulWidget {
+  const Dashboard({super.key});
 
   @override
-  State<DashboardScreen> createState() => DashboardScreenState();
+  State<Dashboard> createState() => _Dashboard();
 }
 
-class DashboardScreenState extends State<DashboardScreen> {
+class _Dashboard extends State<Dashboard> {
   Menu screen = Menu.chats;
   StreamSubscription<void>? expiry;
   StreamSubscription<Message>? arrivals;
@@ -50,7 +50,7 @@ class DashboardScreenState extends State<DashboardScreen> {
     } catch (error) {
       developer.log(
         'Failed to start the messaging courier for the unlocked identity',
-        name: 'DashboardScreen.setup',
+        name: 'Dashboard.setup',
         level: 1000,
         error: error,
         stackTrace: StackTrace.current,
@@ -128,7 +128,7 @@ class DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    const pages = [ChatsPage(), CommunitiesPage(), RelaysPage(), VaultPage()];
+    const pages = [Chats(), Communities(), Relays(), Vault()];
     final calm = MediaQuery.disableAnimationsOf(context);
 
     return Listener(

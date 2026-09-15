@@ -11,17 +11,17 @@ import 'package:zephyron/sql/session.dart';
 
 Identity make(String seed) => Identity.fromInput(seed);
 
-class SignUpPage extends StatefulWidget {
+class Signup extends StatefulWidget {
   /// Called when the person already has an identity and wants to unlock it.
   final VoidCallback? onLogin;
 
-  const SignUpPage({super.key, this.onLogin});
+  const Signup({super.key, this.onLogin});
 
   @override
-  State<SignUpPage> createState() => SignUpPageState();
+  State<Signup> createState() => _Signup();
 }
 
-class SignUpPageState extends State<SignUpPage> {
+class _Signup extends State<Signup> {
   final GlobalKey<FormState> key = GlobalKey<FormState>();
   final TextEditingController moniker = TextEditingController();
   final TextEditingController passphrase = TextEditingController();
@@ -42,13 +42,13 @@ class SignUpPageState extends State<SignUpPage> {
       seed = bip39.generateMnemonic();
       developer.log(
         'Generated new mnemonic seed phrase for identity creation',
-        name: 'SignUpPageState.initState',
+        name: '_Signup.initState',
         level: 800,
       );
     } catch (error) {
       developer.log(
         'Failed to generate random mnemonic seed phrase via BIP-39',
-        name: 'SignUpPageState.initState',
+        name: '_Signup.initState',
         level: 1000,
         error: error,
         stackTrace: StackTrace.current,
@@ -63,13 +63,13 @@ class SignUpPageState extends State<SignUpPage> {
       if (mounted) setState(() => existing = roster);
       developer.log(
         'Loaded existing identity roster for label uniqueness validation',
-        name: 'SignUpPageState.hydrate',
+        name: '_Signup.hydrate',
         level: 800,
       );
     } catch (error) {
       developer.log(
         'Failed to load existing identity roster for label uniqueness validation',
-        name: 'SignUpPageState.hydrate',
+        name: '_Signup.hydrate',
         level: 1000,
         error: error,
         stackTrace: StackTrace.current,
@@ -82,7 +82,7 @@ class SignUpPageState extends State<SignUpPage> {
       Clipboard.setData(ClipboardData(text: text));
       developer.log(
         'Copied mnemonic seed phrase to system clipboard',
-        name: 'SignUpPageState.copy',
+        name: '_Signup.copy',
         level: 800,
       );
 
@@ -104,14 +104,14 @@ class SignUpPageState extends State<SignUpPage> {
             await Clipboard.setData(const ClipboardData(text: ''));
             developer.log(
               'Cleared copied mnemonic seed phrase from system clipboard after timeout',
-              name: 'SignUpPageState.copy',
+              name: '_Signup.copy',
               level: 500,
             );
           }
         } catch (error) {
           developer.log(
             'Failed to auto-clear mnemonic seed phrase from clipboard during timer execution',
-            name: 'SignUpPageState.copy',
+            name: '_Signup.copy',
             level: 1000,
             error: error,
             stackTrace: StackTrace.current,
@@ -121,7 +121,7 @@ class SignUpPageState extends State<SignUpPage> {
     } catch (error) {
       developer.log(
         'Failed to copy mnemonic seed phrase to system clipboard',
-        name: 'SignUpPageState.copy',
+        name: '_Signup.copy',
         level: 1000,
         error: error,
         stackTrace: StackTrace.current,
@@ -136,7 +136,7 @@ class SignUpPageState extends State<SignUpPage> {
       if (!key.currentState!.validate()) {
         developer.log(
           'Identity creation form validation failed due to invalid user input',
-          name: 'SignUpPageState.identity',
+          name: '_Signup.identity',
           level: 900,
         );
         return;
@@ -144,7 +144,7 @@ class SignUpPageState extends State<SignUpPage> {
 
       developer.log(
         'Starting identity generation workflow',
-        name: 'SignUpPageState.identity',
+        name: '_Signup.identity',
         level: 800,
       );
 
@@ -193,7 +193,7 @@ class SignUpPageState extends State<SignUpPage> {
 
           developer.log(
             'Completed identity creation and session composition successfully',
-            name: 'SignUpPageState.identity',
+            name: '_Signup.identity',
             level: 800,
           );
 
@@ -204,7 +204,7 @@ class SignUpPageState extends State<SignUpPage> {
           cause = error;
           developer.log(
             'Attempt $round of $limit failed during identity creation',
-            name: 'SignUpPageState.identity',
+            name: '_Signup.identity',
             level: 1000,
             error: error,
             stackTrace: StackTrace.current,
@@ -230,7 +230,7 @@ class SignUpPageState extends State<SignUpPage> {
 
       developer.log(
         'Exhausted all retry attempts, discarding the partially created local database',
-        name: 'SignUpPageState.identity',
+        name: '_Signup.identity',
         level: 1200,
         error: cause,
         stackTrace: StackTrace.current,
@@ -242,7 +242,7 @@ class SignUpPageState extends State<SignUpPage> {
       } catch (error) {
         developer.log(
           'Failed to delete local database after exhausting retry attempts',
-          name: 'SignUpPageState.identity',
+          name: '_Signup.identity',
           level: 1000,
           error: error,
           stackTrace: StackTrace.current,
@@ -573,8 +573,8 @@ class SignUpPageState extends State<SignUpPage> {
       );
     } catch (error) {
       developer.log(
-        'Failed to build SignUpPage UI widget tree',
-        name: 'SignUpPage.build',
+        'Failed to build Signup UI widget tree',
+        name: 'Signup.build',
         level: 1000,
         error: error,
         stackTrace: StackTrace.current,
@@ -600,15 +600,15 @@ class SignUpPageState extends State<SignUpPage> {
       warning = null;
 
       developer.log(
-        'Disposed SignUpPageState input controllers, state resources, and clipboard timers',
-        name: 'SignUpPageState.dispose',
+        'Disposed _Signup input controllers, state resources, and clipboard timers',
+        name: '_Signup.dispose',
         level: 500,
       );
       super.dispose();
     } catch (error) {
       developer.log(
         'Failed to cleanly release input controllers or cancel timers during dispose',
-        name: 'SignUpPageState.dispose',
+        name: '_Signup.dispose',
         level: 1000,
         error: error,
         stackTrace: StackTrace.current,

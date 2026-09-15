@@ -36,10 +36,10 @@ class Curtain extends StatefulWidget {
   const Curtain({super.key, required this.child, required this.enabled});
 
   @override
-  State<Curtain> createState() => CurtainState();
+  State<Curtain> createState() => _Curtain();
 }
 
-class CurtainState extends State<Curtain> with WidgetsBindingObserver {
+class _Curtain extends State<Curtain> with WidgetsBindingObserver {
   bool away = false;
 
   @override

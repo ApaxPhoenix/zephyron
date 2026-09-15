@@ -4,14 +4,14 @@ import 'package:zephyron/enums.dart';
 import 'package:zephyron/state.dart';
 import 'dart:developer' as developer;
 
-class NetworkSettingsPage extends StatefulWidget {
-  const NetworkSettingsPage({super.key});
+class Settings extends StatefulWidget {
+  const Settings({super.key});
 
   @override
-  State<NetworkSettingsPage> createState() => NetworkSettingsPageState();
+  State<Settings> createState() => _Settings();
 }
 
-class NetworkSettingsPageState extends State<NetworkSettingsPage> {
+class _Settings extends State<Settings> {
   @override
   Widget build(BuildContext context) {
     try {
@@ -32,7 +32,7 @@ class NetworkSettingsPageState extends State<NetworkSettingsPage> {
               } catch (error) {
                 developer.log(
                   'Navigation pop error: $error',
-                  name: 'NetworkSettingsPage.pop',
+                  name: 'Settings.pop',
                   error: error,
                 );
               }
@@ -123,7 +123,7 @@ class NetworkSettingsPageState extends State<NetworkSettingsPage> {
                           } catch (error) {
                             developer.log(
                               'Appearance configuration change error: $error',
-                              name: 'NetworkSettingsPage.appearanceChanged',
+                              name: 'Settings.appearanceChanged',
                               error: error,
                             );
                           }
@@ -168,7 +168,7 @@ class NetworkSettingsPageState extends State<NetworkSettingsPage> {
                           } catch (error) {
                             developer.log(
                               'Rendering speed configuration change error: $error',
-                              name: 'NetworkSettingsPage.speedChanged',
+                              name: 'Settings.speedChanged',
                               error: error,
                             );
                           }
@@ -196,7 +196,7 @@ class NetworkSettingsPageState extends State<NetworkSettingsPage> {
                           } catch (error) {
                             developer.log(
                               'Cache allocation configuration change error: $error',
-                              name: 'NetworkSettingsPage.cacheChanged',
+                              name: 'Settings.cacheChanged',
                               error: error,
                             );
                           }
@@ -252,7 +252,7 @@ class NetworkSettingsPageState extends State<NetworkSettingsPage> {
               } catch (error) {
                 developer.log(
                   'ValueListenableBuilder view assembly error: $error',
-                  name: 'NetworkSettingsPage.builder',
+                  name: 'Settings.builder',
                   error: error,
                 );
                 return const SizedBox.shrink();
@@ -264,7 +264,7 @@ class NetworkSettingsPageState extends State<NetworkSettingsPage> {
     } catch (error) {
       developer.log(
         'Build layout execution error: $error',
-        name: 'NetworkSettingsPage.build',
+        name: 'Settings.build',
         error: error,
       );
       return const SizedBox.shrink();

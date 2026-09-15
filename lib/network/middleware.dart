@@ -8,16 +8,14 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:zephyron/main.dart';
 
-class NetworkMiddlewareScreen extends StatefulWidget {
-  const NetworkMiddlewareScreen({super.key});
+class Middleware extends StatefulWidget {
+  const Middleware({super.key});
 
   @override
-  State<NetworkMiddlewareScreen> createState() =>
-      NetworkMiddlewareScreenState();
+  State<Middleware> createState() => _Middleware();
 }
 
-class NetworkMiddlewareScreenState extends State<NetworkMiddlewareScreen>
-    with TickerProviderStateMixin {
+class _Middleware extends State<Middleware> with TickerProviderStateMixin {
   static const chunk = 4 * 1024 * 1024;
   static const limit = 4;
 
@@ -35,7 +33,7 @@ class NetworkMiddlewareScreenState extends State<NetworkMiddlewareScreen>
     } catch (error) {
       developer.log(
         'Failed to initialize layout animation loops: $error',
-        name: 'NetworkMiddlewareScreen.setup',
+        name: 'Middleware.setup',
         error: error,
         stackTrace: StackTrace.current,
         level: 1000,
@@ -102,7 +100,7 @@ class NetworkMiddlewareScreenState extends State<NetworkMiddlewareScreen>
               } catch (error) {
                 developer.log(
                   'Failed to compute file checksum: $error',
-                  name: 'NetworkMiddlewareScreen.check',
+                  name: 'Middleware.check',
                   error: error,
                   stackTrace: StackTrace.current,
                   level: 1000,
@@ -149,7 +147,7 @@ class NetworkMiddlewareScreenState extends State<NetworkMiddlewareScreen>
                 } catch (error) {
                   developer.log(
                     'Failed to read metadata file: $error',
-                    name: 'NetworkMiddlewareScreen.meta',
+                    name: 'Middleware.meta',
                     error: error,
                     stackTrace: StackTrace.current,
                     level: 1000,
@@ -194,7 +192,7 @@ class NetworkMiddlewareScreenState extends State<NetworkMiddlewareScreen>
                 } catch (error) {
                   developer.log(
                     'Download error on $key: $error',
-                    name: 'NetworkMiddlewareScreen.pull',
+                    name: 'Middleware.pull',
                     error: error,
                     stackTrace: StackTrace.current,
                     level: 1000,
@@ -233,7 +231,7 @@ class NetworkMiddlewareScreenState extends State<NetworkMiddlewareScreen>
                   } catch (error) {
                     developer.log(
                       'Failed to parse slice metadata for $key: $error',
-                      name: 'NetworkMiddlewareScreen.sliceMeta',
+                      name: 'Middleware.sliceMeta',
                       error: error,
                       stackTrace: StackTrace.current,
                       level: 1000,
@@ -277,7 +275,7 @@ class NetworkMiddlewareScreenState extends State<NetworkMiddlewareScreen>
                   } catch (error) {
                     developer.log(
                       'Failed to sync metadata for $key: $error',
-                      name: 'NetworkMiddlewareScreen.syncMeta',
+                      name: 'Middleware.syncMeta',
                       error: error,
                       stackTrace: StackTrace.current,
                       level: 1000,
@@ -346,7 +344,7 @@ class NetworkMiddlewareScreenState extends State<NetworkMiddlewareScreen>
                       } catch (error) {
                         developer.log(
                           'Range error ($key, bytes $start-$end): $error',
-                          name: 'NetworkMiddlewareScreen.slice',
+                          name: 'Middleware.slice',
                           error: error,
                           stackTrace: StackTrace.current,
                           level: 1000,
@@ -377,7 +375,7 @@ class NetworkMiddlewareScreenState extends State<NetworkMiddlewareScreen>
               } catch (error) {
                 developer.log(
                   'Range failure for $key: $error',
-                  name: 'NetworkMiddlewareScreen.slice',
+                  name: 'Middleware.slice',
                   error: error,
                   stackTrace: StackTrace.current,
                   level: 1000,
@@ -434,7 +432,7 @@ class NetworkMiddlewareScreenState extends State<NetworkMiddlewareScreen>
                 } catch (error) {
                   developer.log(
                     'Worker error: $error',
-                    name: 'NetworkMiddlewareScreen.pool',
+                    name: 'Middleware.pool',
                     error: error,
                     stackTrace: StackTrace.current,
                     level: 1000,
@@ -455,7 +453,7 @@ class NetworkMiddlewareScreenState extends State<NetworkMiddlewareScreen>
           error: error,
           stackTrace: StackTrace.current,
           level: 1000,
-          name: 'NetworkMiddlewareScreen.sync',
+          name: 'Middleware.sync',
         );
       } finally {
         client.close(force: true);
@@ -489,7 +487,7 @@ class NetworkMiddlewareScreenState extends State<NetworkMiddlewareScreen>
                 error: error,
                 stackTrace: StackTrace.current,
                 level: 1000,
-                name: 'NetworkMiddlewareScreen.inspectDir',
+                name: 'Middleware.inspectDir',
               );
               found = false;
             }
@@ -507,7 +505,7 @@ class NetworkMiddlewareScreenState extends State<NetworkMiddlewareScreen>
             error: error,
             stackTrace: StackTrace.current,
             level: 1000,
-            name: 'NetworkMiddlewareScreen.navigate',
+            name: 'Middleware.navigate',
           );
           if (mounted) {
             Navigator.of(
@@ -631,7 +629,7 @@ class NetworkMiddlewareScreenState extends State<NetworkMiddlewareScreen>
                       error: error,
                       stackTrace: StackTrace.current,
                       level: 1000,
-                      name: 'NetworkMiddlewareScreen.animation',
+                      name: 'Middleware.animation',
                     );
                     return const SizedBox.shrink();
                   }
@@ -660,7 +658,7 @@ class NetworkMiddlewareScreenState extends State<NetworkMiddlewareScreen>
         error: error,
         stackTrace: StackTrace.current,
         level: 1000,
-        name: 'NetworkMiddlewareScreen.build',
+        name: 'Middleware.build',
       );
       return const SizedBox.shrink();
     }
@@ -689,7 +687,7 @@ class NetworkMiddlewareScreenState extends State<NetworkMiddlewareScreen>
           .catchError((error) {
             developer.log(
               'Purge error: $error',
-              name: 'NetworkMiddlewareScreen.dispose',
+              name: 'Middleware.dispose',
               error: error,
               stackTrace: StackTrace.current,
               level: 1000,
@@ -701,7 +699,7 @@ class NetworkMiddlewareScreenState extends State<NetworkMiddlewareScreen>
         error: error,
         stackTrace: StackTrace.current,
         level: 1000,
-        name: 'NetworkMiddlewareScreen.dispose',
+        name: 'Middleware.dispose',
       );
     }
     super.dispose();

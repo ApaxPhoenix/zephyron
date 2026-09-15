@@ -31,10 +31,10 @@ class Recorder extends StatefulWidget {
   });
 
   @override
-  State<Recorder> createState() => RecorderState();
+  State<Recorder> createState() => _Recorder();
 }
 
-class RecorderState extends State<Recorder> {
+class _Recorder extends State<Recorder> {
   final AudioRecorder recorder = AudioRecorder();
   final Stopwatch watch = Stopwatch();
   final List<double> levels = [];
@@ -252,17 +252,17 @@ class Wave extends StatelessWidget {
 }
 
 /// A voice message bubble's player.
-class VoiceNote extends StatefulWidget {
+class Memo extends StatefulWidget {
   final Message message;
   final Color foreground;
 
-  const VoiceNote({super.key, required this.message, required this.foreground});
+  const Memo({super.key, required this.message, required this.foreground});
 
   @override
-  State<VoiceNote> createState() => VoiceNoteState();
+  State<Memo> createState() => _Memo();
 }
 
-class VoiceNoteState extends State<VoiceNote> {
+class _Memo extends State<Memo> {
   late final List<double> bars = Wave.shape(widget.message.id, 40);
   Playback? player;
   Duration position = Duration.zero;

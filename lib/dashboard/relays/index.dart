@@ -11,14 +11,14 @@ import 'package:zephyron/widgets/section.dart';
 import 'package:zephyron/widgets/stamp.dart';
 import 'package:zephyron/wrappers/tor.dart';
 
-class RelaysPage extends StatefulWidget {
-  const RelaysPage({super.key});
+class Relays extends StatefulWidget {
+  const Relays({super.key});
 
   @override
-  State<RelaysPage> createState() => RelaysPageState();
+  State<Relays> createState() => _Relays();
 }
 
-class RelaysPageState extends State<RelaysPage> {
+class _Relays extends State<Relays> {
   final TextEditingController lines = TextEditingController();
   List<Circuit> circuits = [];
   ({String version, int read, int written})? vitals;

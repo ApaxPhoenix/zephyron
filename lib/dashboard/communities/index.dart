@@ -8,14 +8,14 @@ import 'package:zephyron/widgets/beacon.dart';
 import 'package:zephyron/widgets/section.dart';
 import 'package:zephyron/widgets/stamp.dart';
 
-class CommunitiesPage extends StatefulWidget {
-  const CommunitiesPage({super.key});
+class Communities extends StatefulWidget {
+  const Communities({super.key});
 
   @override
-  State<CommunitiesPage> createState() => CommunitiesPageState();
+  State<Communities> createState() => _Communities();
 }
 
-class CommunitiesPageState extends State<CommunitiesPage> {
+class _Communities extends State<Communities> {
   final TextEditingController search = TextEditingController();
 
   Mesh get mesh => Mesh.instance;

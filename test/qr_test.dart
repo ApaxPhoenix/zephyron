@@ -130,11 +130,11 @@ void main() {
       const Directionality(
         textDirection: TextDirection.ltr,
         child: Center(
-          child: QrCode(data: 'zephyron', size: 180, eyes: Colors.blue),
+          child: Barcode(data: 'zephyron', size: 180, eyes: Colors.blue),
         ),
       ),
     );
-    expect(tester.getSize(find.byType(QrCode)), const Size(180, 180));
+    expect(tester.getSize(find.byType(Barcode)), const Size(180, 180));
     expect(find.bySemanticsLabel('QR code'), findsOneWidget);
   });
 }
