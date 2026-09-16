@@ -27,15 +27,9 @@ class Identity {
 
     var key = ed25519.newKeyFromSeed(seed);
     var pub = Uint8List.fromList(ed25519.public(key).bytes);
-    var hash = sha256
-        .convert(
-          Uint8List.fromList([...utf8.encode('.onion checksum'), ...pub, 3]),
-        )
-        .bytes;
 
     return Identity(
-      address:
-          '${base32.encode(Uint8List.fromList([...pub, ...hash.sublist(0, 2), 3])).toLowerCase()}.onion',
+      address: onion(pub),
       public: pub.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join(),
       private: Uint8List.fromList(
         key.bytes,
@@ -43,6 +37,32 @@ class Identity {
       name: name,
       date: DateTime.now(),
     );
+  }
+
+  static String onion(List<int> pub) {
+    final hash = sha256
+        .convert(
+          Uint8List.fromList([...utf8.encode('.onion checksum'), ...pub, 3]),
+        )
+        .bytes;
+    return '${base32.encode(Uint8List.fromList([...pub, ...hash.sublist(0, 2), 3])).toLowerCase()}.onion';
+  }
+
+  static Uint8List key(String address) {
+    final text = address.trim().toLowerCase().replaceAll('.onion', '');
+    return Uint8List.fromList(base32.decode(text.toUpperCase()).sublist(0, 32));
+  }
+
+  static bool valid(String address) {
+    final text = address.trim().toLowerCase();
+    if (!RegExp(r'^[a-z2-7]{56}\.onion$').hasMatch(text)) return false;
+    try {
+      final bytes = base32.decode(text.substring(0, 56).toUpperCase());
+      if (bytes.length != 35 || bytes[34] != 3) return false;
+      return onion(bytes.sublist(0, 32)) == text;
+    } catch (_) {
+      return false;
+    }
   }
 
   factory Identity.fromJson(Map<String, dynamic> json) {
