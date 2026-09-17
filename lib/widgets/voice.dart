@@ -291,31 +291,6 @@ class _Memo extends State<Memo> {
     super.dispose();
   }
 
-  Future<void> toggle() async {
-    final current = player;
-    if (current != null && playing) {
-      await current.pause();
-      return;
-    }
-    if (current == null) {
-      setState(() => loading = true);
-      try {
-        final file = await Locker.export(widget.message);
-        player = await open(file.path);
-      } catch (_) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Could not play this voice message.')),
-          );
-        }
-        return;
-      } finally {
-        if (mounted) setState(() => loading = false);
-      }
-    }
-    await player!.play();
-  }
-
   @override
   Widget build(BuildContext context) {
     final tone = widget.foreground;
@@ -341,7 +316,34 @@ class _Memo extends State<Memo> {
                 : IconButton(
                     padding: EdgeInsets.zero,
                     tooltip: playing ? 'Pause' : 'Play',
-                    onPressed: toggle,
+                    onPressed: () async {
+                      final current = player;
+                      if (current != null && playing) {
+                        await current.pause();
+                        return;
+                      }
+                      if (current == null) {
+                        setState(() => loading = true);
+                        try {
+                          final file = await Locker.export(widget.message);
+                          player = await open(file.path);
+                        } catch (_) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(this.context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Could not play this voice message.',
+                                ),
+                              ),
+                            );
+                          }
+                          return;
+                        } finally {
+                          if (mounted) setState(() => loading = false);
+                        }
+                      }
+                      await player!.play();
+                    },
                     icon: Icon(
                       playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
                       color: tone,

@@ -71,83 +71,6 @@ class _Creation extends State<Creation> {
     }
   }
 
-  Future<void> chooseIcon() async {
-    final bytes = await pick();
-    if (bytes == null || !mounted) return;
-    if (Cropper.animated(bytes)) {
-      final fitted = await fit(bytes, Mesh.icons);
-      if (fitted != null) setState(() => icon = fitted);
-      return;
-    }
-    final cropped = await Cropper.open(
-      context,
-      bytes,
-      round: false,
-      width: 320,
-      title: 'Crop Icon',
-    );
-    if (cropped == null) return;
-    if (cropped.length > Mesh.icons) {
-      warn('That picture is too large.');
-      return;
-    }
-    setState(() => icon = cropped);
-  }
-
-  Future<void> chooseBanner() async {
-    Future<void> photo() async {
-      final bytes = await pick();
-      if (bytes == null || !mounted) return;
-      if (Cropper.animated(bytes)) {
-        final fitted = await fit(bytes, Mesh.banners);
-        if (fitted != null) setState(() => banner = fitted);
-        return;
-      }
-      final cropped = await Cropper.open(
-        context,
-        bytes,
-        aspect: 3,
-        round: false,
-        width: 900,
-        title: 'Crop Banner',
-      );
-      if (cropped == null) return;
-      final fitted = await fit(cropped, Mesh.banners);
-      if (fitted != null) setState(() => banner = fitted);
-    }
-
-    Future<void> giphy() async {
-      final picked = await Gifs.show(context);
-      if (picked == null) return;
-      final fitted = await fit(picked.bytes, Mesh.banners);
-      if (fitted != null) setState(() => banner = fitted);
-    }
-
-    await Sheets.actions(
-      context,
-      items: [
-        Command(
-          icon: Icons.photo_library_outlined,
-          label: 'Choose a Photo',
-          onTap: photo,
-        ),
-        if (Giphy.ready)
-          Command(
-            icon: Icons.gif_box_outlined,
-            label: 'Search GIPHY',
-            onTap: giphy,
-          ),
-        if (banner != null)
-          Command(
-            icon: Icons.delete_outline,
-            label: 'Remove Banner',
-            destructive: true,
-            onTap: () => setState(() => banner = null),
-          ),
-      ],
-    );
-  }
-
   Future<void> save() async {
     if (!key.currentState!.validate()) return;
     setState(() => busy = true);
@@ -209,7 +132,75 @@ class _Creation extends State<Creation> {
                         borderRadius: BorderRadius.circular(16),
                         clipBehavior: Clip.antiAlias,
                         child: InkWell(
-                          onTap: busy ? null : chooseBanner,
+                          onTap: busy
+                              ? null
+                              : () async {
+                                  await Sheets.actions(
+                                    context,
+                                    items: [
+                                      Command(
+                                        icon: Icons.photo_library_outlined,
+                                        label: 'Choose a Photo',
+                                        onTap: () async {
+                                          final bytes = await pick();
+                                          if (bytes == null || !mounted) return;
+                                          if (Cropper.animated(bytes)) {
+                                            final fitted = await fit(
+                                              bytes,
+                                              Mesh.banners,
+                                            );
+                                            if (fitted != null) {
+                                              setState(() => banner = fitted);
+                                            }
+                                            return;
+                                          }
+                                          final cropped = await Cropper.open(
+                                            this.context,
+                                            bytes,
+                                            aspect: 3,
+                                            round: false,
+                                            width: 900,
+                                            title: 'Crop Banner',
+                                          );
+                                          if (cropped == null) return;
+                                          final fitted = await fit(
+                                            cropped,
+                                            Mesh.banners,
+                                          );
+                                          if (fitted != null) {
+                                            setState(() => banner = fitted);
+                                          }
+                                        },
+                                      ),
+                                      if (Giphy.ready)
+                                        Command(
+                                          icon: Icons.gif_box_outlined,
+                                          label: 'Search GIPHY',
+                                          onTap: () async {
+                                            final picked = await Gifs.show(
+                                              context,
+                                            );
+                                            if (picked == null) return;
+                                            final fitted = await fit(
+                                              picked.bytes,
+                                              Mesh.banners,
+                                            );
+                                            if (fitted != null) {
+                                              setState(() => banner = fitted);
+                                            }
+                                          },
+                                        ),
+                                      if (banner != null)
+                                        Command(
+                                          icon: Icons.delete_outline,
+                                          label: 'Remove Banner',
+                                          destructive: true,
+                                          onTap: () =>
+                                              setState(() => banner = null),
+                                        ),
+                                    ],
+                                  );
+                                },
                           child: Cover(
                             banner: banner,
                             height: 136,
@@ -243,7 +234,32 @@ class _Creation extends State<Creation> {
                         left: 16,
                         top: 92,
                         child: GestureDetector(
-                          onTap: busy ? null : chooseIcon,
+                          onTap: busy
+                              ? null
+                              : () async {
+                                  final bytes = await pick();
+                                  if (bytes == null || !mounted) return;
+                                  if (Cropper.animated(bytes)) {
+                                    final fitted = await fit(bytes, Mesh.icons);
+                                    if (fitted != null) {
+                                      setState(() => icon = fitted);
+                                    }
+                                    return;
+                                  }
+                                  final cropped = await Cropper.open(
+                                    this.context,
+                                    bytes,
+                                    round: false,
+                                    width: 320,
+                                    title: 'Crop Icon',
+                                  );
+                                  if (cropped == null) return;
+                                  if (cropped.length > Mesh.icons) {
+                                    warn('That picture is too large.');
+                                    return;
+                                  }
+                                  setState(() => icon = cropped);
+                                },
                           child: Container(
                             padding: const EdgeInsets.all(5),
                             decoration: BoxDecoration(

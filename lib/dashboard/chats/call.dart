@@ -59,45 +59,11 @@ class _Call extends State<Call> {
     super.dispose();
   }
 
-  Future<void> accept() async {
-    final call = stage.ringing;
-    if (call == null) return;
-    setState(() => answering = true);
-    final navigator = Navigator.of(context);
-    final answered = await stage.pickUp();
-    if (!mounted) return;
-    if (call.direct) {
-      setState(() => answering = false);
-      return;
-    }
-    final group = Mesh.instance.communities[call.community];
-    if (!answered || group == null) {
-      navigator.pop();
-      return;
-    }
-    navigator.pushReplacement(
-      MaterialPageRoute<void>(
-        builder: (_) =>
-            Voice(community: group, room: Voice.lobby(group), call: true),
-      ),
-    );
-  }
-
   Future<void> decline() async {
     final navigator = Navigator.of(context);
     await stage.decline();
     if (mounted) navigator.pop();
   }
-
-  String reason() => switch (stage.ended) {
-    _ when heard != null => 'Missed call',
-    'busy' => 'Busy',
-    'declined' => 'Declined',
-    'unanswered' => 'No answer',
-    'unreachable' => 'Could not reach them',
-    'dropped' => 'Call dropped',
-    _ => 'Call ended',
-  };
 
   @override
   Widget build(BuildContext context) {
@@ -143,7 +109,15 @@ class _Call extends State<Call> {
                   : 'Incoming voice call'
             : placing
             ? 'Calling…'
-            : reason();
+            : (switch (stage.ended) {
+                _ when heard != null => 'Missed call',
+                'busy' => 'Busy',
+                'declined' => 'Declined',
+                'unanswered' => 'No answer',
+                'unreachable' => 'Could not reach them',
+                'dropped' => 'Call dropped',
+                _ => 'Call ended',
+              });
 
         Widget round({
           required IconData icon,
@@ -264,7 +238,35 @@ class _Call extends State<Call> {
                           label: 'Accept',
                           background: const Color(0xFF2E9E57),
                           foreground: Colors.white,
-                          onPressed: answering ? null : accept,
+                          onPressed: answering
+                              ? null
+                              : () async {
+                                  final call = stage.ringing;
+                                  if (call == null) return;
+                                  setState(() => answering = true);
+                                  final navigator = Navigator.of(context);
+                                  final answered = await stage.pickUp();
+                                  if (!mounted) return;
+                                  if (call.direct) {
+                                    setState(() => answering = false);
+                                    return;
+                                  }
+                                  final group =
+                                      Mesh.instance.communities[call.community];
+                                  if (!answered || group == null) {
+                                    navigator.pop();
+                                    return;
+                                  }
+                                  navigator.pushReplacement(
+                                    MaterialPageRoute<void>(
+                                      builder: (_) => Voice(
+                                        community: group,
+                                        room: Voice.lobby(group),
+                                        call: true,
+                                      ),
+                                    ),
+                                  );
+                                },
                         ),
                       ],
                     )

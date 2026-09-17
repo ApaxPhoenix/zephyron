@@ -32,32 +32,28 @@ class _Chats extends State<Chats> {
     super.dispose();
   }
 
-  Future<void> chat() async {
-    final contact = await Compose.show(context);
-    if (contact == null || !mounted) return;
-    Navigator.pushNamed(
-      context,
-      '/dashboard/chats/message',
-      arguments: {'id': contact.address},
-    );
-  }
-
   Future<void> compose() => Sheets.actions(
     context,
     items: [
-      Command(icon: Icons.chat_bubble_outline, label: 'New Chat', onTap: chat),
+      Command(
+        icon: Icons.chat_bubble_outline,
+        label: 'New Chat',
+        onTap: () async {
+          final contact = await Compose.show(context);
+          if (contact == null || !mounted) return;
+          Navigator.pushNamed(
+            context,
+            '/dashboard/chats/message',
+            arguments: {'id': contact.address},
+          );
+        },
+      ),
       Command(
         icon: Icons.group_add_outlined,
         label: 'New Group',
         onTap: () => Navigator.pushNamed(context, '/dashboard/chats/group'),
       ),
     ],
-  );
-
-  void open(Community group) => Navigator.pushNamed(
-    context,
-    '/dashboard/communities/channel',
-    arguments: {'community': group.id, 'channel': group.general},
   );
 
   @override
@@ -214,71 +210,6 @@ class _Chats extends State<Chats> {
             entries.addAll(sorted);
           }
 
-          Widget heading(String title) => Heading(
-            title,
-            count: counts[title],
-            padding: const EdgeInsets.fromLTRB(24, 20, 12, 6),
-          );
-
-          /// Someone who wants to message you, with answers right there.
-          Widget plea(Trustee trustee) => ListTile(
-            key: ValueKey('request:${trustee.address}'),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 20.0,
-              vertical: 4.0,
-            ),
-            onTap: () => Navigator.pushNamed(
-              context,
-              '/dashboard/chats/message',
-              arguments: {'id': trustee.address},
-            ),
-            leading: Portrait(
-              address: trustee.address,
-              size: 48,
-              presence: false,
-            ),
-            title: Row(
-              children: [
-                Flexible(
-                  child: Text(
-                    trustee.label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  Trust.stranger.label,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.labelSmall?.copyWith(color: scheme.secondary),
-                ),
-              ],
-            ),
-            subtitle: Text(
-              courier.last(trustee.address)?.preview ?? 'Wants to message you',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  tooltip: 'Block',
-                  icon: Icon(Icons.block, color: scheme.error),
-                  onPressed: () =>
-                      courier.trust(trustee.address, Trust.blocked),
-                ),
-                IconButton(
-                  tooltip: 'Accept as Trustee',
-                  icon: Icon(Icons.check_circle_outline, color: scheme.primary),
-                  onPressed: () =>
-                      courier.trust(trustee.address, Trust.trustee),
-                ),
-              ],
-            ),
-          );
-
           /// A trustee with no messages yet, or a blocked key, and whether
           /// they are around.
           Widget person(Trustee trustee) {
@@ -353,7 +284,11 @@ class _Chats extends State<Chats> {
                 horizontal: 20.0,
                 vertical: 4.0,
               ),
-              onTap: () => open(group),
+              onTap: () => (Navigator.pushNamed(
+                context,
+                '/dashboard/communities/channel',
+                arguments: {'community': group.id, 'channel': group.general},
+              )),
               leading: Crest(label: group.name, image: group.icon, size: 48),
               title: Row(
                 children: [
@@ -478,9 +413,80 @@ class _Chats extends State<Chats> {
                       ),
                 itemBuilder: (context, index) {
                   final entry = entries[index];
-                  if (entry is String) return heading(entry);
+                  if (entry is String) {
+                    return (Heading(
+                      entry,
+                      count: counts[entry],
+                      padding: const EdgeInsets.fromLTRB(24, 20, 12, 6),
+                    ));
+                  }
                   if (entry is Community) return room(entry);
-                  if (entry is Plea) return plea(entry.trustee);
+                  if (entry is Plea) {
+                    return (ListTile(
+                      key: ValueKey('request:${entry.trustee.address}'),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 20.0,
+                        vertical: 4.0,
+                      ),
+                      onTap: () => Navigator.pushNamed(
+                        context,
+                        '/dashboard/chats/message',
+                        arguments: {'id': entry.trustee.address},
+                      ),
+                      leading: Portrait(
+                        address: entry.trustee.address,
+                        size: 48,
+                        presence: false,
+                      ),
+                      title: Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              entry.trustee.label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            Trust.stranger.label,
+                            style: Theme.of(context).textTheme.labelSmall
+                                ?.copyWith(color: scheme.secondary),
+                          ),
+                        ],
+                      ),
+                      subtitle: Text(
+                        courier.last(entry.trustee.address)?.preview ??
+                            'Wants to message you',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            tooltip: 'Block',
+                            icon: Icon(Icons.block, color: scheme.error),
+                            onPressed: () => courier.trust(
+                              entry.trustee.address,
+                              Trust.blocked,
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Accept as Trustee',
+                            icon: Icon(
+                              Icons.check_circle_outline,
+                              color: scheme.primary,
+                            ),
+                            onPressed: () => courier.trust(
+                              entry.trustee.address,
+                              Trust.trustee,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ));
+                  }
                   if (entry is Quiet) return person(entry.trustee);
                   final contact = entry as Trustee;
                   final last = courier.last(contact.address);
