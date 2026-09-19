@@ -101,13 +101,13 @@ class Group extends StatelessWidget {
 class Pager extends StatelessWidget {
   final int page;
   final int pages;
-  final ValueChanged<int> onChanged;
+  final ValueChanged<int> turn;
 
   const Pager({
     super.key,
     required this.page,
     required this.pages,
-    required this.onChanged,
+    required this.turn,
   });
 
   /// How many pages [total] items fill at [size] per page.
@@ -134,7 +134,7 @@ class Pager extends StatelessWidget {
             style: IconButton.styleFrom(
               side: BorderSide(color: scheme.outline),
             ),
-            onPressed: page > 0 ? () => onChanged(page - 1) : null,
+            onPressed: page > 0 ? () => turn(page - 1) : null,
             icon: const Icon(Icons.chevron_left, size: 20),
           ),
           SizedBox(
@@ -153,7 +153,7 @@ class Pager extends StatelessWidget {
             style: IconButton.styleFrom(
               side: BorderSide(color: scheme.outline),
             ),
-            onPressed: page < pages - 1 ? () => onChanged(page + 1) : null,
+            onPressed: page < pages - 1 ? () => turn(page + 1) : null,
             icon: const Icon(Icons.chevron_right, size: 20),
           ),
         ],

@@ -13,10 +13,8 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
       Builder(
-        builder: (context) => MaterialApp(
-          theme: Pallete.lightTheme(context),
-          home: const AuthScreen(),
-        ),
+        builder: (context) =>
+            MaterialApp(theme: Pallete.day(context), home: const Auth()),
       ),
     );
     await tester.pumpAndSettle();

@@ -10,18 +10,18 @@ import 'package:zephyron/widgets/avatar.dart';
 /// A direct call ringing out, ringing in, under way, or just ended. Group
 /// calls ring here too, and open the group's call once answered. Leaving
 /// the page hangs up.
-class CallPage extends StatefulWidget {
+class Call extends StatefulWidget {
   /// The trustee to ring when the page opens; null to show the call that is
   /// already ringing or under way.
   final String? peer;
 
-  const CallPage({super.key, this.peer});
+  const Call({super.key, this.peer});
 
   @override
-  State<CallPage> createState() => CallPageState();
+  State<Call> createState() => _Call();
 }
 
-class CallPageState extends State<CallPage> {
+class _Call extends State<Call> {
   Timer? ticker;
   Timer? closing;
   bool placing = false;
@@ -59,48 +59,11 @@ class CallPageState extends State<CallPage> {
     super.dispose();
   }
 
-  Future<void> accept() async {
-    final call = stage.ringing;
-    if (call == null) return;
-    setState(() => answering = true);
-    final navigator = Navigator.of(context);
-    final answered = await stage.pickUp();
-    if (!mounted) return;
-    if (call.direct) {
-      setState(() => answering = false);
-      return;
-    }
-    final group = Mesh.instance.communities[call.community];
-    if (!answered || group == null) {
-      navigator.pop();
-      return;
-    }
-    navigator.pushReplacement(
-      MaterialPageRoute<void>(
-        builder: (_) => VoicePage(
-          community: group,
-          room: VoicePage.lobby(group),
-          call: true,
-        ),
-      ),
-    );
-  }
-
   Future<void> decline() async {
     final navigator = Navigator.of(context);
     await stage.decline();
     if (mounted) navigator.pop();
   }
-
-  String reason() => switch (stage.ended) {
-    _ when heard != null => 'Missed call',
-    'busy' => 'Busy',
-    'declined' => 'Declined',
-    'unanswered' => 'No answer',
-    'unreachable' => 'Could not reach them',
-    'dropped' => 'Call dropped',
-    _ => 'Call ended',
-  };
 
   @override
   Widget build(BuildContext context) {
@@ -146,14 +109,22 @@ class CallPageState extends State<CallPage> {
                   : 'Incoming voice call'
             : placing
             ? 'Calling…'
-            : reason();
+            : (switch (stage.ended) {
+                _ when heard != null => 'Missed call',
+                'busy' => 'Busy',
+                'declined' => 'Declined',
+                'unanswered' => 'No answer',
+                'unreachable' => 'Could not reach them',
+                'dropped' => 'Call dropped',
+                _ => 'Call ended',
+              });
 
         Widget round({
           required IconData icon,
           required String label,
           required Color background,
           required Color foreground,
-          required VoidCallback? onPressed,
+          required VoidCallback? press,
         }) {
           return Column(
             mainAxisSize: MainAxisSize.min,
@@ -166,7 +137,7 @@ class CallPageState extends State<CallPage> {
                   backgroundColor: background,
                   foregroundColor: foreground,
                 ),
-                onPressed: onPressed,
+                onPressed: press,
                 icon: Icon(icon),
               ),
               const SizedBox(height: 8),
@@ -175,12 +146,12 @@ class CallPageState extends State<CallPage> {
           );
         }
 
-        final hangUp = round(
+        final hangup = round(
           icon: Icons.call_end,
           label: 'Hang Up',
           background: scheme.error,
           foreground: scheme.onError,
-          onPressed: () => stage.leave(),
+          press: () => stage.leave(),
         );
 
         return Scaffold(
@@ -246,9 +217,9 @@ class CallPageState extends State<CallPage> {
                           foreground: stage.muted
                               ? scheme.error
                               : scheme.onSurface,
-                          onPressed: () => stage.mute(!stage.muted),
+                          press: () => stage.mute(!stage.muted),
                         ),
-                        hangUp,
+                        hangup,
                       ],
                     )
                   else if (ring != null)
@@ -260,19 +231,47 @@ class CallPageState extends State<CallPage> {
                           label: 'Decline',
                           background: scheme.error,
                           foreground: scheme.onError,
-                          onPressed: answering ? null : decline,
+                          press: answering ? null : decline,
                         ),
                         round(
                           icon: Icons.call,
                           label: 'Accept',
                           background: const Color(0xFF2E9E57),
                           foreground: Colors.white,
-                          onPressed: answering ? null : accept,
+                          press: answering
+                              ? null
+                              : () async {
+                                  final call = stage.ringing;
+                                  if (call == null) return;
+                                  setState(() => answering = true);
+                                  final navigator = Navigator.of(context);
+                                  final answered = await stage.accept();
+                                  if (!mounted) return;
+                                  if (call.direct) {
+                                    setState(() => answering = false);
+                                    return;
+                                  }
+                                  final group =
+                                      Mesh.instance.communities[call.community];
+                                  if (!answered || group == null) {
+                                    navigator.pop();
+                                    return;
+                                  }
+                                  navigator.pushReplacement(
+                                    MaterialPageRoute<void>(
+                                      builder: (_) => Voice(
+                                        community: group,
+                                        room: Voice.lobby(group),
+                                        call: true,
+                                      ),
+                                    ),
+                                  );
+                                },
                         ),
                       ],
                     )
                   else if (placing)
-                    hangUp
+                    hangup
                   else
                     TextButton(
                       onPressed: () => Navigator.of(context).maybePop(),

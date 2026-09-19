@@ -45,42 +45,6 @@ class Keccak {
   static int rotate(int value, int count) =>
       count == 0 ? value : (value << count) | (value >>> (64 - count));
 
-  static void permute(List<int> lanes) {
-    final columns = List<int>.filled(5, 0);
-    final mixed = List<int>.filled(25, 0);
-    for (final constant in constants) {
-      for (var x = 0; x < 5; x++) {
-        columns[x] =
-            lanes[x] ^
-            lanes[x + 5] ^
-            lanes[x + 10] ^
-            lanes[x + 15] ^
-            lanes[x + 20];
-      }
-      for (var x = 0; x < 5; x++) {
-        final change = columns[(x + 4) % 5] ^ rotate(columns[(x + 1) % 5], 1);
-        for (var y = 0; y < 25; y += 5) {
-          lanes[x + y] ^= change;
-        }
-      }
-      for (var x = 0; x < 5; x++) {
-        for (var y = 0; y < 5; y++) {
-          mixed[y + 5 * ((2 * x + 3 * y) % 5)] = rotate(
-            lanes[x + 5 * y],
-            turns[x][y],
-          );
-        }
-      }
-      for (var y = 0; y < 25; y += 5) {
-        for (var x = 0; x < 5; x++) {
-          lanes[x + y] =
-              mixed[x + y] ^ (~mixed[(x + 1) % 5 + y] & mixed[(x + 2) % 5 + y]);
-        }
-      }
-      lanes[0] ^= constant;
-    }
-  }
-
   /// The SHA3-256 digest of [data].
   static Uint8List digest(List<int> data) {
     final padded = Uint8List(((data.length ~/ rate) + 1) * rate)
@@ -93,7 +57,43 @@ class Keccak {
       for (var lane = 0; lane < rate ~/ 8; lane++) {
         lanes[lane] ^= view.getUint64(block + lane * 8, Endian.little);
       }
-      permute(lanes);
+      {
+        final columns = List<int>.filled(5, 0);
+        final mixed = List<int>.filled(25, 0);
+        for (final constant in constants) {
+          for (var x = 0; x < 5; x++) {
+            columns[x] =
+                lanes[x] ^
+                lanes[x + 5] ^
+                lanes[x + 10] ^
+                lanes[x + 15] ^
+                lanes[x + 20];
+          }
+          for (var x = 0; x < 5; x++) {
+            final change =
+                columns[(x + 4) % 5] ^ rotate(columns[(x + 1) % 5], 1);
+            for (var y = 0; y < 25; y += 5) {
+              lanes[x + y] ^= change;
+            }
+          }
+          for (var x = 0; x < 5; x++) {
+            for (var y = 0; y < 5; y++) {
+              mixed[y + 5 * ((2 * x + 3 * y) % 5)] = rotate(
+                lanes[x + 5 * y],
+                turns[x][y],
+              );
+            }
+          }
+          for (var y = 0; y < 25; y += 5) {
+            for (var x = 0; x < 5; x++) {
+              lanes[x + y] =
+                  mixed[x + y] ^
+                  (~mixed[(x + 1) % 5 + y] & mixed[(x + 2) % 5 + y]);
+            }
+          }
+          lanes[0] ^= constant;
+        }
+      }
     }
     final out = ByteData(32);
     for (var lane = 0; lane < 4; lane++) {

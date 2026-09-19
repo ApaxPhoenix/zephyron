@@ -381,7 +381,7 @@ void main() {
   });
 
   test('a frame that cannot be opened asks for a fresh session', () async {
-    final stranger = Identity.fromInput('mend test ${DateTime.now()}');
+    final stranger = Identity.parse('mend test ${DateTime.now()}');
     final wire = await Wire.open();
     wire.send(
       sealed(
@@ -404,7 +404,7 @@ void main() {
 
   test('a session can be agreed over the wire from either side', () async {
     for (var attempt = 0; attempt < 6; attempt++) {
-      final peer = Identity.fromInput('handshake $attempt ${DateTime.now()}');
+      final peer = Identity.parse('handshake $attempt ${DateTime.now()}');
       final leads = Ratchet.lead(peer, bob.address);
       final wire = await Wire.open();
       final ask = sealed(
@@ -447,7 +447,7 @@ void main() {
   });
 
   test('outgoing messages open only for the trustee', () async {
-    await pairUp(bob, carol);
+    await introduce(bob, carol);
     final wire = await Wire.open();
     final channel = courier.live.last;
     final body = await courier.whisper(

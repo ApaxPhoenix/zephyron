@@ -10,17 +10,17 @@ import 'package:zephyron/widgets/discovery.dart';
 import 'package:zephyron/widgets/sheet.dart';
 import 'package:zephyron/widgets/stamp.dart';
 
-class NodePage extends StatefulWidget {
+class Node extends StatefulWidget {
   final String? id;
   final String? name;
 
-  const NodePage({super.key, this.id, this.name});
+  const Node({super.key, this.id, this.name});
 
   @override
-  State<NodePage> createState() => NodePageState();
+  State<Node> createState() => _Node();
 }
 
-class NodePageState extends State<NodePage> {
+class _Node extends State<Node> {
   bool busy = false;
 
   Courier get courier => Courier.instance;
@@ -473,10 +473,10 @@ class NodePageState extends State<NodePage> {
                       onPressed: () => Sheets.actions(
                         context,
                         items: [
-                          SheetAction(
+                          Command(
                             icon: Icons.forum_outlined,
                             label: 'Send to a Trustee',
-                            onTap: () async {
+                            run: () async {
                               final target = await Chooser.show(
                                 context,
                                 title: 'Send ${trustee.label} to',
@@ -492,19 +492,19 @@ class NodePageState extends State<NodePage> {
                               );
                             },
                           ),
-                          SheetAction(
+                          Command(
                             icon: Icons.qr_code_2,
                             label: 'Show QR Code',
-                            onTap: () => Discovery.show(
+                            run: () => Discovery.show(
                               context,
                               address: trustee.address,
                               name: trustee.label,
                             ),
                           ),
-                          SheetAction(
+                          Command(
                             icon: Icons.share,
                             label: 'Share Outside Zephyron',
-                            onTap: () => Discovery.spread(
+                            run: () => Discovery.spread(
                               trustee.address,
                               trustee.label,
                             ),

@@ -6,14 +6,14 @@ import 'package:zephyron/widgets/avatar.dart';
 import 'package:zephyron/widgets/section.dart';
 
 /// Starts a private group chat with chosen trustees.
-class GroupPage extends StatefulWidget {
-  const GroupPage({super.key});
+class Huddle extends StatefulWidget {
+  const Huddle({super.key});
 
   @override
-  State<GroupPage> createState() => GroupPageState();
+  State<Huddle> createState() => _Huddle();
 }
 
-class GroupPageState extends State<GroupPage> {
+class _Huddle extends State<Huddle> {
   final TextEditingController name = TextEditingController();
   final TextEditingController search = TextEditingController();
   final Set<String> chosen = {};

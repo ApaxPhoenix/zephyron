@@ -10,16 +10,16 @@ import 'package:zephyron/widgets/section.dart';
 import 'package:zephyron/widgets/sheet.dart';
 import 'package:zephyron/widgets/stamp.dart';
 
-class CommunityPage extends StatefulWidget {
+class Hub extends StatefulWidget {
   final String? id;
 
-  const CommunityPage({super.key, this.id});
+  const Hub({super.key, this.id});
 
   @override
-  State<CommunityPage> createState() => CommunityPageState();
+  State<Hub> createState() => _Hub();
 }
 
-class CommunityPageState extends State<CommunityPage> {
+class _Hub extends State<Hub> {
   final TextEditingController search = TextEditingController();
   int page = 0;
 
@@ -196,17 +196,17 @@ class CommunityPageState extends State<CommunityPage> {
       ),
       items: [
         if (cast)
-          SheetAction(
+          Command(
             icon: Icons.undo,
             label: 'Withdraw My Vote',
-            onTap: () => mesh.vote(community, member.address, withdraw: true),
+            run: () => mesh.vote(community, member.address, withdraw: true),
           )
         else
-          SheetAction(
+          Command(
             icon: Icons.how_to_vote_outlined,
             label: 'Vote to Remove',
             destructive: true,
-            onTap: () async {
+            run: () async {
               final sure = await Sheets.confirm(
                 context,
                 title: 'Vote to remove $name?',
@@ -266,32 +266,32 @@ class CommunityPageState extends State<CommunityPage> {
         subtitle: Text('${mesh.members(community.id).length} members'),
       ),
       items: [
-        SheetAction(
+        Command(
           icon: Icons.edit_outlined,
           label: 'Edit Community',
-          onTap: () => Navigator.pushNamed(
+          run: () => Navigator.pushNamed(
             context,
             '/dashboard/communities/create',
             arguments: {'id': community.id},
           ),
         ),
-        SheetAction(
+        Command(
           icon: community.pinned ? Icons.push_pin_outlined : Icons.push_pin,
           label: community.pinned ? 'Unpin' : 'Pin to Top',
-          onTap: () => mesh.amend(community..pinned = !community.pinned),
+          run: () => mesh.amend(community..pinned = !community.pinned),
         ),
-        SheetAction(
+        Command(
           icon: community.muted
               ? Icons.notifications_active_outlined
               : Icons.notifications_off_outlined,
           label: community.muted ? 'Unmute' : 'Mute',
-          onTap: () => mesh.amend(community..muted = !community.muted),
+          run: () => mesh.amend(community..muted = !community.muted),
         ),
-        SheetAction(
+        Command(
           icon: Icons.logout,
           label: 'Leave Community',
           destructive: true,
-          onTap: () async {
+          run: () async {
             final navigator = Navigator.of(context);
             final sure = await Sheets.confirm(
               context,
@@ -613,7 +613,7 @@ class CommunityPageState extends State<CommunityPage> {
                 Pager(
                   page: current,
                   pages: pages,
-                  onChanged: (next) => setState(() => page = next),
+                  turn: (next) => setState(() => page = next),
                 ),
               if (!community.group &&
                   community.founder == Courier.instance.self?.address) ...[

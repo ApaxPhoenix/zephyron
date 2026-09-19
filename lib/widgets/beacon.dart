@@ -7,10 +7,10 @@ class Beacon extends StatefulWidget {
   const Beacon({super.key});
 
   @override
-  State<Beacon> createState() => BeaconState();
+  State<Beacon> createState() => _Beacon();
 }
 
-class BeaconState extends State<Beacon> with SingleTickerProviderStateMixin {
+class _Beacon extends State<Beacon> with SingleTickerProviderStateMixin {
   late final AnimationController pulse;
 
   @override

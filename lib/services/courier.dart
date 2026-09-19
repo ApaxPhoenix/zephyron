@@ -535,7 +535,17 @@ class Courier extends ChangeNotifier {
         try {
           tunnel = await Tor.connect(peer, 80);
         } on StateError catch (error) {
-          if (stale(error)) unawaited(refresh());
+          // A peer back online with new introduction points leaves a stale
+          // descriptor behind, so Tor is asked to forget the ones it keeps,
+          // at most once a minute.
+          final now = DateTime.now();
+          if ((error.message.contains('introduction') ||
+                  error.message.contains('descriptor not found')) &&
+              (refreshed == null ||
+                  now.difference(refreshed!) >= const Duration(minutes: 1))) {
+            refreshed = now;
+            unawaited(Sentinel.summon().forget());
+          }
           rethrow;
         }
         final channel = Channel(tunnel.socket, peer: peer);
@@ -555,23 +565,6 @@ class Courier extends ChangeNotifier {
 
   /// When Tor last forgot its cached onion service descriptors.
   DateTime? refreshed;
-
-  /// Whether a failed dial looks like a stale descriptor for a peer who came
-  /// back online with new introduction points.
-  static bool stale(StateError error) =>
-      error.message.contains('introduction') ||
-      error.message.contains('descriptor not found');
-
-  /// Asks Tor to forget stale descriptors, at most once a minute.
-  Future<void> refresh() async {
-    final now = DateTime.now();
-    if (refreshed != null &&
-        now.difference(refreshed!) < const Duration(minutes: 1)) {
-      return;
-    }
-    refreshed = now;
-    await Sentinel.summon().forget();
-  }
 
   void greet(String peer, Channel channel) {
     if (channel.greeted || roster[peer]?.trusted != true || self == null) {
@@ -878,7 +871,7 @@ class Courier extends ChangeNotifier {
       }
 
       final state = track(from);
-      final wasOnline = state.online;
+      final prior = state.online;
       if (!replay) {
         state.seen = now;
         final offered = forwarded[from];
@@ -1097,7 +1090,7 @@ class Courier extends ChangeNotifier {
       }
 
       if (epoch != generation) return;
-      if (!wasOnline && undelivered(from).isNotEmpty) unawaited(flush(from));
+      if (!prior && undelivered(from).isNotEmpty) unawaited(flush(from));
       notifyListeners();
     } catch (error) {
       developer.log(
@@ -1349,7 +1342,7 @@ class Courier extends ChangeNotifier {
   Future<void> dispatch() async {
     if (self == null) return;
     try {
-      await Ledger.discardParcels(DateTime.now().subtract(keep));
+      await Ledger.prune('parcels', DateTime.now().subtract(keep));
       final now = DateTime.now();
       final recipients = {
         for (final parcel in await Ledger.parcels())
@@ -1375,25 +1368,6 @@ class Courier extends ChangeNotifier {
     }
   }
 
-  /// Who should hold messages for [peer]: their mailbox first, then
-  /// trustees who are online right now.
-  List<String> relays(String peer) {
-    final mailbox = roster[peer]?.mailbox ?? '';
-    final mine = self?.address;
-    return <String>[
-      if (mailbox.isNotEmpty &&
-          mailbox != mine &&
-          roster[mailbox]?.blocked != true)
-        mailbox,
-      for (final trustee in roster.values)
-        if (trustee.trusted &&
-            trustee.address != peer &&
-            trustee.address != mailbox &&
-            online(trustee.address))
-          trustee.address,
-    ].take(2).toList();
-  }
-
   /// Hands sealed copies of messages for [peer], who could not be reached,
   /// to trustees who will pass them on. Needs an end-to-end session already,
   /// since agreeing one takes both phones online.
@@ -1409,7 +1383,20 @@ class Courier extends ChangeNotifier {
         )
         .toList();
     if (pending.isEmpty) return;
-    final carriers = relays(peer);
+    // The recipient's own mailbox, then trustees online now, two at most.
+    final mailbox = roster[peer]?.mailbox ?? '';
+    final carriers = <String>[
+      if (mailbox.isNotEmpty &&
+          mailbox != identity.address &&
+          roster[mailbox]?.blocked != true)
+        mailbox,
+      for (final trustee in roster.values)
+        if (trustee.trusted &&
+            trustee.address != peer &&
+            trustee.address != mailbox &&
+            online(trustee.address))
+          trustee.address,
+    ].take(2).toList();
     if (carriers.isEmpty) return;
     for (final message in pending) {
       final Map<String, dynamic> sealed;

@@ -4,17 +4,17 @@ import 'package:flutter/material.dart';
 import 'package:zephyron/auth/onion.dart';
 import 'package:zephyron/sql/session.dart';
 
-class LogInPage extends StatefulWidget {
+class Login extends StatefulWidget {
   /// Called when the person has no identity yet and wants to create one.
-  final VoidCallback? onSignUp;
+  final VoidCallback? register;
 
-  const LogInPage({super.key, this.onSignUp});
+  const Login({super.key, this.register});
 
   @override
-  State<LogInPage> createState() => LogInPageState();
+  State<Login> createState() => _Login();
 }
 
-class LogInPageState extends State<LogInPage> {
+class _Login extends State<Login> {
   final GlobalKey<FormState> key = GlobalKey<FormState>();
   final TextEditingController passphrase = TextEditingController();
   bool obscured = true;
@@ -43,13 +43,13 @@ class LogInPageState extends State<LogInPage> {
       await refresh();
       developer.log(
         'Loaded enrolled identity roster for login selector',
-        name: 'LogInPageState.hydrate',
+        name: '_Login.hydrate',
         level: 800,
       );
     } catch (error) {
       developer.log(
         'Failed to load enrolled identity roster for login selector',
-        name: 'LogInPageState.hydrate',
+        name: '_Login.hydrate',
         level: 1000,
         error: error,
         stackTrace: StackTrace.current,
@@ -66,13 +66,13 @@ class LogInPageState extends State<LogInPage> {
     }
 
     try {
-      final remaining = await Session.quarantineRemaining(name);
+      final remaining = await Session.quarantine(name);
       if (!mounted) return;
       setState(() => quarantine = remaining);
 
       if (remaining != null) {
         countdown = Timer.periodic(const Duration(seconds: 1), (ticker) async {
-          final updated = await Session.quarantineRemaining(name);
+          final updated = await Session.quarantine(name);
           if (!mounted) {
             ticker.cancel();
             return;
@@ -84,7 +84,7 @@ class LogInPageState extends State<LogInPage> {
     } catch (error) {
       developer.log(
         'Failed to refresh quarantine countdown status for profile: $name',
-        name: 'LogInPageState.refresh',
+        name: '_Login.refresh',
         level: 1000,
         error: error,
         stackTrace: StackTrace.current,
@@ -104,7 +104,7 @@ class LogInPageState extends State<LogInPage> {
       if (!key.currentState!.validate()) {
         developer.log(
           'Database decryption form validation failed due to invalid user input',
-          name: 'LogInPageState.unlockDatabase',
+          name: '_Login.unlockDatabase',
           level: 900,
         );
         return;
@@ -112,7 +112,7 @@ class LogInPageState extends State<LogInPage> {
 
       developer.log(
         'Starting database decryption workflow',
-        name: 'LogInPageState.unlockDatabase',
+        name: '_Login.unlockDatabase',
         level: 800,
       );
 
@@ -127,7 +127,7 @@ class LogInPageState extends State<LogInPage> {
 
       developer.log(
         'Database decryption completed successfully',
-        name: 'LogInPageState.unlockDatabase',
+        name: '_Login.unlockDatabase',
         level: 800,
       );
 
@@ -142,10 +142,10 @@ class LogInPageState extends State<LogInPage> {
           arguments: identity,
         );
       }
-    } on IdentityAnnihilatedException catch (error) {
+    } on Annihilated catch (error) {
       developer.log(
         'Identity permanently annihilated after exceeding maximum failed unlock attempts',
-        name: 'LogInPageState.unlockDatabase',
+        name: '_Login.unlockDatabase',
         level: 1200,
         error: error,
         stackTrace: StackTrace.current,
@@ -163,10 +163,10 @@ class LogInPageState extends State<LogInPage> {
           quarantine = null;
         });
       }
-    } on IdentitiesPurgedException catch (error) {
+    } on Purged catch (error) {
       developer.log(
         'Every identity purged after unlock attempts looked like an attack',
-        name: 'LogInPageState.unlockDatabase',
+        name: '_Login.unlockDatabase',
         level: 1200,
         error: error,
         stackTrace: StackTrace.current,
@@ -181,10 +181,10 @@ class LogInPageState extends State<LogInPage> {
           quarantine = null;
         });
       }
-    } on IdentityQuarantinedException catch (error) {
+    } on Quarantined catch (error) {
       developer.log(
         'Identity temporarily quarantined after repeated failed unlock attempts',
-        name: 'LogInPageState.unlockDatabase',
+        name: '_Login.unlockDatabase',
         level: 1000,
         error: error,
         stackTrace: StackTrace.current,
@@ -201,16 +201,14 @@ class LogInPageState extends State<LogInPage> {
     } catch (error) {
       developer.log(
         'Failed to decrypt store with provided credentials',
-        name: 'LogInPageState.unlockDatabase',
+        name: '_Login.unlockDatabase',
         level: 1000,
         error: error,
         stackTrace: StackTrace.current,
       );
 
       final target = selection;
-      final remaining = target != null
-          ? await Session.remainingAttempts(target)
-          : null;
+      final remaining = target != null ? await Session.left(target) : null;
 
       if (mounted) {
         setState(
@@ -289,10 +287,10 @@ class LogInPageState extends State<LogInPage> {
                                       const Text(
                                         'There are no identities on this phone yet.',
                                       ),
-                                      if (widget.onSignUp != null) ...[
+                                      if (widget.register != null) ...[
                                         const SizedBox(height: 8),
                                         TextButton(
-                                          onPressed: widget.onSignUp,
+                                          onPressed: widget.register,
                                           child: const Text(
                                             'Create your first identity',
                                           ),
@@ -398,12 +396,12 @@ class LogInPageState extends State<LogInPage> {
                                   : const Text('Unlock'),
                             ),
                           ),
-                          if (widget.onSignUp != null &&
+                          if (widget.register != null &&
                               identities.isNotEmpty) ...[
                             const SizedBox(height: 8),
                             Center(
                               child: TextButton(
-                                onPressed: loading ? null : widget.onSignUp,
+                                onPressed: loading ? null : widget.register,
                                 child: const Text(
                                   'New here? Create an identity',
                                 ),
@@ -422,8 +420,8 @@ class LogInPageState extends State<LogInPage> {
       );
     } catch (error) {
       developer.log(
-        'Failed to build LogInPage UI widget tree',
-        name: 'LogInPage.build',
+        'Failed to build Login UI widget tree',
+        name: 'Login.build',
         level: 1000,
         error: error,
         stackTrace: StackTrace.current,
@@ -440,15 +438,15 @@ class LogInPageState extends State<LogInPage> {
       passphrase.dispose();
 
       developer.log(
-        'Disposed LogInPageState input controllers and state resources',
-        name: 'LogInPageState.dispose',
+        'Disposed _Login input controllers and state resources',
+        name: '_Login.dispose',
         level: 500,
       );
       super.dispose();
     } catch (error) {
       developer.log(
         'Failed to release input text controllers cleanly during dispose',
-        name: 'LogInPageState.dispose',
+        name: '_Login.dispose',
         level: 1000,
         error: error,
         stackTrace: StackTrace.current,

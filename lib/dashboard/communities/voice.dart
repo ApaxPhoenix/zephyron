@@ -8,14 +8,14 @@ import 'package:zephyron/services/stage.dart';
 import 'package:zephyron/widgets/avatar.dart';
 
 /// A live voice room, or a group's call. Leaving the page leaves it.
-class VoicePage extends StatefulWidget {
+class Voice extends StatefulWidget {
   final Community community;
   final Room room;
 
   /// A group's call, which starts as soon as the page opens.
   final bool call;
 
-  const VoicePage({
+  const Voice({
     super.key,
     required this.community,
     required this.room,
@@ -38,15 +38,15 @@ class VoicePage extends StatefulWidget {
         context,
         MaterialPageRoute<void>(
           builder: (_) =>
-              VoicePage(community: group, room: lobby(group), call: true),
+              Voice(community: group, room: lobby(group), call: true),
         ),
       );
 
   @override
-  State<VoicePage> createState() => VoicePageState();
+  State<Voice> createState() => _Voice();
 }
 
-class VoicePageState extends State<VoicePage> {
+class _Voice extends State<Voice> {
   bool joining = false;
 
   Stage get stage => Stage.instance;
