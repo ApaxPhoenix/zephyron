@@ -11,7 +11,7 @@ void main() {
     await tester.pumpWidget(
       Builder(
         builder: (context) => MaterialApp(
-          theme: Pallete.lightTheme(context),
+          theme: Pallete.day(context),
           routes: {
             '/': (context) => Scaffold(
               body: Builder(

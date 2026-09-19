@@ -45,7 +45,7 @@ class _Vault extends State<Vault> {
           Command(
             icon: Icons.edit_outlined,
             label: 'Change Duress Passphrase',
-            onTap: () async {
+            run: () async {
               await navigator.pushNamed('/dashboard/settings/duress');
               await refresh();
             },
@@ -54,7 +54,7 @@ class _Vault extends State<Vault> {
             icon: Icons.remove_moderator_outlined,
             label: 'Turn Off',
             destructive: true,
-            onTap: () async {
+            run: () async {
               await Duress.disarm();
               await refresh();
             },
@@ -186,7 +186,7 @@ class _Vault extends State<Vault> {
           Widget choice<T>({
             required T value,
             required List<(T, String)> options,
-            required ValueChanged<T> onChanged,
+            required ValueChanged<T> pick,
           }) {
             return DropdownButtonHideUnderline(
               child: DropdownButton<T>(
@@ -205,7 +205,7 @@ class _Vault extends State<Vault> {
                     DropdownMenuItem(value: option, child: Text(label)),
                 ],
                 onChanged: (picked) {
-                  if (picked != null) onChanged(picked);
+                  if (picked != null) pick(picked);
                 },
               ),
             );
@@ -517,8 +517,7 @@ class _Vault extends State<Vault> {
                         for (final rating in Rating.values)
                           (rating, rating.label),
                       ],
-                      onChanged: (picked) =>
-                          tune((next) => next.rating = picked),
+                      pick: (picked) => tune((next) => next.rating = picked),
                     ),
                   ),
                 ],
@@ -536,8 +535,7 @@ class _Vault extends State<Vault> {
                         (ThemeMode.light, 'Light'),
                         (ThemeMode.dark, 'Dark'),
                       ],
-                      onChanged: (picked) =>
-                          tune((next) => next.theme = picked),
+                      pick: (picked) => tune((next) => next.theme = picked),
                     ),
                   ),
                 ],

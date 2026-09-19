@@ -416,7 +416,7 @@ class _Conversation extends State<Conversation> {
                           final next = position < thread.length - 1
                               ? thread[position + 1]
                               : null;
-                          final newDay =
+                          final dawn =
                               previous == null ||
                               day(previous.time) != day(message.time);
                           bool joined(Message? other) =>
@@ -428,7 +428,7 @@ class _Conversation extends State<Conversation> {
                                       .inMinutes
                                       .abs() <
                                   3;
-                          final above = !newDay && joined(previous);
+                          final above = !dawn && joined(previous);
                           final below = joined(next);
                           final fresh = !settled.contains(message.id);
                           settled.add(message.id);
@@ -969,7 +969,7 @@ class _Conversation extends State<Conversation> {
                                           Command(
                                             icon: Icons.copy_rounded,
                                             label: 'Copy text',
-                                            onTap: () {
+                                            run: () {
                                               Clipboard.setData(
                                                 ClipboardData(
                                                   text: message.text,
@@ -999,20 +999,20 @@ class _Conversation extends State<Conversation> {
                                           Command(
                                             icon: Icons.ios_share_rounded,
                                             label: 'Share or save',
-                                            onTap: () =>
+                                            run: () =>
                                                 Viewer.export(context, message),
                                           ),
                                         if (pending)
                                           Command(
                                             icon: Icons.refresh_rounded,
                                             label: 'Retry now',
-                                            onTap: () => courier.flush(peer),
+                                            run: () => courier.flush(peer),
                                           ),
                                         Command(
                                           icon: Icons.delete_outline_rounded,
                                           label: 'Delete for me',
                                           destructive: true,
-                                          onTap: () => courier.erase(message),
+                                          run: () => courier.erase(message),
                                         ),
                                       ],
                                     );
@@ -1049,7 +1049,7 @@ class _Conversation extends State<Conversation> {
                           return Column(
                             key: ValueKey(message.id),
                             children: [
-                              if (newDay)
+                              if (dawn)
                                 Padding(
                                   padding: const EdgeInsets.symmetric(
                                     vertical: 16,
@@ -1104,8 +1104,8 @@ class _Conversation extends State<Conversation> {
                   color: scheme.surface,
                   child: recording
                       ? Recorder(
-                          onDone: voice,
-                          onCancel: () => setState(() => recording = false),
+                          done: voice,
+                          cancel: () => setState(() => recording = false),
                         )
                       : Row(
                           crossAxisAlignment: CrossAxisAlignment.end,

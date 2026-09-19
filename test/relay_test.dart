@@ -19,7 +19,7 @@ void main() {
     reset();
     courier.prefs = Preferences();
     courier.roster[alice.address] = Trustee(address: alice.address);
-    dana = Identity.fromInput(
+    dana = Identity.parse(
       'dana relay ${DateTime.now().microsecondsSinceEpoch}',
     );
     for (final parcel in await Ledger.parcels()) {
@@ -147,7 +147,7 @@ void main() {
 
   test('messages for someone unreachable go to an online trustee', () async {
     courier.roster[dana.address] = Trustee(address: dana.address);
-    await pairUp(bob, dana);
+    await introduce(bob, dana);
     final relay = await Wire.open();
     relay.send(sealed(alice, Signal.ping));
     await until(() => courier.channels[alice.address] != null);

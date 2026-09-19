@@ -93,7 +93,7 @@ class _Board extends State<Board> {
               before.author == post.author &&
               day(before.time) == day(post.time) &&
               post.time.difference(before.time).inMinutes < 5;
-          final newDay = before == null || day(before.time) != day(post.time);
+          final dawn = before == null || day(before.time) != day(post.time);
           final yourself = post.author == Courier.instance.self?.address;
           final trustee = Courier.instance.roster[post.author];
           final member = mesh
@@ -104,7 +104,7 @@ class _Board extends State<Board> {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (newDay)
+              if (dawn)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(0, 20, 0, 8),
                   child: Row(

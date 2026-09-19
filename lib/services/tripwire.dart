@@ -33,30 +33,29 @@ class Tripwire {
 
   static bool tripped = false;
 
-  static Future<void> trip(String risk, Response response) async {
-    if (tripped) return;
-    tripped = true;
-    developer.log(
-      'Runtime protection detected: $risk. Responding with ${response.name}.',
-      name: 'Tripwire.trip',
-      level: 1200,
-    );
-    try {
-      await (response == Response.purge ? erase() : lock());
-    } catch (error) {
+  static ThreatCallback callback() {
+    Future<void> on(String risk, Response response) async {
+      if (tripped) return;
+      tripped = true;
       developer.log(
-        'Failed to finish the threat response before exiting',
+        'Runtime protection detected: $risk. Responding with ${response.name}.',
         name: 'Tripwire.trip',
         level: 1200,
-        error: error,
       );
-    } finally {
-      halt();
+      try {
+        await (response == Response.purge ? erase() : lock());
+      } catch (error) {
+        developer.log(
+          'Failed to finish the threat response before exiting',
+          name: 'Tripwire.trip',
+          level: 1200,
+          error: error,
+        );
+      } finally {
+        halt();
+      }
     }
-  }
 
-  static ThreatCallback callback() {
-    void on(String risk, Response response) => trip(risk, response);
     return ThreatCallback(
       onHooks: () => on('Hooking framework active', Response.purge),
       onAppIntegrity: () => on('App integrity tampered', Response.purge),

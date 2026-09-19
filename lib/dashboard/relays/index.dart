@@ -478,7 +478,7 @@ class _Relays extends State<Relays> {
                       ? Pager(
                           page: crowding,
                           pages: crowds,
-                          onChanged: (next) => setState(() => crowd = next),
+                          turn: (next) => setState(() => crowd = next),
                         )
                       : null,
                 ),
@@ -772,7 +772,7 @@ class _Relays extends State<Relays> {
                       ? Pager(
                           page: routing,
                           pages: roads,
-                          onChanged: (next) => setState(() => route = next),
+                          turn: (next) => setState(() => route = next),
                         )
                       : null,
                 ),

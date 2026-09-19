@@ -6,9 +6,9 @@ import 'package:zephyron/sql/session.dart';
 
 class Login extends StatefulWidget {
   /// Called when the person has no identity yet and wants to create one.
-  final VoidCallback? onSignUp;
+  final VoidCallback? register;
 
-  const Login({super.key, this.onSignUp});
+  const Login({super.key, this.register});
 
   @override
   State<Login> createState() => _Login();
@@ -66,13 +66,13 @@ class _Login extends State<Login> {
     }
 
     try {
-      final remaining = await Session.quarantineRemaining(name);
+      final remaining = await Session.quarantine(name);
       if (!mounted) return;
       setState(() => quarantine = remaining);
 
       if (remaining != null) {
         countdown = Timer.periodic(const Duration(seconds: 1), (ticker) async {
-          final updated = await Session.quarantineRemaining(name);
+          final updated = await Session.quarantine(name);
           if (!mounted) {
             ticker.cancel();
             return;
@@ -208,9 +208,7 @@ class _Login extends State<Login> {
       );
 
       final target = selection;
-      final remaining = target != null
-          ? await Session.remainingAttempts(target)
-          : null;
+      final remaining = target != null ? await Session.left(target) : null;
 
       if (mounted) {
         setState(
@@ -289,10 +287,10 @@ class _Login extends State<Login> {
                                       const Text(
                                         'There are no identities on this phone yet.',
                                       ),
-                                      if (widget.onSignUp != null) ...[
+                                      if (widget.register != null) ...[
                                         const SizedBox(height: 8),
                                         TextButton(
-                                          onPressed: widget.onSignUp,
+                                          onPressed: widget.register,
                                           child: const Text(
                                             'Create your first identity',
                                           ),
@@ -398,12 +396,12 @@ class _Login extends State<Login> {
                                   : const Text('Unlock'),
                             ),
                           ),
-                          if (widget.onSignUp != null &&
+                          if (widget.register != null &&
                               identities.isNotEmpty) ...[
                             const SizedBox(height: 8),
                             Center(
                               child: TextButton(
-                                onPressed: loading ? null : widget.onSignUp,
+                                onPressed: loading ? null : widget.register,
                                 child: const Text(
                                   'New here? Create an identity',
                                 ),

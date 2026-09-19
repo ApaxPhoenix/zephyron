@@ -38,7 +38,7 @@ class _Chats extends State<Chats> {
       Command(
         icon: Icons.chat_bubble_outline,
         label: 'New Chat',
-        onTap: () async {
+        run: () async {
           final contact = await Compose.show(context);
           if (contact == null || !mounted) return;
           Navigator.pushNamed(
@@ -51,7 +51,7 @@ class _Chats extends State<Chats> {
       Command(
         icon: Icons.group_add_outlined,
         label: 'New Group',
-        onTap: () => Navigator.pushNamed(context, '/dashboard/chats/group'),
+        run: () => Navigator.pushNamed(context, '/dashboard/chats/group'),
       ),
     ],
   );
@@ -711,7 +711,7 @@ class _Chats extends State<Chats> {
                                 ? Icons.push_pin_outlined
                                 : Icons.push_pin,
                             label: contact.pinned ? 'Unpin' : 'Pin to Top',
-                            onTap: () => courier.amend(
+                            run: () => courier.amend(
                               contact..pinned = !contact.pinned,
                             ),
                           ),
@@ -720,14 +720,14 @@ class _Chats extends State<Chats> {
                                 ? Icons.unarchive_outlined
                                 : Icons.archive_outlined,
                             label: contact.archived ? 'Unarchive' : 'Archive',
-                            onTap: () => courier.amend(
+                            run: () => courier.amend(
                               contact..archived = !contact.archived,
                             ),
                           ),
                           Command(
                             icon: Icons.info_outline,
                             label: 'View Profile',
-                            onTap: () => Navigator.pushNamed(
+                            run: () => Navigator.pushNamed(
                               context,
                               '/dashboard/peers/node',
                               arguments: {'id': contact.address},
@@ -737,7 +737,7 @@ class _Chats extends State<Chats> {
                             icon: Icons.block,
                             label: 'Block',
                             destructive: true,
-                            onTap: () async {
+                            run: () async {
                               final sure = await Sheets.confirm(
                                 context,
                                 title: 'Block ${contact.label}?',
@@ -757,7 +757,7 @@ class _Chats extends State<Chats> {
                             icon: Icons.cleaning_services_outlined,
                             label: 'Clear History',
                             destructive: true,
-                            onTap: () async {
+                            run: () async {
                               final sure = await Sheets.confirm(
                                 context,
                                 title: 'Clear History?',
@@ -772,7 +772,7 @@ class _Chats extends State<Chats> {
                             icon: Icons.delete_outline,
                             label: 'Delete Chat',
                             destructive: true,
-                            onTap: () async {
+                            run: () async {
                               final sure = await Sheets.confirm(
                                 context,
                                 title: 'Delete Chat?',

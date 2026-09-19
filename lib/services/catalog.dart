@@ -79,7 +79,7 @@ class Catalog extends ChangeNotifier {
   Future<void> start() async {
     listings.clear();
     hidden.clear();
-    await Ledger.discardListings(DateTime.now().subtract(lifetime));
+    await Ledger.prune('listings', DateTime.now().subtract(lifetime));
     for (final frame in await Ledger.listings()) {
       final listing = check(
         jsonDecode(frame) as Map<String, dynamic>,

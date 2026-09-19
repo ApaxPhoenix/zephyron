@@ -212,7 +212,10 @@ class Ratchet {
 
   /// This identity's long-term X25519 key, derived from its seed.
   static Future<Pair> identity(Identity self) {
-    final seed = hex(self.private).sublist(0, 32);
+    final seed = Uint8List.fromList([
+      for (var index = 0; index < 32; index++)
+        int.parse(self.private.substring(index * 2, index * 2 + 2), radix: 16),
+    ]);
     return Pair.seeded(
       hashing.sha256.convert([...utf8.encode('zephyron/ik'), ...seed]).bytes,
     );
@@ -220,17 +223,6 @@ class Ratchet {
 
   static bool lead(Identity self, String peer) =>
       self.address.compareTo(peer) < 0;
-
-  static Uint8List hex(String text) {
-    final bytes = Uint8List(text.length ~/ 2);
-    for (var index = 0; index < bytes.length; index++) {
-      bytes[index] = int.parse(
-        text.substring(index * 2, index * 2 + 2),
-        radix: 16,
-      );
-    }
-    return bytes;
-  }
 
   static Future<List<Map<String, dynamic>>> prekeys(Identity self) async {
     final stored = await Ledger.read('prekeys:${self.address}');

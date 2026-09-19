@@ -6,12 +6,12 @@ class Command {
   final IconData icon;
   final String label;
   final bool destructive;
-  final VoidCallback onTap;
+  final VoidCallback run;
 
   const Command({
     required this.icon,
     required this.label,
-    required this.onTap,
+    required this.run,
     this.destructive = false,
   });
 }
@@ -68,7 +68,7 @@ class Sheets {
                     ),
                     onTap: () {
                       Navigator.pop(sheet);
-                      item.onTap();
+                      item.run();
                     },
                   ),
               ],

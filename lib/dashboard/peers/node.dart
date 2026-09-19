@@ -476,7 +476,7 @@ class _Node extends State<Node> {
                           Command(
                             icon: Icons.forum_outlined,
                             label: 'Send to a Trustee',
-                            onTap: () async {
+                            run: () async {
                               final target = await Chooser.show(
                                 context,
                                 title: 'Send ${trustee.label} to',
@@ -495,7 +495,7 @@ class _Node extends State<Node> {
                           Command(
                             icon: Icons.qr_code_2,
                             label: 'Show QR Code',
-                            onTap: () => Discovery.show(
+                            run: () => Discovery.show(
                               context,
                               address: trustee.address,
                               name: trustee.label,
@@ -504,7 +504,7 @@ class _Node extends State<Node> {
                           Command(
                             icon: Icons.share,
                             label: 'Share Outside Zephyron',
-                            onTap: () => Discovery.spread(
+                            run: () => Discovery.spread(
                               trustee.address,
                               trustee.label,
                             ),

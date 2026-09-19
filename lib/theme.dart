@@ -2,20 +2,20 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 class Pallete {
-  static const brand100 = Color.fromRGBO(48, 94, 231, 1);
-  static const brand200 = Color.fromRGBO(58, 118, 240, 1);
-  static const neutral000 = Color.fromRGBO(255, 255, 255, 1);
-  static const neutral050 = Color.fromRGBO(248, 248, 248, 1);
-  static const neutral100 = Color.fromRGBO(229, 229, 229, 1);
-  static const neutral300 = Color.fromRGBO(200, 200, 200, 1);
-  static const neutral500 = Color.fromRGBO(122, 122, 122, 1);
-  static const neutral700 = Color.fromRGBO(92, 92, 92, 1);
-  static const neutral800 = Color.fromRGBO(42, 42, 42, 1);
-  static const neutral850 = Color.fromRGBO(26, 26, 26, 1);
-  static const neutral900 = Color.fromRGBO(26, 26, 26, 1);
-  static const error500 = Color.fromRGBO(229, 62, 62, 1);
-  static const success500 = Color.fromRGBO(56, 161, 105, 1);
-  static const warning500 = Color.fromRGBO(214, 158, 46, 1);
+  static const royal = Color.fromRGBO(48, 94, 231, 1);
+  static const azure = Color.fromRGBO(58, 118, 240, 1);
+  static const white = Color.fromRGBO(255, 255, 255, 1);
+  static const snow = Color.fromRGBO(248, 248, 248, 1);
+  static const mist = Color.fromRGBO(229, 229, 229, 1);
+  static const silver = Color.fromRGBO(200, 200, 200, 1);
+  static const slate = Color.fromRGBO(122, 122, 122, 1);
+  static const ash = Color.fromRGBO(92, 92, 92, 1);
+  static const charcoal = Color.fromRGBO(42, 42, 42, 1);
+  static const coal = Color.fromRGBO(26, 26, 26, 1);
+  static const ink = Color.fromRGBO(26, 26, 26, 1);
+  static const crimson = Color.fromRGBO(229, 62, 62, 1);
+  static const emerald = Color.fromRGBO(56, 161, 105, 1);
+  static const amber = Color.fromRGBO(214, 158, 46, 1);
 
   /// Space between screen edges, app bars and content.
   static const double gutter = 20.0;
@@ -23,29 +23,29 @@ class Pallete {
   static const String sans = 'Geist';
   static const String mono = 'GeistMono';
 
-  static ThemeData baseTheme(BuildContext context, Brightness brightness) {
+  static ThemeData compose(BuildContext context, Brightness brightness) {
     final light = brightness == Brightness.light;
-    final background = light ? neutral000 : neutral800;
-    final surface = light ? neutral000 : neutral850;
-    final text = light ? neutral900 : neutral000;
-    final muted = light ? neutral700 : neutral000.withValues(alpha: 0.7);
-    final faint = light ? neutral500 : neutral000.withValues(alpha: 0.5);
-    final border = light ? neutral300 : neutral700.withValues(alpha: 0.5);
-    final hairline = light ? neutral100 : neutral700.withValues(alpha: 0.5);
+    final background = light ? white : charcoal;
+    final surface = light ? white : coal;
+    final text = light ? ink : white;
+    final muted = light ? ash : white.withValues(alpha: 0.7);
+    final faint = light ? slate : white.withValues(alpha: 0.5);
+    final border = light ? silver : ash.withValues(alpha: 0.5);
+    final hairline = light ? mist : ash.withValues(alpha: 0.5);
 
     final scheme = ColorScheme.fromSeed(
-      seedColor: brand100,
+      seedColor: royal,
       brightness: brightness,
-      primary: brand100,
-      secondary: brand200,
-      tertiary: warning500,
-      tertiaryContainer: warning500.withValues(alpha: light ? 0.15 : 0.25),
-      onTertiaryContainer: warning500,
-      error: error500,
+      primary: royal,
+      secondary: azure,
+      tertiary: amber,
+      tertiaryContainer: amber.withValues(alpha: light ? 0.15 : 0.25),
+      onTertiaryContainer: amber,
+      error: crimson,
       surface: surface,
       onSurface: text,
-      onPrimary: neutral000,
-      onSecondary: neutral000,
+      onPrimary: white,
+      onSecondary: white,
       outline: border,
       outlineVariant: hairline,
     );
@@ -108,14 +108,14 @@ class Pallete {
         shape: Border(bottom: BorderSide(color: hairline)),
         titleTextStyle: type(20.0, FontWeight.w600),
         iconTheme: IconThemeData(color: text),
-        actionsIconTheme: const IconThemeData(color: brand100),
+        actionsIconTheme: const IconThemeData(color: royal),
       ),
-      iconTheme: const IconThemeData(color: brand100),
+      iconTheme: const IconThemeData(color: royal),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           minimumSize: const Size(double.infinity, 48.0),
-          backgroundColor: brand100,
-          foregroundColor: neutral000,
+          backgroundColor: royal,
+          foregroundColor: white,
           shape: rounded,
           elevation: 0.0,
           textStyle: type(14, FontWeight.w500),
@@ -124,15 +124,15 @@ class Pallete {
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           minimumSize: const Size(64.0, 48.0),
-          backgroundColor: brand100,
-          foregroundColor: neutral000,
+          backgroundColor: royal,
+          foregroundColor: white,
           shape: rounded,
           textStyle: type(14, FontWeight.w500),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: brand100,
+          foregroundColor: royal,
           elevation: 0.0,
           textStyle: type(14, FontWeight.w500),
         ),
@@ -140,65 +140,62 @@ class Pallete {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           minimumSize: const Size(64.0, 48.0),
-          foregroundColor: brand100,
-          side: const BorderSide(color: brand100),
+          foregroundColor: royal,
+          side: const BorderSide(color: royal),
           shape: rounded,
           textStyle: type(14, FontWeight.w500),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: light ? neutral000 : neutral850,
+        fillColor: light ? white : coal,
         border: outline,
         enabledBorder: outline,
         focusedBorder: outline.copyWith(
-          borderSide: const BorderSide(color: brand100, width: 2.0),
+          borderSide: const BorderSide(color: royal, width: 2.0),
         ),
         errorBorder: outline.copyWith(
-          borderSide: const BorderSide(color: error500),
+          borderSide: const BorderSide(color: crimson),
         ),
         focusedErrorBorder: outline.copyWith(
-          borderSide: const BorderSide(color: error500, width: 2.0),
+          borderSide: const BorderSide(color: crimson, width: 2.0),
         ),
         hintStyle: type(14, FontWeight.w400).copyWith(color: faint),
         labelStyle: type(14, FontWeight.w400).copyWith(color: muted),
       ),
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith((states) {
-          return states.contains(WidgetState.selected) ? brand100 : neutral100;
+          return states.contains(WidgetState.selected) ? royal : mist;
         }),
         trackColor: WidgetStateProperty.resolveWith((states) {
           return states.contains(WidgetState.selected)
-              ? brand100.withValues(alpha: 0.4)
-              : neutral100.withValues(alpha: 0.4);
+              ? royal.withValues(alpha: 0.4)
+              : mist.withValues(alpha: 0.4);
         }),
       ),
       checkboxTheme: CheckboxThemeData(
         fillColor: WidgetStateProperty.resolveWith((states) {
           return states.contains(WidgetState.selected)
-              ? brand100
+              ? royal
               : Colors.transparent;
         }),
-        side: const BorderSide(color: brand100, width: 2.0),
+        side: const BorderSide(color: royal, width: 2.0),
       ),
       radioTheme: RadioThemeData(
         fillColor: WidgetStateProperty.resolveWith((states) {
-          return states.contains(WidgetState.selected) ? brand100 : neutral300;
+          return states.contains(WidgetState.selected) ? royal : silver;
         }),
       ),
       progressIndicatorTheme: const ProgressIndicatorThemeData(
-        color: brand100,
-        linearTrackColor: neutral100,
-        circularTrackColor: neutral100,
+        color: royal,
+        linearTrackColor: mist,
+        circularTrackColor: mist,
       ),
       chipTheme: ChipThemeData(
-        backgroundColor: light ? neutral050 : neutral850,
-        selectedColor: brand100.withValues(alpha: light ? 0.15 : 0.3),
+        backgroundColor: light ? snow : coal,
+        selectedColor: royal.withValues(alpha: light ? 0.15 : 0.3),
         labelStyle: type(12, FontWeight.w500),
-        secondaryLabelStyle: type(
-          12,
-          FontWeight.w500,
-        ).copyWith(color: brand100),
+        secondaryLabelStyle: type(12, FontWeight.w500).copyWith(color: royal),
         side: BorderSide(color: border),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
@@ -209,7 +206,7 @@ class Pallete {
         minVerticalPadding: 10.0,
         titleTextStyle: type(15, FontWeight.w500),
         subtitleTextStyle: type(13, FontWeight.w400).copyWith(color: muted),
-        selectedTileColor: brand100.withValues(alpha: light ? 0.15 : 0.25),
+        selectedTileColor: royal.withValues(alpha: light ? 0.15 : 0.25),
         iconColor: muted,
       ),
       dividerTheme: DividerThemeData(color: hairline, thickness: 1, space: 1),
@@ -247,32 +244,32 @@ class Pallete {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
       badgeTheme: const BadgeThemeData(
-        backgroundColor: brand100,
-        textColor: neutral000,
+        backgroundColor: royal,
+        textColor: white,
       ),
       tabBarTheme: TabBarThemeData(
-        labelColor: brand100,
+        labelColor: royal,
         unselectedLabelColor: muted,
-        indicatorColor: brand100,
+        indicatorColor: royal,
         labelStyle: type(12, FontWeight.w600),
         unselectedLabelStyle: type(12, FontWeight.w500),
       ),
       textSelectionTheme: TextSelectionThemeData(
-        selectionColor: brand100.withValues(alpha: light ? 0.3 : 0.4),
-        cursorColor: brand100,
-        selectionHandleColor: brand100,
+        selectionColor: royal.withValues(alpha: light ? 0.3 : 0.4),
+        cursorColor: royal,
+        selectionHandleColor: royal,
       ),
       navigationRailTheme: NavigationRailThemeData(
         backgroundColor: surface,
         elevation: 0.0,
-        indicatorColor: brand100.withValues(alpha: light ? 0.2 : 0.3),
+        indicatorColor: royal.withValues(alpha: light ? 0.2 : 0.3),
         labelType: NavigationRailLabelType.all,
-        selectedIconTheme: const IconThemeData(color: brand100),
+        selectedIconTheme: const IconThemeData(color: royal),
         unselectedIconTheme: IconThemeData(color: muted),
         selectedLabelTextStyle: type(
           12,
           FontWeight.w500,
-        ).copyWith(color: brand100),
+        ).copyWith(color: royal),
         unselectedLabelTextStyle: type(
           12,
           FontWeight.w400,
@@ -282,15 +279,15 @@ class Pallete {
         backgroundColor: background,
         surfaceTintColor: Colors.transparent,
         elevation: 0.0,
-        indicatorColor: brand100.withValues(alpha: light ? 0.2 : 0.3),
+        indicatorColor: royal.withValues(alpha: light ? 0.2 : 0.3),
         labelTextStyle: WidgetStateProperty.resolveWith(
           (states) => type(12, FontWeight.w500).copyWith(
-            color: states.contains(WidgetState.selected) ? brand100 : muted,
+            color: states.contains(WidgetState.selected) ? royal : muted,
           ),
         ),
         iconTheme: WidgetStateProperty.resolveWith(
           (states) => IconThemeData(
-            color: states.contains(WidgetState.selected) ? brand100 : muted,
+            color: states.contains(WidgetState.selected) ? royal : muted,
           ),
         ),
       ),
@@ -306,11 +303,11 @@ class Pallete {
     disabledForegroundColor: scheme.onSurfaceVariant,
   );
 
-  static ThemeData lightTheme(BuildContext context) {
-    return baseTheme(context, Brightness.light);
+  static ThemeData day(BuildContext context) {
+    return compose(context, Brightness.light);
   }
 
-  static ThemeData darkTheme(BuildContext context) {
-    return baseTheme(context, Brightness.dark);
+  static ThemeData night(BuildContext context) {
+    return compose(context, Brightness.dark);
   }
 }

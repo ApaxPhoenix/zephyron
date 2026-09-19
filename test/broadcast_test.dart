@@ -85,12 +85,12 @@ void main() {
         .timeout(const Duration(seconds: 5));
     final body = jsonDecode(reply['body'] as String) as Map<String, dynamic>;
     expect(body['op'], 'piece');
-    final sealed0 = base64.decode(body['d'] as String);
-    expect(sealed0, isNot(audio.sublist(Broadcast.piece)));
+    final scrambled = base64.decode(body['d'] as String);
+    expect(scrambled, isNot(audio.sublist(Broadcast.piece)));
     final clear = await Ratchet.unchunk(
       await Broadcast.key(community, id),
       1,
-      sealed0,
+      scrambled,
     );
     expect(clear, audio.sublist(Broadcast.piece));
     await wire.close();

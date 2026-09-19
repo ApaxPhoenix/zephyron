@@ -44,7 +44,7 @@ void main() {
   });
 
   test('addresses from older builds are mended to the real one', () {
-    final identity = Identity.fromInput('mend test seed');
+    final identity = Identity.parse('mend test seed');
     final pub = Identity.unpack(identity.address)!;
     final old = Identity.legacy(pub);
     expect(old, isNot(identity.address));

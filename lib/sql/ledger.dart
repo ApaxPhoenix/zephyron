@@ -281,13 +281,13 @@ class Ledger {
 
   static Future<List<Community>> communities() async {
     final rows = await base.query('communities');
-    return rows.map(Community.fromRow).toList();
+    return rows.map(Community.from).toList();
   }
 
   static Future<void> gather(Community community) async {
     await base.insert(
       'communities',
-      community.toRow(),
+      community.row(),
       conflictAlgorithm: cipher.ConflictAlgorithm.replace,
     );
   }
@@ -301,13 +301,13 @@ class Ledger {
 
   static Future<List<Post>> posts() async {
     final rows = await base.query('posts', orderBy: 'time ASC');
-    return rows.map(Post.fromRow).toList();
+    return rows.map(Post.from).toList();
   }
 
   static Future<bool> publish(Post post) async {
     final row = await base.insert(
       'posts',
-      post.toRow(),
+      post.row(),
       conflictAlgorithm: cipher.ConflictAlgorithm.ignore,
     );
     return row != 0;
@@ -356,9 +356,11 @@ class Ledger {
     await base.delete('parcels', where: 'id = ?', whereArgs: [id]);
   }
 
-  static Future<void> discardParcels(DateTime before) async {
+  /// Forgets what [table], parcels or listings, has kept since before
+  /// [before].
+  static Future<void> prune(String table, DateTime before) async {
     await base.delete(
-      'parcels',
+      table,
       where: 'time < ?',
       whereArgs: [before.millisecondsSinceEpoch],
     );
@@ -382,23 +384,15 @@ class Ledger {
     await base.delete('listings', where: 'id = ?', whereArgs: [id]);
   }
 
-  static Future<void> discardListings(DateTime before) async {
-    await base.delete(
-      'listings',
-      where: 'time < ?',
-      whereArgs: [before.millisecondsSinceEpoch],
-    );
-  }
-
   static Future<List<Trustee>> trustees() async {
     final rows = await base.query('trustees');
-    return rows.map(Trustee.fromRow).toList();
+    return rows.map(Trustee.from).toList();
   }
 
   static Future<void> keep(Trustee trustee) async {
     await base.insert(
       'trustees',
-      trustee.toRow(),
+      trustee.row(),
       conflictAlgorithm: cipher.ConflictAlgorithm.replace,
     );
   }
@@ -420,13 +414,13 @@ class Ledger {
 
   static Future<List<Message>> everything() async {
     final rows = await base.query('history', orderBy: 'time ASC');
-    return rows.map(Message.fromRow).toList();
+    return rows.map(Message.from).toList();
   }
 
   static Future<bool> record(Message message) async {
     final row = await base.insert(
       'history',
-      message.toRow(),
+      message.row(),
       conflictAlgorithm: cipher.ConflictAlgorithm.ignore,
     );
     return row != 0;

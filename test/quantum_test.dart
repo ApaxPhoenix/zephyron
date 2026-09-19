@@ -38,8 +38,8 @@ void main() {
 
     setUp(() {
       final pair = [
-        Identity.fromInput('pq lead ${DateTime.now().microsecondsSinceEpoch}'),
-        Identity.fromInput('pq other ${DateTime.now().microsecondsSinceEpoch}'),
+        Identity.parse('pq lead ${DateTime.now().microsecondsSinceEpoch}'),
+        Identity.parse('pq other ${DateTime.now().microsecondsSinceEpoch}'),
       ]..sort((alpha, beta) => alpha.address.compareTo(beta.address));
       lead = pair.first;
       follower = pair.last;
