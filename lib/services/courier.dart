@@ -15,6 +15,8 @@ import 'package:zephyron/models/profile.dart';
 import 'package:zephyron/models/trustee.dart';
 import 'package:zephyron/services/locker.dart';
 import 'package:zephyron/services/catalog.dart';
+import 'package:zephyron/services/alerts.dart';
+import 'package:zephyron/services/keeper.dart';
 import 'package:zephyron/services/mesh.dart';
 import 'package:zephyron/services/ratchet.dart';
 import 'package:zephyron/services/shield.dart';
@@ -37,7 +39,7 @@ class Presence {
 }
 
 class Channel {
-  final Socket socket;
+  final Socket? socket;
   final bool inbound;
   final DateTime opened = DateTime.now();
   String? peer;
@@ -50,7 +52,12 @@ class Channel {
   bool alive = true;
   bool greeted = false;
 
-  Channel(this.socket, {this.peer, this.inbound = false});
+  Channel(Socket this.socket, {this.peer, this.inbound = false});
+
+  /// A channel with nothing behind it, for frames read back from storage.
+  Channel.detached() : socket = null, inbound = true {
+    alive = false;
+  }
 
   Future<bool> send(Map<String, dynamic> frame) {
     if (!alive) return Future.value(false);
@@ -60,8 +67,8 @@ class Channel {
     return pipe = pipe.then((_) async {
       if (!alive) return false;
       try {
-        socket.write(line);
-        await socket.flush();
+        socket!.write(line);
+        await socket!.flush();
         return true;
       } catch (_) {
         close();
@@ -74,7 +81,7 @@ class Channel {
     if (!alive) return;
     alive = false;
     subscription?.cancel();
-    socket.destroy();
+    socket?.destroy();
   }
 }
 
@@ -165,6 +172,9 @@ class Courier extends ChangeNotifier {
 
   Identity? self;
   ed25519.PrivateKey? secret;
+
+  /// The address kept reachable while its vault is locked.
+  String? kept;
   ServerSocket? server;
   Timer? pulse;
   Timer? sweeper;
@@ -206,11 +216,14 @@ class Courier extends ChangeNotifier {
 
   Future<void> start(Identity identity) async {
     if (self?.address == identity.address) return;
-    await stop();
+    // Coming back to the identity kept online keeps its listener and its
+    // onion service; any other identity takes that one offline.
+    await stop(keep: kept == identity.address);
 
     final epoch = ++generation;
     self = identity;
     secret = ed25519.PrivateKey(decode(identity.private));
+    kept = null;
 
     try {
       await Ledger.ensure();
@@ -238,7 +251,9 @@ class Courier extends ChangeNotifier {
       }
       await Mesh.instance.start();
       await Catalog.instance.start();
+      await Keeper.instance.prepare();
       notifyListeners();
+      await resume();
     } catch (error) {
       developer.log(
         'Failed to hydrate trustees, profile and history from identity store',
@@ -249,6 +264,18 @@ class Courier extends ChangeNotifier {
       );
     }
 
+    // A listener still open from while the vault was locked carries on.
+    if (server == null) await listen(epoch);
+    if (epoch != generation) return;
+
+    unawaited(connect(epoch));
+    pulse = Timer.periodic(const Duration(seconds: 20), (_) => heartbeat());
+    unawaited(expire());
+    sweeper = Timer.periodic(const Duration(seconds: 10), (_) => expire());
+  }
+
+  /// Opens the local port the onion service forwards to.
+  Future<void> listen(int epoch) async {
     try {
       final socket = await ServerSocket.bind(
         InternetAddress.loopbackIPv4,
@@ -284,14 +311,12 @@ class Courier extends ChangeNotifier {
         stackTrace: StackTrace.current,
       );
     }
-
-    unawaited(connect(epoch));
-    pulse = Timer.periodic(const Duration(seconds: 20), (_) => heartbeat());
-    unawaited(expire());
-    sweeper = Timer.periodic(const Duration(seconds: 10), (_) => expire());
   }
 
-  Future<void> stop() async {
+  /// Stops messaging. With [keep], as when the vault locks, the address
+  /// stays online and what arrives is held sealed until the next unlock;
+  /// otherwise the onion service is taken down.
+  Future<void> stop({bool keep = false}) async {
     generation += 1;
     pulse?.cancel();
     pulse = null;
@@ -299,14 +324,22 @@ class Courier extends ChangeNotifier {
     sweeper = null;
 
     final address = self?.address;
+    final holding = keep ? address ?? kept : null;
+    if (holding != null && address != null) {
+      Keeper.instance
+        ..begin()
+        ..alerts = prefs.banners && me.availability != Availability.busy;
+    }
     self = null;
     secret = null;
     focus = null;
     me = Profile();
     prefs = Preferences();
 
-    await server?.close();
-    server = null;
+    if (holding == null) {
+      await server?.close();
+      server = null;
+    }
 
     for (final channel in {...channels.values, ...live}) {
       channel.close();
@@ -337,8 +370,65 @@ class Courier extends ChangeNotifier {
     unawaited(Shield.apply(true));
     await Locker.sweep();
 
-    if (address != null) await Sentinel.summon().retract(address);
+    final retired = {?address, ?kept}..remove(holding);
+    kept = holding;
+    for (final gone in retired) {
+      await Sentinel.summon().retract(gone);
+    }
     notifyListeners();
+  }
+
+  /// Reads what arrived while the vault was locked, as if it had just come
+  /// in, then clears the notification that counted it.
+  Future<void> resume() async {
+    final address = self?.address;
+    if (address == null) return;
+    final frames = await Keeper.instance.release(address);
+    for (final frame in frames) {
+      await receive(Channel.detached(), jsonEncode(frame), replay: true);
+    }
+    unawaited(Alerts.cancel(Alerts.held));
+    if (frames.isNotEmpty) notifyListeners();
+  }
+
+  /// While the vault is locked, keeps signed frames worth reading later and
+  /// tells whoever dialed in that their message reached this phone.
+  Future<void> hold(
+    Channel channel,
+    Map<String, dynamic> frame,
+    String address,
+  ) async {
+    if (!authentic(frame, to: address)) return;
+    final kind = frame['kind'];
+    if (kind == Signal.parcel.name) {
+      try {
+        final data = jsonDecode(frame['body'] as String) as Map;
+        if (data['to'] != address) return;
+      } catch (_) {
+        return;
+      }
+    } else if (!{
+      Signal.message.name,
+      Signal.receipt.name,
+      Signal.read.name,
+      Signal.timer.name,
+    }.contains(kind)) {
+      return;
+    }
+    final keeper = Keeper.instance;
+    final stored = await keeper.hold(address, frame);
+    if (kind != Signal.message.name || stored == false) return;
+    channel.send({'v': protocol, 'kind': 'kept', 'id': frame['id']});
+    if (stored == true && keeper.alerts) {
+      final count = keeper.messages;
+      unawaited(
+        Alerts.show(
+          Alerts.held,
+          'Zephyron',
+          count == 1 ? '1 new message' : '$count new messages',
+        ),
+      );
+    }
   }
 
   Future<void> connect(int epoch) async {
@@ -441,7 +531,13 @@ class Courier extends ChangeNotifier {
     return dialing[peer] ??= () async {
       final epoch = generation;
       try {
-        final tunnel = await Tor.connect(peer, 80);
+        final Tunnel tunnel;
+        try {
+          tunnel = await Tor.connect(peer, 80);
+        } on StateError catch (error) {
+          if (stale(error)) unawaited(refresh());
+          rethrow;
+        }
         final channel = Channel(tunnel.socket, peer: peer);
         if (epoch != generation) {
           channel.close();
@@ -455,6 +551,26 @@ class Courier extends ChangeNotifier {
         dialing.remove(peer);
       }
     }();
+  }
+
+  /// When Tor last forgot its cached onion service descriptors.
+  DateTime? refreshed;
+
+  /// Whether a failed dial looks like a stale descriptor for a peer who came
+  /// back online with new introduction points.
+  static bool stale(StateError error) =>
+      error.message.contains('introduction') ||
+      error.message.contains('descriptor not found');
+
+  /// Asks Tor to forget stale descriptors, at most once a minute.
+  Future<void> refresh() async {
+    final now = DateTime.now();
+    if (refreshed != null &&
+        now.difference(refreshed!) < const Duration(minutes: 1)) {
+      return;
+    }
+    refreshed = now;
+    await Sentinel.summon().forget();
   }
 
   void greet(String peer, Channel channel) {
@@ -634,10 +750,10 @@ class Courier extends ChangeNotifier {
     );
   }
 
-  bool authentic(Map<String, dynamic> frame) {
+  bool authentic(Map<String, dynamic> frame, {String? to}) {
     try {
       if (frame['v'] != protocol) return false;
-      if (frame['to'] != self?.address) return false;
+      if (frame['to'] != (to ?? self?.address)) return false;
       if (frame['kind'] is! String || frame['id'] is! String) return false;
       if (frame['time'] is! int || frame['body'] is! String) return false;
       final key = decode(frame['key'] as String);
@@ -654,12 +770,22 @@ class Courier extends ChangeNotifier {
     }
   }
 
-  Future<void> receive(Channel channel, String text) async {
+  Future<void> receive(
+    Channel channel,
+    String text, {
+    bool replay = false,
+  }) async {
     final epoch = generation;
     final now = DateTime.now();
     try {
       final decoded = jsonDecode(text);
       if (decoded is! Map<String, dynamic>) return;
+
+      if (self == null) {
+        final address = kept;
+        if (address != null) await hold(channel, decoded, address);
+        return;
+      }
 
       if (decoded['kind'] == Signal.chunk.name) {
         final id = decoded['id'];
@@ -723,6 +849,18 @@ class Courier extends ChangeNotifier {
         notifyListeners();
         return;
       }
+      if (decoded['kind'] == 'kept') {
+        // A locked phone holding a message sealed for later. Only the
+        // phone at the address dialed can answer on a channel this phone
+        // opened, since Tor authenticates onion services, so the answer
+        // needs no signature.
+        final peer = channel.peer;
+        final id = decoded['id'];
+        if (channel.inbound || peer == null || id is! String) return;
+        waiting.remove(id)?.complete();
+        await upgrade(peer, id, Status.delivered);
+        return;
+      }
       if (!authentic(decoded)) return;
 
       final from = decoded['from'] as String;
@@ -732,19 +870,23 @@ class Courier extends ChangeNotifier {
       }
       channel.peer ??= from;
       if (channel.peer != from) return;
-      final current = channels[from];
-      if (current == null || !current.alive) channels[from] = channel;
-      channel.used = now;
-      greet(from, channel);
+      if (!replay) {
+        final current = channels[from];
+        if (current == null || !current.alive) channels[from] = channel;
+        channel.used = now;
+        greet(from, channel);
+      }
 
       final state = track(from);
       final wasOnline = state.online;
-      state.seen = now;
-      final offered = forwarded[from];
-      if (offered == null ||
-          now.difference(offered) > const Duration(seconds: 30)) {
-        forwarded[from] = now;
-        unawaited(release(from, channel));
+      if (!replay) {
+        state.seen = now;
+        final offered = forwarded[from];
+        if (offered == null ||
+            now.difference(offered) > const Duration(seconds: 30)) {
+          forwarded[from] = now;
+          unawaited(release(from, channel));
+        }
       }
 
       final id = decoded['id'] as String;
@@ -782,9 +924,8 @@ class Courier extends ChangeNotifier {
           final profile = Profile.fromJson(
             Map<String, dynamic>.from(jsonDecode(body) as Map),
           );
-          known.mailbox = Identity.valid(profile.mailbox)
-              ? profile.mailbox
-              : '';
+          final mailbox = Identity.mend(profile.mailbox);
+          known.mailbox = Identity.valid(mailbox) ? mailbox : '';
           known
             ..alias = profile.name
             ..bio = profile.bio
@@ -1077,7 +1218,7 @@ class Courier extends ChangeNotifier {
       meta = invitation;
       words = '';
     } else if (kind == Kind.card) {
-      final address = '${meta['address'] ?? ''}'.toLowerCase();
+      final address = Identity.mend('${meta['address'] ?? ''}'.toLowerCase());
       if (!Identity.valid(address)) return;
       meta = {'address': address, 'name': Profile.clip(meta['name'], 64)};
       words = '';
@@ -1635,6 +1776,7 @@ class Courier extends ChangeNotifier {
   }
 
   Future<void> seen(String peer) async {
+    unawaited(Alerts.cancel(Alerts.slot(peer)));
     final fresh = (threads[peer] ?? const <Message>[])
         .where((item) => !item.mine && item.status != Status.read)
         .toList();
@@ -1702,7 +1844,7 @@ class Courier extends ChangeNotifier {
   }
 
   Future<Trustee> add(String address, String nickname) async {
-    final target = address.trim().toLowerCase();
+    final target = Identity.mend(address.trim().toLowerCase());
     if (!Identity.valid(target)) {
       throw const FormatException('That is not a valid v3 onion address.');
     }
@@ -1799,7 +1941,7 @@ class Courier extends ChangeNotifier {
     try {
       name = Uri.parse(text.trim()).queryParameters['name'] ?? '';
     } catch (_) {}
-    return (address: match.group(0)!, name: name);
+    return (address: Identity.mend(match.group(0)!), name: name);
   }
 
   static List<String> safety(String alpha, String beta) {

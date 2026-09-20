@@ -155,7 +155,7 @@ class ComposeState extends State<Compose> {
                 validator: (value) {
                   final text = value?.trim().toLowerCase() ?? '';
                   if (text.isEmpty) return 'Please enter a discovery key';
-                  if (!Identity.valid(text)) {
+                  if (!Identity.valid(Identity.mend(text))) {
                     return 'Enter a full v3 key ending in .onion (56 characters)';
                   }
                   return problem;

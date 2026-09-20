@@ -1,8 +1,8 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:zephyron/models/message.dart';
 import 'package:zephyron/services/locker.dart';
+import 'package:zephyron/services/share.dart';
 import 'package:zephyron/widgets/stamp.dart';
 
 class Viewer extends StatelessWidget {
@@ -20,9 +20,7 @@ class Viewer extends StatelessWidget {
   static Future<void> export(BuildContext context, Message message) async {
     try {
       final file = await Locker.export(message);
-      await SharePlus.instance.share(
-        ShareParams(files: [XFile(file.path, mimeType: message.mime)]),
-      );
+      await Share.file(file.path, mime: message.mime);
     } catch (_) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

@@ -7,7 +7,7 @@ import 'package:flutter/services.dart';
 /// rooms, so no third-party audio package sits between a voice and the
 /// speaker.
 class Sound {
-  static const MethodChannel link = MethodChannel('zephyron/sound');
+  static const MethodChannel link = MethodChannel('sound');
 
   static Future<bool> open(int rate) async {
     try {
