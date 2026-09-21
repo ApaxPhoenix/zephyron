@@ -7,11 +7,11 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:cryptography/cryptography.dart';
 import 'package:path/path.dart';
-import 'package:sqflite_sqlcipher/sqflite.dart' as sqlCipherDatabase;
+import 'package:sqflite_sqlcipher/sqflite.dart' as cipher;
 import 'package:zephyron/models/identity.dart';
 
 class Database {
-  static sqlCipherDatabase.Database? databaseInstance;
+  static cipher.Database? databaseInstance;
 
   static String hash(String text) {
     return sha256.convert(utf8.encode(text)).toString();
@@ -104,7 +104,7 @@ class Database {
   static Future<void> wipe(String name) async {
     try {
       await dispose();
-      final folder = await sqlCipherDatabase.getDatabasesPath();
+      final folder = await cipher.getDatabasesPath();
       final digest = hash(name);
       final route = join(folder, '$digest.db');
       await discard(route);
@@ -125,20 +125,20 @@ class Database {
     }
   }
 
-  static Future<sqlCipherDatabase.Database> open(String name, String passphrase) async {
+  static Future<cipher.Database> open(String name, String passphrase) async {
     try {
       if (databaseInstance != null && databaseInstance!.isOpen) {
         await dispose();
       }
 
-      final folder = await sqlCipherDatabase.getDatabasesPath();
+      final folder = await cipher.getDatabasesPath();
       await Directory(folder).create(recursive: true);
 
       final digest = hash(name);
       final route = join(folder, '$digest.db');
       final established = await File(route).exists();
 
-      Future<void> onCreate(sqlCipherDatabase.Database instance, int version) async {
+      Future<void> onCreate(cipher.Database instance, int version) async {
         await instance.execute('''
           CREATE TABLE identity (
             identifier INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -162,7 +162,7 @@ class Database {
         final bytes = await salt(route);
         final derivedKey = await key(passphrase, bytes);
 
-        databaseInstance = await sqlCipherDatabase.openDatabase(
+        databaseInstance = await cipher.openDatabase(
           route,
           password: derivedKey,
           version: 1,
@@ -193,7 +193,7 @@ class Database {
         final bytes = await salt(route);
         final derivedKey = await key(passphrase, bytes);
 
-        databaseInstance = await sqlCipherDatabase.openDatabase(
+        databaseInstance = await cipher.openDatabase(
           route,
           password: derivedKey,
           version: 1,
@@ -220,16 +220,16 @@ class Database {
   }
 
   static Future<void> save(
-      sqlCipherDatabase.Database instance,
-      Identity identity,
-      String seed,
-      ) async {
+    cipher.Database instance,
+    Identity identity,
+    String seed,
+  ) async {
     try {
       await instance.insert('identity', {
         'address': identity.address,
         'seed': seed,
         'private': identity.private,
-      }, conflictAlgorithm: sqlCipherDatabase.ConflictAlgorithm.replace);
+      }, conflictAlgorithm: cipher.ConflictAlgorithm.replace);
       developer.log(
         'Successfully persisted identity record into local database table',
         name: 'Database.save',
@@ -247,7 +247,7 @@ class Database {
     }
   }
 
-  static Future<Map<String, dynamic>?> fetch(sqlCipherDatabase.Database instance) async {
+  static Future<Map<String, dynamic>?> fetch(cipher.Database instance) async {
     try {
       final rows = await instance.query('identity', limit: 1);
       if (rows.isNotEmpty) return rows.first;
