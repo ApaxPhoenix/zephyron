@@ -12,17 +12,16 @@ import 'package:zephyron/widgets/stamp.dart';
 
 /// Browses the people and communities that chose to be listed, as far as
 /// their listings have travelled between trustees' phones.
-class DiscoverPage extends StatefulWidget {
+class Discover extends StatefulWidget {
   final Shelf shelf;
 
-  const DiscoverPage({super.key, this.shelf = Shelf.community});
+  const Discover({super.key, this.shelf = Shelf.community});
 
   @override
-  State<DiscoverPage> createState() => DiscoverPageState();
+  State<Discover> createState() => _Discover();
 }
 
-class DiscoverPageState extends State<DiscoverPage>
-    with SingleTickerProviderStateMixin {
+class _Discover extends State<Discover> with SingleTickerProviderStateMixin {
   late final TabController tabs = TabController(
     length: 2,
     vsync: this,

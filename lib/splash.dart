@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'dart:developer' as developer;
 
-class SplashScreen extends StatefulWidget {
-  const SplashScreen({super.key});
+class Splash extends StatefulWidget {
+  const Splash({super.key});
 
   @override
-  State<SplashScreen> createState() => SplashScreenState();
+  State<Splash> createState() => _Splash();
 }
 
-class SplashScreenState extends State<SplashScreen> {
+class _Splash extends State<Splash> {
   @override
   Widget build(BuildContext context) {
     try {
@@ -77,7 +77,7 @@ class SplashScreenState extends State<SplashScreen> {
                               'Failed to navigate to authentication screen',
                               error: error,
                               stackTrace: StackTrace.current,
-                              name: 'SplashScreen.navigation',
+                              name: 'Splash.navigation',
                             );
                           }
                         },
@@ -104,7 +104,7 @@ class SplashScreenState extends State<SplashScreen> {
                               'Failed to navigate to network middleware screen',
                               error: error,
                               stackTrace: StackTrace.current,
-                              name: 'SplashScreen.navigation',
+                              name: 'Splash.navigation',
                             );
                           }
                         },
@@ -120,10 +120,10 @@ class SplashScreenState extends State<SplashScreen> {
       );
     } catch (error) {
       developer.log(
-        'Failed to build SplashScreen widget',
+        'Failed to build Splash widget',
         error: error,
         stackTrace: StackTrace.current,
-        name: 'SplashScreen.build',
+        name: 'Splash.build',
       );
       return const SizedBox.shrink();
     }

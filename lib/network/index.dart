@@ -12,14 +12,14 @@ import 'package:zephyron/models/location.dart';
 import 'package:zephyron/state.dart';
 import 'package:zephyron/widgets/dropdown.dart';
 
-class NetworkScreen extends StatefulWidget {
-  const NetworkScreen({super.key});
+class Network extends StatefulWidget {
+  const Network({super.key});
 
   @override
-  State<NetworkScreen> createState() => NetworkScreenState();
+  State<Network> createState() => _Network();
 }
 
-class NetworkScreenState extends State<NetworkScreen> {
+class _Network extends State<Network> {
   final input = TextEditingController();
   final sheetController = DraggableScrollableController();
 
@@ -58,7 +58,7 @@ class NetworkScreenState extends State<NetworkScreen> {
           error: error,
           stackTrace: StackTrace.current,
           level: 1000,
-          name: 'NetworkScreen.telemetry',
+          name: 'Network.telemetry',
         );
       }
 
@@ -101,7 +101,7 @@ class NetworkScreenState extends State<NetworkScreen> {
                 'Could not find tile file at path: $path/tiles/protomaps.pmtiles',
                 stackTrace: StackTrace.current,
                 level: 1000,
-                name: 'NetworkScreen.setup',
+                name: 'Network.setup',
               );
             }
             if (config['sources'] != null) {
@@ -121,7 +121,7 @@ class NetworkScreenState extends State<NetworkScreen> {
             'Could not find schema file at path: ${schema.path}',
             stackTrace: StackTrace.current,
             level: 1000,
-            name: 'NetworkScreen.setup',
+            name: 'Network.setup',
           );
         }
       } catch (error) {
@@ -130,7 +130,7 @@ class NetworkScreenState extends State<NetworkScreen> {
           error: error,
           stackTrace: StackTrace.current,
           level: 1000,
-          name: 'NetworkScreen.setup',
+          name: 'Network.setup',
         );
       }
 
@@ -161,7 +161,7 @@ class NetworkScreenState extends State<NetworkScreen> {
           error: error,
           stackTrace: StackTrace.current,
           level: 1000,
-          name: 'NetworkScreen.navigation',
+          name: 'Network.navigation',
         );
       }
     }
@@ -198,7 +198,7 @@ class NetworkScreenState extends State<NetworkScreen> {
               top: MediaQuery.paddingOf(context).top + 16,
               left: 16,
               right: 16,
-              child: DropdownField(
+              child: Dropdown(
                 controller: input,
                 decoration: const InputDecoration(
                   hintText: 'Search locations...',
@@ -217,7 +217,7 @@ class NetworkScreenState extends State<NetworkScreen> {
                             'Could not find database file at path: $dbPath',
                             stackTrace: StackTrace.current,
                             level: 1000,
-                            name: 'NetworkScreen.search',
+                            name: 'Network.search',
                           );
                         }
                       }
@@ -245,7 +245,7 @@ class NetworkScreenState extends State<NetworkScreen> {
                         error: error,
                         stackTrace: StackTrace.current,
                         level: 1000,
-                        name: 'NetworkScreen.search',
+                        name: 'Network.search',
                       );
                     }
                   }
@@ -288,7 +288,7 @@ class NetworkScreenState extends State<NetworkScreen> {
                           error: error,
                           stackTrace: StackTrace.current,
                           level: 1000,
-                          name: 'NetworkScreen.navigation',
+                          name: 'Network.navigation',
                         );
                       }
                     },
@@ -550,7 +550,7 @@ class NetworkScreenState extends State<NetworkScreen> {
         error: error,
         stackTrace: StackTrace.current,
         level: 1000,
-        name: 'NetworkScreen.build',
+        name: 'Network.build',
       );
       return const SizedBox.shrink();
     }
@@ -568,7 +568,7 @@ class NetworkScreenState extends State<NetworkScreen> {
         error: error,
         stackTrace: StackTrace.current,
         level: 1000,
-        name: 'NetworkScreen.dispose',
+        name: 'Network.dispose',
       );
     }
     super.dispose();

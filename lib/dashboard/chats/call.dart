@@ -10,18 +10,18 @@ import 'package:zephyron/widgets/avatar.dart';
 /// A direct call ringing out, ringing in, under way, or just ended. Group
 /// calls ring here too, and open the group's call once answered. Leaving
 /// the page hangs up.
-class CallPage extends StatefulWidget {
+class Call extends StatefulWidget {
   /// The trustee to ring when the page opens; null to show the call that is
   /// already ringing or under way.
   final String? peer;
 
-  const CallPage({super.key, this.peer});
+  const Call({super.key, this.peer});
 
   @override
-  State<CallPage> createState() => CallPageState();
+  State<Call> createState() => _Call();
 }
 
-class CallPageState extends State<CallPage> {
+class _Call extends State<Call> {
   Timer? ticker;
   Timer? closing;
   bool placing = false;
@@ -77,11 +77,8 @@ class CallPageState extends State<CallPage> {
     }
     navigator.pushReplacement(
       MaterialPageRoute<void>(
-        builder: (_) => VoicePage(
-          community: group,
-          room: VoicePage.lobby(group),
-          call: true,
-        ),
+        builder: (_) =>
+            Voice(community: group, room: Voice.lobby(group), call: true),
       ),
     );
   }

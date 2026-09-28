@@ -11,16 +11,16 @@ import 'package:zephyron/widgets/crop.dart';
 import 'package:zephyron/widgets/sheet.dart';
 
 /// Starts a community, or changes how an existing one looks when [id] is set.
-class CreatePage extends StatefulWidget {
+class Creation extends StatefulWidget {
   final String? id;
 
-  const CreatePage({super.key, this.id});
+  const Creation({super.key, this.id});
 
   @override
-  State<CreatePage> createState() => CreatePageState();
+  State<Creation> createState() => _Creation();
 }
 
-class CreatePageState extends State<CreatePage> {
+class _Creation extends State<Creation> {
   final GlobalKey<FormState> key = GlobalKey<FormState>();
   late final Community? existing = widget.id == null
       ? null
@@ -126,19 +126,19 @@ class CreatePageState extends State<CreatePage> {
     await Sheets.actions(
       context,
       items: [
-        SheetAction(
+        Command(
           icon: Icons.photo_library_outlined,
           label: 'Choose a Photo',
           onTap: photo,
         ),
         if (Giphy.ready)
-          SheetAction(
+          Command(
             icon: Icons.gif_box_outlined,
             label: 'Search GIPHY',
             onTap: giphy,
           ),
         if (banner != null)
-          SheetAction(
+          Command(
             icon: Icons.delete_outline,
             label: 'Remove Banner',
             destructive: true,

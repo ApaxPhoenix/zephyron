@@ -19,10 +19,10 @@ class Invitation extends StatefulWidget {
   });
 
   @override
-  State<Invitation> createState() => InvitationState();
+  State<Invitation> createState() => _Invitation();
 }
 
-class InvitationState extends State<Invitation> {
+class _Invitation extends State<Invitation> {
   bool busy = false;
 
   Future<void> join() async {

@@ -114,7 +114,7 @@ void main() {
   testWidgets('chats list orders, filters and searches conversations', (
     tester,
   ) async {
-    await show(tester, const ChatsPage());
+    await show(tester, const Chats());
 
     expect(find.text('Alice Moreau'), findsOneWidget);
     expect(find.text('Yes, all green'), findsOneWidget);
@@ -140,7 +140,7 @@ void main() {
   testWidgets('chats list welcomes a new identity', (tester) async {
     courier.roster.clear();
     courier.threads.clear();
-    await show(tester, const ChatsPage());
+    await show(tester, const Chats());
     expect(find.text('No Conversations Yet'), findsOneWidget);
     expect(find.text('Start New Chat'), findsOneWidget);
   });
@@ -148,7 +148,7 @@ void main() {
   testWidgets('conversation shows bubbles, receipts and presence', (
     tester,
   ) async {
-    await show(tester, MessagePage(id: alice.address));
+    await show(tester, Conversation(id: alice.address));
 
     expect(find.text('Did the build land?'), findsOneWidget);
     expect(find.text('Yes, all green'), findsOneWidget);
@@ -158,7 +158,7 @@ void main() {
   });
 
   testWidgets('a stranger thread offers accept and block', (tester) async {
-    await show(tester, MessagePage(id: carol.address));
+    await show(tester, Conversation(id: carol.address));
     expect(find.text('Message request'), findsOneWidget);
     expect(find.text('Accept'), findsOneWidget);
     expect(find.text('Block'), findsOneWidget);
@@ -169,7 +169,7 @@ void main() {
   ) async {
     courier.roster[dana.address]!.trust = Trust.trustee;
     courier.roster[dana.address]!.alias = 'Dana';
-    await show(tester, const ChatsPage());
+    await show(tester, const Chats());
 
     Finder heading(String text) =>
         find.descendant(of: find.byType(Heading), matching: find.text(text));
@@ -198,7 +198,7 @@ void main() {
   testWidgets('a peer profile shows trust, key and safety code', (
     tester,
   ) async {
-    await show(tester, NodePage(id: carol.address));
+    await show(tester, Node(id: carol.address));
 
     expect(find.text('Request'), findsOneWidget);
     expect(find.text('Discovery Key'), findsOneWidget);
@@ -214,7 +214,7 @@ void main() {
   });
 
   testWidgets('settings reflect the profile and preferences', (tester) async {
-    await show(tester, const VaultPage());
+    await show(tester, const Vault());
 
     expect(find.text('Bob Stone'), findsOneWidget);
     expect(find.text('testing'), findsOneWidget);
@@ -240,7 +240,7 @@ void main() {
   });
 
   testWidgets('profile editor updates the avatar as you type', (tester) async {
-    await show(tester, const ProfilePage());
+    await show(tester, const Persona());
 
     expect(find.text('BS'), findsOneWidget);
     await tester.enterText(find.byType(TextFormField).first, 'Zed');
@@ -254,7 +254,7 @@ void main() {
     expect(channels, hasLength(2));
     channels.first.peer = alice.address;
     channels.last.peer = null;
-    await show(tester, const RelaysPage());
+    await show(tester, const Relays());
 
     expect(find.widgetWithText(Tab, 'Overview'), findsOneWidget);
     expect(find.text('At a Glance'), findsOneWidget);
@@ -351,7 +351,7 @@ void main() {
         },
       ),
     ];
-    await show(tester, MessagePage(id: alice.address));
+    await show(tester, Conversation(id: alice.address));
     expect(find.text('1:07'), findsOneWidget);
     expect(find.text('0:09 · 2.0 MB'), findsOneWidget);
     expect(find.text('the view'), findsOneWidget);
@@ -361,7 +361,7 @@ void main() {
   testWidgets('the composer offers a microphone until you type', (
     tester,
   ) async {
-    await show(tester, MessagePage(id: alice.address));
+    await show(tester, Conversation(id: alice.address));
     expect(find.byTooltip('Record voice message'), findsOneWidget);
     expect(find.byTooltip('Send'), findsNothing);
     await tester.enterText(find.byType(TextField), 'hi');
@@ -379,7 +379,7 @@ void main() {
       group = await Mesh.instance.create(name: 'Weekend Hikers', group: true);
       await Mesh.instance.say(group, group.general, 'Trail at 8?');
     });
-    await show(tester, const ChatsPage());
+    await show(tester, const Chats());
     expect(find.text('Weekend Hikers'), findsOneWidget);
     expect(find.textContaining('Trail at 8?'), findsOneWidget);
     expect(find.text('Alice Moreau'), findsOneWidget);
@@ -433,7 +433,7 @@ void main() {
         },
       );
     });
-    await show(tester, const DiscoverPage());
+    await show(tester, const Discover());
     expect(find.text('Open Mic'), findsOneWidget);
     expect(find.text('About Open Mic'), findsOneWidget);
 
@@ -467,7 +467,7 @@ void main() {
       await Mesh.instance.start();
       community = await Mesh.instance.create(name: 'Night Shift');
     });
-    await show(tester, CommunityPage(id: community.id));
+    await show(tester, Hub(id: community.id));
     await tester.scrollUntilVisible(
       find.text('List in Discover'),
       300,
@@ -483,7 +483,7 @@ void main() {
       id: 'call',
       secret: Uint8List(32),
     );
-    await show(tester, const CallPage());
+    await show(tester, const Call());
     expect(find.text('Alice Moreau'), findsOneWidget);
     expect(find.text('Incoming voice call'), findsOneWidget);
     expect(find.byTooltip('Accept'), findsOneWidget);
@@ -507,7 +507,7 @@ void main() {
         meta: {'duration': 65000},
       ),
     );
-    await show(tester, MessagePage(id: alice.address));
+    await show(tester, Conversation(id: alice.address));
     expect(find.text('Voice call · 1:05'), findsOneWidget);
     expect(find.byTooltip('Voice Call'), findsOneWidget);
   });
@@ -518,10 +518,7 @@ void main() {
       await Mesh.instance.start();
       group = await Mesh.instance.create(name: 'Family', group: true);
     });
-    await show(
-      tester,
-      ChannelPage(community: group.id, channel: group.general),
-    );
+    await show(tester, Board(community: group.id, channel: group.general));
     expect(find.byTooltip('Group Call'), findsOneWidget);
     await tester.runAsync(() => Mesh.instance.leave(group.id));
   });

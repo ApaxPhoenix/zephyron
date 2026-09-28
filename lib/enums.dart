@@ -15,7 +15,7 @@ enum Menu {
 }
 
 /// Quick filters shown above the conversation list.
-enum ChatFilters {
+enum Filter {
   all('All'),
   unread('Unread'),
   requests('Requests'),
@@ -26,23 +26,11 @@ enum ChatFilters {
   archived('Archived'),
   blocked('Blocked');
 
-  const ChatFilters(this.label);
+  const Filter(this.label);
   final String label;
 }
 
 /// Quick filters available for peer listings.
-enum PeerFilters {
-  all('All'),
-  online('Online'),
-  pinned('Pinned'),
-  pending('Pending'),
-  authenticated('Authenticated'),
-  mesh('Mesh'),
-  blocked('Blocked');
-
-  const PeerFilters(this.label);
-  final String label;
-}
 
 /// Categories of search results on the offline network map.
 enum Types { all, email, username }

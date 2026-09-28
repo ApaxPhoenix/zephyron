@@ -12,17 +12,17 @@ import 'package:zephyron/widgets/section.dart';
 import 'package:zephyron/widgets/sheet.dart';
 import 'package:zephyron/widgets/stamp.dart';
 
-class ChatsPage extends StatefulWidget {
-  const ChatsPage({super.key});
+class Chats extends StatefulWidget {
+  const Chats({super.key});
 
   @override
-  State<ChatsPage> createState() => ChatsPageState();
+  State<Chats> createState() => _Chats();
 }
 
-class ChatsPageState extends State<ChatsPage> {
+class _Chats extends State<Chats> {
   final TextEditingController search = TextEditingController();
   final Set<String> shown = {};
-  ChatFilters filter = ChatFilters.all;
+  Filter filter = Filter.all;
 
   Courier get courier => Courier.instance;
 
@@ -45,12 +45,8 @@ class ChatsPageState extends State<ChatsPage> {
   Future<void> compose() => Sheets.actions(
     context,
     items: [
-      SheetAction(
-        icon: Icons.chat_bubble_outline,
-        label: 'New Chat',
-        onTap: chat,
-      ),
-      SheetAction(
+      Command(icon: Icons.chat_bubble_outline, label: 'New Chat', onTap: chat),
+      Command(
         icon: Icons.group_add_outlined,
         label: 'New Group',
         onTap: () => Navigator.pushNamed(context, '/dashboard/chats/group'),
@@ -102,21 +98,21 @@ class ChatsPageState extends State<ChatsPage> {
           final query = search.text.trim().toLowerCase();
           final list =
               courier.roster.values.where((contact) {
-                if (contact.blocked != (filter == ChatFilters.blocked)) {
+                if (contact.blocked != (filter == Filter.blocked)) {
                   return false;
                 }
-                if (filter == ChatFilters.requests && !contact.stranger) {
+                if (filter == Filter.requests && !contact.stranger) {
                   return false;
                 }
-                if (filter != ChatFilters.blocked &&
-                    contact.archived != (filter == ChatFilters.archived)) {
+                if (filter != Filter.blocked &&
+                    contact.archived != (filter == Filter.archived)) {
                   return false;
                 }
-                if (filter == ChatFilters.unread &&
+                if (filter == Filter.unread &&
                     courier.unread(contact.address) == 0) {
                   return false;
                 }
-                if (filter == ChatFilters.pinned && !contact.pinned) {
+                if (filter == Filter.pinned && !contact.pinned) {
                   return false;
                 }
                 if (query.isEmpty) return true;
@@ -136,17 +132,15 @@ class ChatsPageState extends State<ChatsPage> {
               });
           final rooms =
               const {
-                ChatFilters.archived,
-                ChatFilters.unread,
-                ChatFilters.requests,
-                ChatFilters.blocked,
+                Filter.archived,
+                Filter.unread,
+                Filter.requests,
+                Filter.blocked,
               }.contains(filter)
               ? const <Community>[]
               : mesh
                     .groups()
-                    .where(
-                      (group) => filter != ChatFilters.pinned || group.pinned,
-                    )
+                    .where((group) => filter != Filter.pinned || group.pinned)
                     .where(
                       (group) =>
                           query.isEmpty ||
@@ -159,7 +153,7 @@ class ChatsPageState extends State<ChatsPage> {
           bool pinned(Object entry) =>
               entry is Community ? entry.pinned : (entry as Trustee).pinned;
           final sorted =
-              <Object>[if (filter != ChatFilters.groups) ...list, ...rooms]
+              <Object>[if (filter != Filter.groups) ...list, ...rooms]
                 ..sort((alpha, beta) {
                   if (pinned(alpha) != pinned(beta)) {
                     return pinned(alpha) ? -1 : 1;
@@ -180,11 +174,11 @@ class ChatsPageState extends State<ChatsPage> {
             entries.addAll(items);
           }
 
-          if (filter == ChatFilters.requests) {
+          if (filter == Filter.requests) {
             section('Requests', list.map(Plea.new).toList(), label: false);
-          } else if (filter == ChatFilters.blocked) {
+          } else if (filter == Filter.blocked) {
             section('Blocked', list.map(Quiet.new).toList(), label: false);
-          } else if (filter == ChatFilters.all && query.isEmpty) {
+          } else if (filter == Filter.all && query.isEmpty) {
             bool talked(Object item) =>
                 item is Community ||
                 (item is Trustee && courier.last(item.address) != null);
@@ -706,7 +700,7 @@ class ChatsPageState extends State<ChatsPage> {
                           ),
                         ),
                         items: [
-                          SheetAction(
+                          Command(
                             icon: contact.pinned
                                 ? Icons.push_pin_outlined
                                 : Icons.push_pin,
@@ -715,7 +709,7 @@ class ChatsPageState extends State<ChatsPage> {
                               contact..pinned = !contact.pinned,
                             ),
                           ),
-                          SheetAction(
+                          Command(
                             icon: contact.archived
                                 ? Icons.unarchive_outlined
                                 : Icons.archive_outlined,
@@ -724,7 +718,7 @@ class ChatsPageState extends State<ChatsPage> {
                               contact..archived = !contact.archived,
                             ),
                           ),
-                          SheetAction(
+                          Command(
                             icon: Icons.info_outline,
                             label: 'View Profile',
                             onTap: () => Navigator.pushNamed(
@@ -733,7 +727,7 @@ class ChatsPageState extends State<ChatsPage> {
                               arguments: {'id': contact.address},
                             ),
                           ),
-                          SheetAction(
+                          Command(
                             icon: Icons.block,
                             label: 'Block',
                             destructive: true,
@@ -753,7 +747,7 @@ class ChatsPageState extends State<ChatsPage> {
                               }
                             },
                           ),
-                          SheetAction(
+                          Command(
                             icon: Icons.cleaning_services_outlined,
                             label: 'Clear History',
                             destructive: true,
@@ -768,7 +762,7 @@ class ChatsPageState extends State<ChatsPage> {
                               if (sure) await courier.clear(contact.address);
                             },
                           ),
-                          SheetAction(
+                          Command(
                             icon: Icons.delete_outline,
                             label: 'Delete Chat',
                             destructive: true,
@@ -844,13 +838,13 @@ class ChatsPageState extends State<ChatsPage> {
                   child: Row(
                     children: [
                       for (final item in [
-                        ChatFilters.all,
-                        ChatFilters.unread,
-                        ChatFilters.requests,
-                        ChatFilters.groups,
-                        ChatFilters.pinned,
-                        ChatFilters.archived,
-                        ChatFilters.blocked,
+                        Filter.all,
+                        Filter.unread,
+                        Filter.requests,
+                        Filter.groups,
+                        Filter.pinned,
+                        Filter.archived,
+                        Filter.blocked,
                       ])
                         Padding(
                           padding: const EdgeInsets.only(right: 8.0),

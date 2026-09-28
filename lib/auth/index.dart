@@ -4,14 +4,14 @@ import 'package:zephyron/auth/login.dart';
 import 'package:zephyron/auth/signup.dart';
 import 'package:zephyron/sql/session.dart';
 
-class AuthScreen extends StatefulWidget {
-  const AuthScreen({super.key});
+class Auth extends StatefulWidget {
+  const Auth({super.key});
 
   @override
-  State<AuthScreen> createState() => AuthScreenState();
+  State<Auth> createState() => _Auth();
 }
 
-class AuthScreenState extends State<AuthScreen> {
+class _Auth extends State<Auth> {
   final PageController controller = PageController(initialPage: 0);
   int index = 0;
 
@@ -36,8 +36,8 @@ class AuthScreenState extends State<AuthScreen> {
     );
 
     final items = <Widget>[
-      SignUpPage(onLogin: () => show(1)),
-      LogInPage(onSignUp: () => show(0)),
+      Signup(onLogin: () => show(1)),
+      Login(onSignUp: () => show(0)),
     ];
 
     try {
@@ -64,7 +64,7 @@ class AuthScreenState extends State<AuthScreen> {
                   } catch (error) {
                     developer.log(
                       'Failed to route screen swipe gesture navigation: $error',
-                      name: 'AuthScreen.gesture',
+                      name: 'Auth.gesture',
                       error: error,
                       stackTrace: StackTrace.current,
                     );
@@ -78,7 +78,7 @@ class AuthScreenState extends State<AuthScreen> {
                     } catch (error) {
                       developer.log(
                         'Failed to sync state with active view index: $error',
-                        name: 'AuthScreen.navigation',
+                        name: 'Auth.navigation',
                         error: error,
                         stackTrace: StackTrace.current,
                       );
@@ -122,7 +122,7 @@ class AuthScreenState extends State<AuthScreen> {
     } catch (error) {
       developer.log(
         'Failed to render master authentication container interface: $error',
-        name: 'AuthScreen.build',
+        name: 'Auth.build',
         error: error,
         stackTrace: StackTrace.current,
       );
@@ -139,7 +139,7 @@ class AuthScreenState extends State<AuthScreen> {
       developer.log(
         'Failed to cleanly release screen controller resources: $error',
         stackTrace: StackTrace.current,
-        name: 'AuthScreen.dispose',
+        name: 'Auth.dispose',
         error: error,
       );
     }

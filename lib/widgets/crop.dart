@@ -103,10 +103,10 @@ class Cropper extends StatefulWidget {
       bytes[2] == 0x46;
 
   @override
-  State<Cropper> createState() => CropperState();
+  State<Cropper> createState() => _Cropper();
 }
 
-class CropperState extends State<Cropper> {
+class _Cropper extends State<Cropper> {
   ui.Image? picture;
   double zoom = 1;
   Offset shift = Offset.zero;

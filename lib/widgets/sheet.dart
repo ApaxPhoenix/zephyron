@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:zephyron/enums.dart';
 import 'package:zephyron/widgets/avatar.dart';
 
-class SheetAction {
+class Command {
   final IconData icon;
   final String label;
   final bool destructive;
   final VoidCallback onTap;
 
-  const SheetAction({
+  const Command({
     required this.icon,
     required this.label,
     required this.onTap,
@@ -32,7 +32,7 @@ class Sheets {
   static Future<void> actions(
     BuildContext context, {
     Widget? header,
-    required List<SheetAction> items,
+    required List<Command> items,
   }) {
     return showModalBottomSheet<void>(
       context: context,

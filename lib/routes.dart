@@ -18,14 +18,14 @@ import 'package:zephyron/network/index.dart';
 import 'package:zephyron/network/middleware.dart';
 
 final Map<String, WidgetBuilder> routes = {
-  '/': (context) => const SplashScreen(),
-  '/auth': (context) => const AuthScreen(),
-  '/panic': (context) => const PanicPage(),
-  '/dashboard': (context) => const DashboardScreen(),
+  '/': (context) => const Splash(),
+  '/auth': (context) => const Auth(),
+  '/panic': (context) => const Panic(),
+  '/dashboard': (context) => const Dashboard(),
   '/dashboard/chats/message': (context) {
     final arguments =
         ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-    return MessagePage(
+    return Conversation(
       id: arguments?['id'] as String?,
       title: arguments?['name'] as String? ?? arguments?['title'] as String?,
     );
@@ -33,31 +33,31 @@ final Map<String, WidgetBuilder> routes = {
   '/dashboard/peers/node': (context) {
     final arguments =
         ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-    return NodePage(
+    return Node(
       id: arguments?['id'] as String?,
       name: arguments?['name'] as String? ?? arguments?['title'] as String?,
     );
   },
-  '/dashboard/chats/group': (context) => const GroupPage(),
+  '/dashboard/chats/group': (context) => const Huddle(),
   '/dashboard/chats/call': (context) {
     final arguments =
         ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-    return CallPage(peer: arguments?['peer'] as String?);
+    return Call(peer: arguments?['peer'] as String?);
   },
   '/dashboard/communities/create': (context) {
     final arguments =
         ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-    return CreatePage(id: arguments?['id'] as String?);
+    return Creation(id: arguments?['id'] as String?);
   },
   '/dashboard/communities/community': (context) {
     final arguments =
         ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-    return CommunityPage(id: arguments?['id'] as String?);
+    return Hub(id: arguments?['id'] as String?);
   },
   '/dashboard/communities/channel': (context) {
     final arguments =
         ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-    return ChannelPage(
+    return Board(
       community: arguments?['community'] as String?,
       channel: arguments?['channel'] as String?,
     );
@@ -65,14 +65,14 @@ final Map<String, WidgetBuilder> routes = {
   '/dashboard/communities/discover': (context) {
     final arguments =
         ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-    return DiscoverPage(
+    return Discover(
       shelf: arguments?['shelf'] == Shelf.person.name
           ? Shelf.person
           : Shelf.community,
     );
   },
-  '/dashboard/settings/profile': (context) => const ProfilePage(),
-  '/dashboard/settings/duress': (context) => const DuressPage(),
-  '/network': (context) => const NetworkScreen(),
-  '/network/middleware': (context) => const NetworkMiddlewareScreen(),
+  '/dashboard/settings/profile': (context) => const Persona(),
+  '/dashboard/settings/duress': (context) => const Decoy(),
+  '/network': (context) => const Network(),
+  '/network/middleware': (context) => const Middleware(),
 };

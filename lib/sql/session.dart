@@ -13,47 +13,47 @@ import 'package:zephyron/sql/database.dart';
 import 'package:zephyron/sql/ledger.dart';
 import 'package:zephyron/models/identity.dart';
 
-class IdentityQuarantinedException implements Exception {
+class Quarantined implements Exception {
   final Duration remaining;
 
-  IdentityQuarantinedException(this.remaining);
+  Quarantined(this.remaining);
 
   @override
   String toString() =>
       'This identity is temporarily quarantined for ${remaining.inSeconds} more seconds after repeated failed unlock attempts.';
 }
 
-class IdentityAnnihilatedException implements Exception {
+class Annihilated implements Exception {
   final String name;
 
-  IdentityAnnihilatedException(this.name);
+  Annihilated(this.name);
 
   @override
   String toString() =>
       'Identity "$name" exceeded the maximum permitted unlock attempts and has been permanently erased from this device.';
 }
 
-class IdentitiesPurgedException implements Exception {
+class Purged implements Exception {
   @override
   String toString() =>
       'Unlock attempts across identities looked like an attack, so every identity has been erased from this device.';
 }
 
-class AttemptLedger {
+class Attempts {
   int strikes;
   List<DateTime> recentFailures;
   int quarantineCount;
   DateTime? quarantinedUntil;
 
-  AttemptLedger({
+  Attempts({
     this.strikes = 0,
     List<DateTime>? recentFailures,
     this.quarantineCount = 0,
     this.quarantinedUntil,
   }) : recentFailures = recentFailures ?? <DateTime>[];
 
-  factory AttemptLedger.fromJson(Map<String, dynamic> input) {
-    return AttemptLedger(
+  factory Attempts.fromJson(Map<String, dynamic> input) {
+    return Attempts(
       strikes: input['strikes'] as int? ?? 0,
       recentFailures: (input['recentFailures'] as List<dynamic>? ?? const [])
           .map((entry) => DateTime.parse(entry as String))
@@ -150,11 +150,11 @@ class Session {
     }
   }
 
-  static Future<AttemptLedger> ledger(String name) async {
+  static Future<Attempts> ledger(String name) async {
     try {
       final raw = await storage.read(key: ledgerKey(name));
-      if (raw == null || raw.isEmpty) return AttemptLedger();
-      return AttemptLedger.fromJson(json.decode(raw) as Map<String, dynamic>);
+      if (raw == null || raw.isEmpty) return Attempts();
+      return Attempts.fromJson(json.decode(raw) as Map<String, dynamic>);
     } catch (error) {
       developer.log(
         'Failed to read failed-attempt ledger from secure storage for profile: $name',
@@ -163,11 +163,11 @@ class Session {
         error: error,
         stackTrace: StackTrace.current,
       );
-      return AttemptLedger();
+      return Attempts();
     }
   }
 
-  static Future<void> persist(String name, AttemptLedger record) async {
+  static Future<void> persist(String name, Attempts record) async {
     try {
       await storage.write(
         key: ledgerKey(name),
@@ -331,7 +331,7 @@ class Session {
         name: 'Session.open',
         level: 900,
       );
-      throw IdentityQuarantinedException(device);
+      throw Quarantined(device);
     }
 
     final record = await ledger(name);
@@ -345,7 +345,7 @@ class Session {
         name: 'Session.open',
         level: 900,
       );
-      throw IdentityQuarantinedException(remaining);
+      throw Quarantined(remaining);
     }
 
     try {
@@ -378,9 +378,7 @@ class Session {
       );
       return user!;
     } catch (error) {
-      if (error is IdentityQuarantinedException ||
-          error is IdentityAnnihilatedException ||
-          error is IdentitiesPurgedException) {
+      if (error is Quarantined || error is Annihilated || error is Purged) {
         rethrow;
       }
 
@@ -394,7 +392,7 @@ class Session {
           level: 1200,
         );
         await purge();
-        throw IdentitiesPurgedException();
+        throw Purged();
       }
 
       record.strikes += 1;
@@ -422,7 +420,7 @@ class Session {
           stackTrace: StackTrace.current,
         );
         await annihilate(name);
-        throw IdentityAnnihilatedException(name);
+        throw Annihilated(name);
       }
 
       if (record.recentFailures.length >= throttleThreshold) {
@@ -443,14 +441,12 @@ class Session {
           level: 1000,
         );
 
-        throw IdentityQuarantinedException(duration);
+        throw Quarantined(duration);
       }
 
       await persist(name, record);
       if (verdict == Verdict.lockout) {
-        throw IdentityQuarantinedException(
-          await Warden.remaining() ?? Warden.baseLockout,
-        );
+        throw Quarantined(await Warden.remaining() ?? Warden.baseLockout);
       }
       rethrow;
     }
