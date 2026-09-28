@@ -118,7 +118,7 @@ class Attach {
       useSafeArea: true,
       builder: (sheet) => SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -273,7 +273,7 @@ class PreviewState extends State<Preview> {
       duration: const Duration(milliseconds: 150),
       padding: EdgeInsets.only(bottom: inset),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [

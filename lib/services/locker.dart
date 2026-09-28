@@ -140,6 +140,18 @@ class Locker {
     return file;
   }
 
+  /// Deletes every sealed attachment that is not one of [ids].
+  static Future<void> prune(Set<String> ids) async {
+    final keep = ids.map(slot).toSet();
+    final directory = await folder();
+    await for (final entry in directory.list()) {
+      final name = entry.uri.pathSegments.last;
+      if (entry is File && !keep.contains(name)) await entry.delete();
+    }
+    cache.clear();
+    cached = 0;
+  }
+
   static Future<void> sweep() async {
     cache.clear();
     cached = 0;

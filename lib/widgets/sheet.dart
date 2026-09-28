@@ -151,74 +151,124 @@ class Sheets {
     return result ?? false;
   }
 
-  /// Lets the person pick how they show up to trustees.
-  static Future<Availability?> availability(
+  /// A titled list of choices, each in its own padded, rounded row.
+  ///
+  /// [split] draws a hairline after that many options.
+  static Future<T?> pick<T>(
     BuildContext context, {
-    required Availability current,
+    required String title,
+    required String subtitle,
+    required T current,
+    required List<Choice<T>> options,
+    int? split,
   }) {
-    return showModalBottomSheet<Availability>(
+    return showModalBottomSheet<T>(
       context: context,
       useSafeArea: true,
+      isScrollControlled: true,
       builder: (sheet) {
         final theme = Theme.of(sheet);
         final scheme = theme.colorScheme;
 
-        Widget option(Availability state) {
-          final chosen = state == current;
-          return ListTile(
-            key: ValueKey('status:${state.name}'),
-            selected: chosen,
-            selectedTileColor: scheme.primary.withValues(alpha: 0.08),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            leading: SizedBox(
-              width: 24,
-              child: Center(child: Glyph(availability: state, size: 20)),
-            ),
-            title: Text(
-              state.label,
-              style: TextStyle(
-                color: scheme.onSurface,
-                fontWeight: FontWeight.w600,
+        Widget option(Choice<T> choice) {
+          final chosen = choice.value == current;
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 3),
+            child: Material(
+              color: chosen
+                  ? scheme.primary.withValues(alpha: 0.08)
+                  : Colors.transparent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+                side: BorderSide(
+                  color: chosen
+                      ? scheme.primary.withValues(alpha: 0.35)
+                      : Colors.transparent,
+                ),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                key: choice.key,
+                onTap: () => Navigator.pop(sheet, choice.value),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  child: Row(
+                    children: [
+                      SizedBox(width: 28, child: Center(child: choice.leading)),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              choice.label,
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            if (choice.hint != null) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                choice.hint!,
+                                style: theme.textTheme.bodySmall,
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      AnimatedOpacity(
+                        opacity: chosen ? 1 : 0,
+                        duration: const Duration(milliseconds: 150),
+                        child: Icon(
+                          Icons.check_circle,
+                          size: 22,
+                          color: scheme.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
-            subtitle: Text(state.hint, style: theme.textTheme.bodySmall),
-            trailing: AnimatedOpacity(
-              opacity: chosen ? 1 : 0,
-              duration: const Duration(milliseconds: 150),
-              child: Icon(Icons.check, color: scheme.primary),
-            ),
-            onTap: () => Navigator.pop(sheet, state),
           );
         }
 
         return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Center(child: grabber(sheet)),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                  padding: const EdgeInsets.fromLTRB(4, 8, 4, 4),
                   child: Text(
-                    'Set Status',
+                    title,
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
-                option(Availability.available),
                 Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 6,
-                  ),
-                  child: Divider(color: scheme.outlineVariant),
+                  padding: const EdgeInsets.fromLTRB(4, 0, 4, 14),
+                  child: Text(subtitle, style: theme.textTheme.bodySmall),
                 ),
-                for (final state in Availability.values.skip(1)) option(state),
+                for (var index = 0; index < options.length; index++) ...[
+                  if (index > 0 && index == split)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      child: Divider(),
+                    ),
+                  option(options[index]),
+                ],
               ],
             ),
           ),
@@ -226,4 +276,76 @@ class Sheets {
       },
     );
   }
+
+  /// Lets the person pick how they show up to trustees.
+  static Future<Availability?> availability(
+    BuildContext context, {
+    required Availability current,
+  }) {
+    return pick(
+      context,
+      title: 'Set Status',
+      subtitle: 'Choose how you show up to your trustees.',
+      current: current,
+      split: 1,
+      options: [
+        for (final state in Availability.values)
+          Choice(
+            value: state,
+            label: state.label,
+            hint: state.hint,
+            leading: Glyph(availability: state, size: 20),
+            key: ValueKey('status:${state.name}'),
+          ),
+      ],
+    );
+  }
+
+  /// Lets the person pick how long messages in a chat last.
+  static Future<Fuse?> fuse(BuildContext context, {required Fuse current}) {
+    final scheme = Theme.of(context).colorScheme;
+    return pick(
+      context,
+      title: 'Disappearing Messages',
+      subtitle:
+          'New messages in this chat are deleted from both phones once the timer runs out. Your trustee sees the change.',
+      current: current,
+      split: 1,
+      options: [
+        for (final choice in Fuse.values)
+          Choice(
+            value: choice,
+            label: choice.label,
+            hint: choice == Fuse.off
+                ? 'Keep messages until you delete them'
+                : null,
+            leading: Icon(
+              choice == Fuse.off ? Icons.all_inclusive : Icons.timer_outlined,
+              size: 20,
+              color: choice == Fuse.off
+                  ? scheme.onSurfaceVariant
+                  : scheme.primary,
+            ),
+            key: ValueKey('fuse:${choice.name}'),
+          ),
+      ],
+    );
+  }
+}
+
+/// One row in [Sheets.pick].
+class Choice<T> {
+  final T value;
+  final String label;
+  final String? hint;
+  final Widget leading;
+  final Key? key;
+
+  const Choice({
+    required this.value,
+    required this.label,
+    required this.leading,
+    this.hint,
+    this.key,
+  });
 }
