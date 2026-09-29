@@ -178,10 +178,6 @@ class Ledger {
       limit: 1,
     );
     if (done.isNotEmpty) return;
-    String fix(String text) => text.replaceAllMapped(
-      RegExp(r'[a-z2-7]{56}\.onion'),
-      (match) => Identity.mend(match.group(0)!),
-    );
     await base.transaction((batch) async {
       for (final row in await batch.query('trustees', columns: ['address'])) {
         final old = row['address'] as String;
@@ -239,7 +235,10 @@ class Ledger {
           await batch.delete('preferences', where: 'key = ?', whereArgs: [key]);
           continue;
         }
-        final fresh = fix(value);
+        final fresh = (value.replaceAllMapped(
+          RegExp(r'[a-z2-7]{56}\.onion'),
+          (match) => Identity.mend(match.group(0)!),
+        ));
         if (fresh != value) {
           await batch.update(
             'preferences',

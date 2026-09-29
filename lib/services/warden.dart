@@ -104,24 +104,6 @@ class Warden {
   static String stamp(String guess) =>
       Hmac(sha256, pepper).convert(utf8.encode(guess)).toString();
 
-  /// Keyed hashes of every pair of neighbouring characters in a guess.
-  static Set<String> shingles(String guess) {
-    final mac = Hmac(sha256, pepper);
-    final text = guess.trim();
-    if (text.length < 2) return {mac.convert(utf8.encode(text)).toString()};
-    return {
-      for (var index = 0; index < text.length - 1; index++)
-        mac.convert(utf8.encode(text.substring(index, index + 2))).toString(),
-    };
-  }
-
-  /// Share of character pairs two guesses have in common, from 0 to 1.
-  static double likeness(Set<String> alpha, Set<String> beta) {
-    final union = alpha.union(beta).length;
-    if (union == 0) return 1;
-    return alpha.intersection(beta).length / union;
-  }
-
   static Future<Map<String, dynamic>> load() async {
     try {
       final raw = await storage.read(key: key);
@@ -190,8 +172,24 @@ class Warden {
     final signals = <String>[];
     var weight = 1;
 
-    final shape = shingles(guess);
-    if (previous != null && likeness(previous!, shape) < kinship) {
+    // Keyed hashes of every pair of neighbouring characters, so how alike
+    // two guesses are is known without keeping either of them.
+    final mac = Hmac(sha256, pepper);
+    final text = guess.trim();
+    final shape = text.length < 2
+        ? {mac.convert(utf8.encode(text)).toString()}
+        : {
+            for (var index = 0; index < text.length - 1; index++)
+              mac
+                  .convert(utf8.encode(text.substring(index, index + 2)))
+                  .toString(),
+          };
+    // The share of character pairs it has in common with the last guess.
+    final union = previous?.union(shape).length ?? 0;
+    final likeness = previous == null || union == 0
+        ? 1.0
+        : previous!.intersection(shape).length / union;
+    if (previous != null && likeness < kinship) {
       weight += 1;
       signals.add('unrelated guess');
     } else if (previous == null &&

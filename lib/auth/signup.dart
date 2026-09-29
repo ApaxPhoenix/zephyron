@@ -9,8 +9,6 @@ import 'package:zephyron/models/identity.dart';
 import 'package:zephyron/sql/database.dart';
 import 'package:zephyron/sql/session.dart';
 
-Identity make(String seed) => Identity.fromInput(seed);
-
 class Signup extends StatefulWidget {
   /// Called when the person already has an identity and wants to unlock it.
   final VoidCallback? onLogin;
@@ -178,7 +176,10 @@ class _Signup extends State<Signup> {
       while (round < limit) {
         round += 1;
         try {
-          final generated = await compute(make, mnemonic);
+          final generated = await compute(
+            (String seed) => Identity.fromInput(seed),
+            mnemonic,
+          );
 
           if (generated.private.length != 128) {
             throw StateError('Invalid key length: expected 128 hex chars');
