@@ -36,8 +36,8 @@ class _Auth extends State<Auth> {
     );
 
     final items = <Widget>[
-      Signup(onLogin: () => show(1)),
-      Login(onSignUp: () => show(0)),
+      Signup(unlock: () => show(1)),
+      Login(register: () => show(0)),
     ];
 
     try {

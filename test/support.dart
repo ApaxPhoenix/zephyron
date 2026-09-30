@@ -15,9 +15,9 @@ import 'package:zephyron/services/ratchet.dart';
 import 'package:zephyron/sql/database.dart' as store;
 import 'package:zephyron/sql/ledger.dart';
 
-final alice = Identity.fromInput('alice test seed phrase');
-final bob = Identity.fromInput('bob test seed phrase');
-final carol = Identity.fromInput('carol test seed phrase');
+final alice = Identity.parse('alice test seed phrase');
+final bob = Identity.parse('bob test seed phrase');
+final carol = Identity.parse('carol test seed phrase');
 
 class Paths extends PathProviderPlatform with MockPlatformInterfaceMixin {
   final String root = Directory.systemTemp.createTempSync('zephyron_test').path;
@@ -154,7 +154,7 @@ Uint8List pattern(int length) =>
 
 /// Agrees an end-to-end session between two identities in the test store,
 /// in whichever direction their roles require.
-Future<void> pairUp(Identity from, Identity to) async {
+Future<void> introduce(Identity from, Identity to) async {
   if (await Ratchet.paired(from, to.address)) return;
   if (Ratchet.lead(from, to.address)) {
     await Ratchet.learn(to.address, await Ratchet.bundle(to));
@@ -168,7 +168,7 @@ Future<void> pairUp(Identity from, Identity to) async {
 /// The encrypted frame body [from] would send to the courier's identity.
 Future<String> confide(Identity from, Object inner) async {
   final to = Courier.instance.self!;
-  await pairUp(from, to);
+  await introduce(from, to);
   final clear = utf8.encode(inner is String ? inner : jsonEncode(inner));
   return jsonEncode(await Ratchet.seal(from, to.address, clear));
 }

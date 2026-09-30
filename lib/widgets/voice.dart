@@ -17,16 +17,16 @@ class Recorder extends StatefulWidget {
   /// Longest voice note, kept well under the attachment limit.
   static const Duration ceiling = Duration(minutes: 10);
 
-  final ValueChanged<Recording> onDone;
-  final VoidCallback onCancel;
+  final ValueChanged<Recording> done;
+  final VoidCallback cancel;
 
   /// Recording stops on its own at this length.
   final Duration limit;
 
   const Recorder({
     super.key,
-    required this.onDone,
-    required this.onCancel,
+    required this.done,
+    required this.cancel,
     this.limit = ceiling,
   });
 
@@ -53,7 +53,7 @@ class _Recorder extends State<Recorder> {
   Future<void> start() async {
     try {
       if (!await recorder.hasPermission()) {
-        widget.onCancel();
+        widget.cancel();
         return;
       }
       final folder = await Locker.outbox();
@@ -86,7 +86,7 @@ class _Recorder extends State<Recorder> {
       });
       if (mounted) setState(() => live = true);
     } catch (_) {
-      widget.onCancel();
+      widget.cancel();
     }
   }
 
@@ -102,12 +102,12 @@ class _Recorder extends State<Recorder> {
       final bytes = await file.readAsBytes();
       await file.delete();
       if (watch.elapsed < const Duration(milliseconds: 600) || bytes.isEmpty) {
-        widget.onCancel();
+        widget.cancel();
         return;
       }
-      widget.onDone((bytes: bytes, duration: watch.elapsed));
+      widget.done((bytes: bytes, duration: watch.elapsed));
     } catch (_) {
-      widget.onCancel();
+      widget.cancel();
     }
   }
 
@@ -119,7 +119,7 @@ class _Recorder extends State<Recorder> {
     try {
       await recorder.cancel();
     } catch (_) {}
-    widget.onCancel();
+    widget.cancel();
   }
 
   @override
@@ -294,10 +294,10 @@ class _Memo extends State<Memo> {
   @override
   Widget build(BuildContext context) {
     final tone = widget.foreground;
-    final length0 = total ?? widget.message.duration;
-    final progress = length0.inMilliseconds == 0
+    final span = total ?? widget.message.duration;
+    final progress = span.inMilliseconds == 0
         ? 0.0
-        : position.inMilliseconds / length0.inMilliseconds;
+        : position.inMilliseconds / span.inMilliseconds;
     return SizedBox(
       width: 230,
       child: Row(
@@ -367,7 +367,7 @@ class _Memo extends State<Memo> {
                 Text(
                   playing || position > Duration.zero
                       ? length(position)
-                      : length(length0),
+                      : length(span),
                   style: TextStyle(
                     color: tone.withValues(alpha: 0.75),
                     fontSize: 12,

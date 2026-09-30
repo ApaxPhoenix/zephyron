@@ -146,11 +146,11 @@ class _Cropper extends State<Cropper> {
   Offset fit(Offset offset, Size frame) {
     final image = picture!;
     final factor = scale(frame);
-    final spareX = math.max(0.0, (image.width * factor - frame.width) / 2);
-    final spareY = math.max(0.0, (image.height * factor - frame.height) / 2);
+    final across = math.max(0.0, (image.width * factor - frame.width) / 2);
+    final down = math.max(0.0, (image.height * factor - frame.height) / 2);
     return Offset(
-      offset.dx.clamp(-spareX, spareX),
-      offset.dy.clamp(-spareY, spareY),
+      offset.dx.clamp(-across, across),
+      offset.dy.clamp(-down, down),
     );
   }
 

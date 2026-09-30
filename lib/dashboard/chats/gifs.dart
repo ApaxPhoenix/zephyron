@@ -232,9 +232,9 @@ class _Photo extends State<Photo> {
   late Future<Uint8List> bytes = Web.fetch(widget.uri);
 
   @override
-  void didUpdateWidget(Photo oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.uri != widget.uri) bytes = Web.fetch(widget.uri);
+  void didUpdateWidget(Photo previous) {
+    super.didUpdateWidget(previous);
+    if (previous.uri != widget.uri) bytes = Web.fetch(widget.uri);
   }
 
   @override

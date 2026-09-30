@@ -124,7 +124,7 @@ class _Call extends State<Call> {
           required String label,
           required Color background,
           required Color foreground,
-          required VoidCallback? onPressed,
+          required VoidCallback? press,
         }) {
           return Column(
             mainAxisSize: MainAxisSize.min,
@@ -137,7 +137,7 @@ class _Call extends State<Call> {
                   backgroundColor: background,
                   foregroundColor: foreground,
                 ),
-                onPressed: onPressed,
+                onPressed: press,
                 icon: Icon(icon),
               ),
               const SizedBox(height: 8),
@@ -146,12 +146,12 @@ class _Call extends State<Call> {
           );
         }
 
-        final hangUp = round(
+        final hangup = round(
           icon: Icons.call_end,
           label: 'Hang Up',
           background: scheme.error,
           foreground: scheme.onError,
-          onPressed: () => stage.leave(),
+          press: () => stage.leave(),
         );
 
         return Scaffold(
@@ -217,9 +217,9 @@ class _Call extends State<Call> {
                           foreground: stage.muted
                               ? scheme.error
                               : scheme.onSurface,
-                          onPressed: () => stage.mute(!stage.muted),
+                          press: () => stage.mute(!stage.muted),
                         ),
-                        hangUp,
+                        hangup,
                       ],
                     )
                   else if (ring != null)
@@ -231,21 +231,21 @@ class _Call extends State<Call> {
                           label: 'Decline',
                           background: scheme.error,
                           foreground: scheme.onError,
-                          onPressed: answering ? null : decline,
+                          press: answering ? null : decline,
                         ),
                         round(
                           icon: Icons.call,
                           label: 'Accept',
                           background: const Color(0xFF2E9E57),
                           foreground: Colors.white,
-                          onPressed: answering
+                          press: answering
                               ? null
                               : () async {
                                   final call = stage.ringing;
                                   if (call == null) return;
                                   setState(() => answering = true);
                                   final navigator = Navigator.of(context);
-                                  final answered = await stage.pickUp();
+                                  final answered = await stage.accept();
                                   if (!mounted) return;
                                   if (call.direct) {
                                     setState(() => answering = false);
@@ -271,7 +271,7 @@ class _Call extends State<Call> {
                       ],
                     )
                   else if (placing)
-                    hangUp
+                    hangup
                   else
                     TextButton(
                       onPressed: () => Navigator.of(context).maybePop(),

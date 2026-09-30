@@ -31,7 +31,7 @@ import 'support.dart';
 
 void main() {
   final courier = Courier.instance;
-  final dana = Identity.fromInput('dana test seed phrase');
+  final dana = Identity.parse('dana test seed phrase');
 
   late Wire known;
   late Wire stranger;
@@ -105,7 +105,7 @@ void main() {
     await tester.pumpWidget(
       Builder(
         builder: (context) =>
-            MaterialApp(theme: Pallete.lightTheme(context), home: page),
+            MaterialApp(theme: Pallete.day(context), home: page),
       ),
     );
     await tester.pumpAndSettle();

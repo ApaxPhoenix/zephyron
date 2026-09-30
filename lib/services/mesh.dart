@@ -766,8 +766,8 @@ class Mesh extends ChangeNotifier {
     String? about,
     Uint8List? icon,
     Uint8List? banner,
-    bool clearIcon = false,
-    bool clearBanner = false,
+    bool iconless = false,
+    bool bannerless = false,
   }) async {
     await post(
       community,
@@ -776,19 +776,19 @@ class Mesh extends ChangeNotifier {
       meta: {
         'name': ?name,
         'about': ?about,
-        'icon': ?(clearIcon
+        'icon': ?(iconless
             ? ''
             : icon == null
             ? null
             : base64.encode(icon)),
       },
     );
-    if (banner != null || clearBanner) {
+    if (banner != null || bannerless) {
       await post(
         community,
         channel: community.general,
         note: Note.about,
-        meta: {'banner': clearBanner ? '' : base64.encode(banner!)},
+        meta: {'banner': bannerless ? '' : base64.encode(banner!)},
       );
     }
   }

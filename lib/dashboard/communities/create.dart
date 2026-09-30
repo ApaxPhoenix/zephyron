@@ -95,9 +95,9 @@ class _Creation extends State<Creation> {
           name: name.text.trim(),
           about: about.text.trim(),
           icon: icon,
-          clearIcon: icon == null && current.icon != null,
+          iconless: icon == null && current.icon != null,
           banner: identical(banner, current.banner) ? null : banner,
-          clearBanner: banner == null && current.banner != null,
+          bannerless: banner == null && current.banner != null,
         );
         navigator.pop();
       }
@@ -141,7 +141,7 @@ class _Creation extends State<Creation> {
                                       Command(
                                         icon: Icons.photo_library_outlined,
                                         label: 'Choose a Photo',
-                                        onTap: () async {
+                                        run: () async {
                                           final bytes = await pick();
                                           if (bytes == null || !mounted) return;
                                           if (Cropper.animated(bytes)) {
@@ -176,7 +176,7 @@ class _Creation extends State<Creation> {
                                         Command(
                                           icon: Icons.gif_box_outlined,
                                           label: 'Search GIPHY',
-                                          onTap: () async {
+                                          run: () async {
                                             final picked = await Gifs.show(
                                               context,
                                             );
@@ -195,7 +195,7 @@ class _Creation extends State<Creation> {
                                           icon: Icons.delete_outline,
                                           label: 'Remove Banner',
                                           destructive: true,
-                                          onTap: () =>
+                                          run: () =>
                                               setState(() => banner = null),
                                         ),
                                     ],

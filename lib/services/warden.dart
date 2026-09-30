@@ -64,8 +64,8 @@ class Warden {
   /// Failures across all identities inside [burst] that lock the device.
   static const int lockout = 6;
   static const Duration burst = Duration(minutes: 15);
-  static const Duration baseLockout = Duration(minutes: 1);
-  static const Duration maximumLockout = Duration(hours: 2);
+  static const Duration shortest = Duration(minutes: 1);
+  static const Duration longest = Duration(hours: 2);
 
   /// Weighted suspicion inside [window] that erases every identity.
   static const int purge = 24;
@@ -255,8 +255,8 @@ class Warden {
         .length;
     if (recent >= lockout) {
       final count = (state['lockouts'] as int? ?? 0) + 1;
-      var duration = baseLockout * math.pow(2, count - 1).toInt();
-      if (duration > maximumLockout) duration = maximumLockout;
+      var duration = shortest * math.pow(2, count - 1).toInt();
+      if (duration > longest) duration = longest;
       state['lockouts'] = count;
       state['until'] = now.add(duration).toIso8601String();
       await save(state);

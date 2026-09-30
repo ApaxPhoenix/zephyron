@@ -68,7 +68,7 @@ void main() {
   test(
     'a locked phone keeps a message, says so, and reads it at unlock',
     () async {
-      await pairUp(alice, bob);
+      await introduce(alice, bob);
       final message = sealed(
         alice,
         Signal.message,

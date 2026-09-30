@@ -249,7 +249,7 @@ void main() {
     }
 
     setUp(() async {
-      dana = Identity.fromInput(
+      dana = Identity.parse(
         'dana vote ${DateTime.now().microsecondsSinceEpoch}',
       );
       community = await founded();
@@ -406,7 +406,7 @@ void main() {
         Mesh.seasoning = const Duration(hours: 1);
         addTearDown(() => Mesh.seasoning = saved);
         final community = await founded();
-        final dana = Identity.fromInput(
+        final dana = Identity.parse(
           'dana season ${DateTime.now().microsecondsSinceEpoch}',
         );
         for (final (who, name) in [

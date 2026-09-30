@@ -462,7 +462,7 @@ class Stage extends ChangeNotifier {
   }
 
   /// Answers the call ringing here.
-  Future<bool> pickUp() async {
+  Future<bool> accept() async {
     final call = ringing;
     if (call == null) return false;
     silence();

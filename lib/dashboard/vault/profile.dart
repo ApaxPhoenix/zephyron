@@ -100,19 +100,19 @@ class _Persona extends State<Persona> {
         Command(
           icon: Icons.photo_library_outlined,
           label: 'Choose from Gallery',
-          onTap: () => pick(),
+          run: () => pick(),
         ),
         Command(
           icon: Icons.photo_camera_outlined,
           label: 'Take a Photo',
-          onTap: () => pick(camera: true),
+          run: () => pick(camera: true),
         ),
         if (draft.avatar != null)
           Command(
             icon: Icons.delete_outline,
             label: 'Remove Photo',
             destructive: true,
-            onTap: () => setState(() => draft.avatar = null),
+            run: () => setState(() => draft.avatar = null),
           ),
       ],
     );
@@ -167,25 +167,25 @@ class _Persona extends State<Persona> {
         Command(
           icon: Icons.photo_library_outlined,
           label: 'Choose a Photo',
-          onTap: photo,
+          run: photo,
         ),
         if (Giphy.ready)
           Command(
             icon: Icons.gif_box_outlined,
             label: 'Search GIPHY',
-            onTap: giphy,
+            run: giphy,
           ),
         Command(
           icon: Icons.folder_open_outlined,
           label: 'GIF from Files',
-          onTap: file,
+          run: file,
         ),
         if (draft.banner != null)
           Command(
             icon: Icons.delete_outline,
             label: 'Remove Banner',
             destructive: true,
-            onTap: () => setState(() => draft.banner = null),
+            run: () => setState(() => draft.banner = null),
           ),
       ],
     );

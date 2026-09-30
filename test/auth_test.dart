@@ -14,7 +14,7 @@ void main() {
     await tester.pumpWidget(
       Builder(
         builder: (context) =>
-            MaterialApp(theme: Pallete.lightTheme(context), home: const Auth()),
+            MaterialApp(theme: Pallete.day(context), home: const Auth()),
       ),
     );
     await tester.pumpAndSettle();

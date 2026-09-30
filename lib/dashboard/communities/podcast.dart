@@ -71,8 +71,8 @@ class _Podcast extends State<Podcast> {
                 const SizedBox(height: 20),
                 Recorder(
                   limit: const Duration(hours: 1),
-                  onDone: (take) => Navigator.pop(sheet, take),
-                  onCancel: () => Navigator.pop(sheet),
+                  done: (take) => Navigator.pop(sheet, take),
+                  cancel: () => Navigator.pop(sheet),
                 ),
               ],
             ),
@@ -424,7 +424,7 @@ class _Episode extends State<Episode> {
     final post = widget.post;
     final mesh = Mesh.instance;
     final name = mesh.called(widget.community.id, post.author);
-    final length0 =
+    final span =
         total ?? Duration(milliseconds: post.meta['duration'] as int? ?? 0);
     final size = post.meta['size'] as int? ?? 0;
     final about = post.meta['about'] as String? ?? '';
@@ -455,7 +455,7 @@ class _Episode extends State<Episode> {
                   ),
                 ),
                 Text(
-                  '${length(length0)} · ${measure(size)}',
+                  '${length(span)} · ${measure(size)}',
                   style: theme.textTheme.labelSmall?.copyWith(
                     fontFeatures: const [FontFeature.tabularFigures()],
                   ),
@@ -503,14 +503,13 @@ class _Episode extends State<Episode> {
                   ),
                   Expanded(
                     child: Slider(
-                      value: length0.inMilliseconds == 0
+                      value: span.inMilliseconds == 0
                           ? 0
-                          : (position.inMilliseconds / length0.inMilliseconds)
+                          : (position.inMilliseconds / span.inMilliseconds)
                                 .clamp(0.0, 1.0),
                       onChanged: (value) {
                         final target = Duration(
-                          milliseconds: (value * length0.inMilliseconds)
-                              .round(),
+                          milliseconds: (value * span.inMilliseconds).round(),
                         );
                         setState(() => position = target);
                         player?.seek(target);

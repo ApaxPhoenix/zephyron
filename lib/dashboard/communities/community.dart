@@ -199,14 +199,14 @@ class _Hub extends State<Hub> {
           Command(
             icon: Icons.undo,
             label: 'Withdraw My Vote',
-            onTap: () => mesh.vote(community, member.address, withdraw: true),
+            run: () => mesh.vote(community, member.address, withdraw: true),
           )
         else
           Command(
             icon: Icons.how_to_vote_outlined,
             label: 'Vote to Remove',
             destructive: true,
-            onTap: () async {
+            run: () async {
               final sure = await Sheets.confirm(
                 context,
                 title: 'Vote to remove $name?',
@@ -269,7 +269,7 @@ class _Hub extends State<Hub> {
         Command(
           icon: Icons.edit_outlined,
           label: 'Edit Community',
-          onTap: () => Navigator.pushNamed(
+          run: () => Navigator.pushNamed(
             context,
             '/dashboard/communities/create',
             arguments: {'id': community.id},
@@ -278,20 +278,20 @@ class _Hub extends State<Hub> {
         Command(
           icon: community.pinned ? Icons.push_pin_outlined : Icons.push_pin,
           label: community.pinned ? 'Unpin' : 'Pin to Top',
-          onTap: () => mesh.amend(community..pinned = !community.pinned),
+          run: () => mesh.amend(community..pinned = !community.pinned),
         ),
         Command(
           icon: community.muted
               ? Icons.notifications_active_outlined
               : Icons.notifications_off_outlined,
           label: community.muted ? 'Unmute' : 'Mute',
-          onTap: () => mesh.amend(community..muted = !community.muted),
+          run: () => mesh.amend(community..muted = !community.muted),
         ),
         Command(
           icon: Icons.logout,
           label: 'Leave Community',
           destructive: true,
-          onTap: () async {
+          run: () async {
             final navigator = Navigator.of(context);
             final sure = await Sheets.confirm(
               context,
@@ -613,7 +613,7 @@ class _Hub extends State<Hub> {
                 Pager(
                   page: current,
                   pages: pages,
-                  onChanged: (next) => setState(() => page = next),
+                  turn: (next) => setState(() => page = next),
                 ),
               if (!community.group &&
                   community.founder == Courier.instance.self?.address) ...[

@@ -11,9 +11,9 @@ import 'package:zephyron/sql/session.dart';
 
 class Signup extends StatefulWidget {
   /// Called when the person already has an identity and wants to unlock it.
-  final VoidCallback? onLogin;
+  final VoidCallback? unlock;
 
-  const Signup({super.key, this.onLogin});
+  const Signup({super.key, this.unlock});
 
   @override
   State<Signup> createState() => _Signup();
@@ -177,7 +177,7 @@ class _Signup extends State<Signup> {
         round += 1;
         try {
           final generated = await compute(
-            (String seed) => Identity.fromInput(seed),
+            (String seed) => Identity.parse(seed),
             mnemonic,
           );
 
@@ -551,11 +551,11 @@ class _Signup extends State<Signup> {
                                   : const Text('Create identity'),
                             ),
                           ),
-                          if (widget.onLogin != null) ...[
+                          if (widget.unlock != null) ...[
                             const SizedBox(height: 8),
                             Center(
                               child: TextButton(
-                                onPressed: busy ? null : widget.onLogin,
+                                onPressed: busy ? null : widget.unlock,
                                 child: const Text(
                                   'Already have an identity? Unlock it',
                                 ),
