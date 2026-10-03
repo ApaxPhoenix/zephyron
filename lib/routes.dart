@@ -4,6 +4,7 @@ import 'package:zephyron/auth/index.dart';
 import 'package:zephyron/dashboard/index.dart';
 import 'package:zephyron/dashboard/chats/message.dart';
 import 'package:zephyron/dashboard/peers/node.dart';
+import 'package:zephyron/dashboard/vault/profile.dart';
 import 'package:zephyron/network/index.dart';
 import 'package:zephyron/network/middleware.dart';
 
@@ -15,11 +16,8 @@ final Map<String, WidgetBuilder> routes = {
     final arguments =
         ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
     return MessagePage(
-      id: arguments?['id'] as String? ?? '1',
-      title:
-          arguments?['name'] as String? ??
-          arguments?['title'] as String? ??
-          'Alpha Node',
+      id: arguments?['id'] as String?,
+      title: arguments?['name'] as String? ?? arguments?['title'] as String?,
     );
   },
   '/dashboard/peers/node': (context) {
@@ -30,6 +28,7 @@ final Map<String, WidgetBuilder> routes = {
       name: arguments?['name'] as String? ?? arguments?['title'] as String?,
     );
   },
+  '/dashboard/settings/profile': (context) => const ProfilePage(),
   '/network': (context) => const NetworkScreen(),
   '/network/middleware': (context) => const NetworkMiddlewareScreen(),
 };
