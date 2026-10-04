@@ -170,10 +170,22 @@ fall out of date. If something is wrong, please open an issue.
 | --- | --- |
 | Android | Works. This is where development happens. |
 | iOS | Builds, Tor not supported yet. |
-| macOS, Windows, Linux | Build, Tor not supported yet. |
+| macOS, Windows, Linux | Build for x64 and ARM64, Tor not supported yet. |
 
-When a version is released, builds for every platform will be published on
-the [Releases](https://github.com/ApaxPhoenix/zephyron/releases) page.
+Every release on the [Releases](https://github.com/ApaxPhoenix/zephyron/releases)
+page carries packages for all of them: Android APKs and an app bundle, an
+unsigned iOS archive, a macOS disk image, installer package and archives,
+Windows installers and archives, and Linux `.deb`, `.rpm` and archives, with
+their SHA-256 checksums.
+
+### How releases are made
+
+The Build workflow tests, builds and packages Zephyron on every push to
+`main`. When it passes and `VERSION` names a version that has no release yet,
+the Release workflow tags that commit and publishes what Build packaged.
+`VERSION` holds the version on its first line and the release's title on its
+second, and `releases/<version>.md` holds that release's notes. To ship the
+next version, raise `VERSION` and add its notes.
 
 ## Building from source
 
@@ -200,6 +212,13 @@ fill in what you need and pass it to Flutter with `--dart-define-from-file=.env`
 
 Never commit `.env`. Anything passed with `--dart-define` is compiled into the
 app, so don't ship builds containing keys you can't afford to have extracted.
+
+On GitHub the same five keys are repository secrets, which the Build workflow
+writes to a file on the runner and deletes when it is done. Android release
+signing uses the `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
+`ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD` secrets; on Android,
+`APP_CERT_HASH` is read from the key that signs the build, and a secret that
+names another key is reported rather than used.
 
 ### Release builds
 
