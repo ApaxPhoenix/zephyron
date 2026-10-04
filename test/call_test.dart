@@ -17,7 +17,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   final courier = Courier.instance;
   final stage = Stage.instance;
-  final dana = Identity.fromInput('dana call test seed');
+  final dana = Identity.parse('dana call test seed');
 
   setUpAll(unlock);
 
@@ -158,7 +158,7 @@ void main() {
       final wire = await Wire.open();
       final (id, key) = await ring(wire);
       await until(() => stage.ringing != null);
-      expect(await stage.pickUp(), isTrue);
+      expect(await stage.accept(), isTrue);
       expect(stage.direct, isTrue);
       expect(stage.connected, isNotNull);
       expect((await heard(wire, 'answer'))['r'], id);
@@ -195,7 +195,7 @@ void main() {
   );
 
   test('ringing a trustee seals the call key for them alone', () async {
-    await pairUp(bob, alice);
+    await introduce(bob, alice);
     final wire = await Wire.open();
     wire.send(sealed(alice, Signal.ping));
     await until(() => courier.channels[alice.address] != null);
@@ -234,7 +234,7 @@ void main() {
 
   test('a call nobody answers gives up', () async {
     Stage.patience = const Duration(milliseconds: 300);
-    await pairUp(bob, alice);
+    await introduce(bob, alice);
     final wire = await Wire.open();
     wire.send(sealed(alice, Signal.ping));
     await until(() => courier.channels[alice.address] != null);

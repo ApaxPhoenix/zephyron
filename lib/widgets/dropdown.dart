@@ -3,13 +3,13 @@ import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:zephyron/models/location.dart';
 
-class DropdownField extends StatefulWidget {
+class Dropdown extends StatefulWidget {
   final TextEditingController controller;
   final Future<List<Location>> Function(String query) search;
   final void Function(Location selected) select;
   final InputDecoration decoration;
 
-  const DropdownField({
+  const Dropdown({
     super.key,
     required this.controller,
     required this.search,
@@ -18,11 +18,10 @@ class DropdownField extends StatefulWidget {
   });
 
   @override
-  State<DropdownField> createState() => DropdownFieldState();
+  State<Dropdown> createState() => _Dropdown();
 }
 
-class DropdownFieldState extends State<DropdownField>
-    with SingleTickerProviderStateMixin {
+class _Dropdown extends State<Dropdown> with SingleTickerProviderStateMixin {
   final link = LayerLink();
   final focus = FocusNode();
 
@@ -225,7 +224,7 @@ class DropdownFieldState extends State<DropdownField>
           error: error,
           stackTrace: StackTrace.current,
           level: 1000,
-          name: 'DropdownField.update',
+          name: 'Dropdown.update',
         );
         if (mounted) {
           setState(() => active = false);
@@ -272,7 +271,7 @@ class DropdownFieldState extends State<DropdownField>
         error: error,
         stackTrace: StackTrace.current,
         level: 1000,
-        name: 'DropdownField.dispose',
+        name: 'Dropdown.dispose',
       );
     }
     super.dispose();

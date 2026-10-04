@@ -20,7 +20,7 @@ void main() {
   final courier = Courier.instance;
   final catalog = Catalog.instance;
   final mesh = Mesh.instance;
-  final dana = Identity.fromInput('dana catalog test seed');
+  final dana = Identity.parse('dana catalog test seed');
 
   setUpAll(unlock);
 

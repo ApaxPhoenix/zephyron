@@ -14,12 +14,8 @@ void main() {
 
   setUp(() async {
     final pair = [
-      Identity.fromInput(
-        'ratchet lead ${DateTime.now().microsecondsSinceEpoch}',
-      ),
-      Identity.fromInput(
-        'ratchet other ${DateTime.now().microsecondsSinceEpoch}',
-      ),
+      Identity.parse('ratchet lead ${DateTime.now().microsecondsSinceEpoch}'),
+      Identity.parse('ratchet other ${DateTime.now().microsecondsSinceEpoch}'),
     ]..sort((alpha, beta) => alpha.address.compareTo(beta.address));
     lead = pair.first;
     follower = pair.last;

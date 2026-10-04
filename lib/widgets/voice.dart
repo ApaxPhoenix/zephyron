@@ -17,24 +17,24 @@ class Recorder extends StatefulWidget {
   /// Longest voice note, kept well under the attachment limit.
   static const Duration ceiling = Duration(minutes: 10);
 
-  final ValueChanged<Recording> onDone;
-  final VoidCallback onCancel;
+  final ValueChanged<Recording> done;
+  final VoidCallback cancel;
 
   /// Recording stops on its own at this length.
   final Duration limit;
 
   const Recorder({
     super.key,
-    required this.onDone,
-    required this.onCancel,
+    required this.done,
+    required this.cancel,
     this.limit = ceiling,
   });
 
   @override
-  State<Recorder> createState() => RecorderState();
+  State<Recorder> createState() => _Recorder();
 }
 
-class RecorderState extends State<Recorder> {
+class _Recorder extends State<Recorder> {
   final AudioRecorder recorder = AudioRecorder();
   final Stopwatch watch = Stopwatch();
   final List<double> levels = [];
@@ -53,7 +53,7 @@ class RecorderState extends State<Recorder> {
   Future<void> start() async {
     try {
       if (!await recorder.hasPermission()) {
-        widget.onCancel();
+        widget.cancel();
         return;
       }
       final folder = await Locker.outbox();
@@ -86,7 +86,7 @@ class RecorderState extends State<Recorder> {
       });
       if (mounted) setState(() => live = true);
     } catch (_) {
-      widget.onCancel();
+      widget.cancel();
     }
   }
 
@@ -102,12 +102,12 @@ class RecorderState extends State<Recorder> {
       final bytes = await file.readAsBytes();
       await file.delete();
       if (watch.elapsed < const Duration(milliseconds: 600) || bytes.isEmpty) {
-        widget.onCancel();
+        widget.cancel();
         return;
       }
-      widget.onDone((bytes: bytes, duration: watch.elapsed));
+      widget.done((bytes: bytes, duration: watch.elapsed));
     } catch (_) {
-      widget.onCancel();
+      widget.cancel();
     }
   }
 
@@ -119,7 +119,7 @@ class RecorderState extends State<Recorder> {
     try {
       await recorder.cancel();
     } catch (_) {}
-    widget.onCancel();
+    widget.cancel();
   }
 
   @override
@@ -252,17 +252,17 @@ class Wave extends StatelessWidget {
 }
 
 /// A voice message bubble's player.
-class VoiceNote extends StatefulWidget {
+class Memo extends StatefulWidget {
   final Message message;
   final Color foreground;
 
-  const VoiceNote({super.key, required this.message, required this.foreground});
+  const Memo({super.key, required this.message, required this.foreground});
 
   @override
-  State<VoiceNote> createState() => VoiceNoteState();
+  State<Memo> createState() => _Memo();
 }
 
-class VoiceNoteState extends State<VoiceNote> {
+class _Memo extends State<Memo> {
   late final List<double> bars = Wave.shape(widget.message.id, 40);
   Playback? player;
   Duration position = Duration.zero;
@@ -291,38 +291,13 @@ class VoiceNoteState extends State<VoiceNote> {
     super.dispose();
   }
 
-  Future<void> toggle() async {
-    final current = player;
-    if (current != null && playing) {
-      await current.pause();
-      return;
-    }
-    if (current == null) {
-      setState(() => loading = true);
-      try {
-        final file = await Locker.export(widget.message);
-        player = await open(file.path);
-      } catch (_) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Could not play this voice message.')),
-          );
-        }
-        return;
-      } finally {
-        if (mounted) setState(() => loading = false);
-      }
-    }
-    await player!.play();
-  }
-
   @override
   Widget build(BuildContext context) {
     final tone = widget.foreground;
-    final length0 = total ?? widget.message.duration;
-    final progress = length0.inMilliseconds == 0
+    final span = total ?? widget.message.duration;
+    final progress = span.inMilliseconds == 0
         ? 0.0
-        : position.inMilliseconds / length0.inMilliseconds;
+        : position.inMilliseconds / span.inMilliseconds;
     return SizedBox(
       width: 230,
       child: Row(
@@ -341,7 +316,34 @@ class VoiceNoteState extends State<VoiceNote> {
                 : IconButton(
                     padding: EdgeInsets.zero,
                     tooltip: playing ? 'Pause' : 'Play',
-                    onPressed: toggle,
+                    onPressed: () async {
+                      final current = player;
+                      if (current != null && playing) {
+                        await current.pause();
+                        return;
+                      }
+                      if (current == null) {
+                        setState(() => loading = true);
+                        try {
+                          final file = await Locker.export(widget.message);
+                          player = await open(file.path);
+                        } catch (_) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(this.context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Could not play this voice message.',
+                                ),
+                              ),
+                            );
+                          }
+                          return;
+                        } finally {
+                          if (mounted) setState(() => loading = false);
+                        }
+                      }
+                      await player!.play();
+                    },
                     icon: Icon(
                       playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
                       color: tone,
@@ -365,7 +367,7 @@ class VoiceNoteState extends State<VoiceNote> {
                 Text(
                   playing || position > Duration.zero
                       ? length(position)
-                      : length(length0),
+                      : length(span),
                   style: TextStyle(
                     color: tone.withValues(alpha: 0.75),
                     fontSize: 12,

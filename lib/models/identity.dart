@@ -21,7 +21,7 @@ class Identity {
     required this.date,
   });
 
-  factory Identity.fromInput(String input, {String name = 'Default'}) {
+  factory Identity.parse(String input, {String name = 'Default'}) {
     var seed = bip39.validateMnemonic(input.trim())
         ? Uint8List.fromList(bip39.mnemonicToSeed(input.trim()).sublist(0, 32))
         : Uint8List.fromList(sha256.convert(utf8.encode(input.trim())).bytes);
@@ -107,21 +107,5 @@ class Identity {
       'name': name,
       'date': date.toIso8601String(),
     };
-  }
-
-  Identity copyWith({
-    String? address,
-    String? public,
-    String? private,
-    String? name,
-    DateTime? date,
-  }) {
-    return Identity(
-      address: address ?? this.address,
-      public: public ?? this.public,
-      private: private ?? this.private,
-      name: name ?? this.name,
-      date: date ?? this.date,
-    );
   }
 }

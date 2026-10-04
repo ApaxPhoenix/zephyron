@@ -209,7 +209,7 @@ class Database {
       final route = join(folder, '$digest.db');
       final established = await File(route).exists();
 
-      Future<void> onCreate(cipher.Database instance, int version) async {
+      Future<void> create(cipher.Database instance, int version) async {
         await instance.execute('''
           CREATE TABLE identity (
             identifier INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -235,7 +235,7 @@ class Database {
           route,
           password: await key(secret, bytes),
           version: 1,
-          onCreate: onCreate,
+          onCreate: create,
         );
       }
 

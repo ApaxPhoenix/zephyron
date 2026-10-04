@@ -4,26 +4,26 @@ import 'package:zephyron/enums.dart';
 import 'package:zephyron/state.dart';
 import 'dart:developer' as developer;
 
-class NetworkSettingsPage extends StatefulWidget {
-  const NetworkSettingsPage({super.key});
+class Settings extends StatefulWidget {
+  const Settings({super.key});
 
   @override
-  State<NetworkSettingsPage> createState() => NetworkSettingsPageState();
+  State<Settings> createState() => _Settings();
 }
 
-class NetworkSettingsPageState extends State<NetworkSettingsPage> {
+class _Settings extends State<Settings> {
   @override
   Widget build(BuildContext context) {
     try {
       return Scaffold(
-        backgroundColor: Pallete.neutral000,
+        backgroundColor: Pallete.white,
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
           leading: IconButton(
             icon: const Icon(
               Icons.arrow_back_ios_new,
-              color: Pallete.neutral900,
+              color: Pallete.ink,
               size: 24,
             ),
             onPressed: () {
@@ -32,7 +32,7 @@ class NetworkSettingsPageState extends State<NetworkSettingsPage> {
               } catch (error) {
                 developer.log(
                   'Navigation pop error: $error',
-                  name: 'NetworkSettingsPage.pop',
+                  name: 'Settings.pop',
                   error: error,
                 );
               }
@@ -64,7 +64,7 @@ class NetworkSettingsPageState extends State<NetworkSettingsPage> {
                         style: Theme.of(context).textTheme.headlineMedium
                             ?.copyWith(
                               fontWeight: FontWeight.bold,
-                              color: Pallete.neutral900,
+                              color: Pallete.ink,
                             ),
                       ),
                       const SizedBox(height: 32),
@@ -75,28 +75,28 @@ class NetworkSettingsPageState extends State<NetworkSettingsPage> {
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
-                            color: Pallete.neutral700,
+                            color: Pallete.ash,
                           ),
                         ),
                       ),
                       DropdownButtonFormField<String>(
                         initialValue: appearance,
-                        dropdownColor: Pallete.neutral050,
-                        style: TextStyle(color: Pallete.neutral900),
+                        dropdownColor: Pallete.snow,
+                        style: TextStyle(color: Pallete.ink),
                         decoration: InputDecoration(
                           labelText: 'Appearance mode',
-                          labelStyle: TextStyle(color: Pallete.neutral500),
+                          labelStyle: TextStyle(color: Pallete.slate),
                           prefixIcon: const Icon(
                             Icons.my_location,
-                            color: Pallete.neutral900,
+                            color: Pallete.ink,
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Pallete.neutral300),
+                            borderSide: BorderSide(color: Pallete.silver),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Pallete.brand200),
+                            borderSide: BorderSide(color: Pallete.azure),
                           ),
                         ),
                         items: const [
@@ -123,7 +123,7 @@ class NetworkSettingsPageState extends State<NetworkSettingsPage> {
                           } catch (error) {
                             developer.log(
                               'Appearance configuration change error: $error',
-                              name: 'NetworkSettingsPage.appearanceChanged',
+                              name: 'Settings.appearanceChanged',
                               error: error,
                             );
                           }
@@ -132,22 +132,22 @@ class NetworkSettingsPageState extends State<NetworkSettingsPage> {
                       const SizedBox(height: 16),
                       DropdownButtonFormField<String>(
                         initialValue: speed,
-                        dropdownColor: Pallete.neutral050,
-                        style: TextStyle(color: Pallete.neutral900),
+                        dropdownColor: Pallete.snow,
+                        style: TextStyle(color: Pallete.ink),
                         decoration: InputDecoration(
                           labelText: 'Rendering speed',
-                          labelStyle: TextStyle(color: Pallete.neutral500),
+                          labelStyle: TextStyle(color: Pallete.slate),
                           prefixIcon: const Icon(
                             Icons.speed,
-                            color: Pallete.neutral900,
+                            color: Pallete.ink,
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Pallete.neutral300),
+                            borderSide: BorderSide(color: Pallete.silver),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Pallete.brand200),
+                            borderSide: BorderSide(color: Pallete.azure),
                           ),
                         ),
                         items:
@@ -168,7 +168,7 @@ class NetworkSettingsPageState extends State<NetworkSettingsPage> {
                           } catch (error) {
                             developer.log(
                               'Rendering speed configuration change error: $error',
-                              name: 'NetworkSettingsPage.speedChanged',
+                              name: 'Settings.speedChanged',
                               error: error,
                             );
                           }
@@ -178,7 +178,7 @@ class NetworkSettingsPageState extends State<NetworkSettingsPage> {
                       Text(
                         'Cache size limit',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Pallete.neutral900,
+                          color: Pallete.ink,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -188,15 +188,15 @@ class NetworkSettingsPageState extends State<NetworkSettingsPage> {
                         max: 2000,
                         divisions: 19,
                         label: '${settings.cache.toInt()} MB',
-                        activeColor: Pallete.brand100,
-                        inactiveColor: Pallete.neutral100,
+                        activeColor: Pallete.royal,
+                        inactiveColor: Pallete.mist,
                         onChanged: (value) {
                           try {
                             notifier.value = settings.copyWith(cache: value);
                           } catch (error) {
                             developer.log(
                               'Cache allocation configuration change error: $error',
-                              name: 'NetworkSettingsPage.cacheChanged',
+                              name: 'Settings.cacheChanged',
                               error: error,
                             );
                           }
@@ -210,7 +210,7 @@ class NetworkSettingsPageState extends State<NetworkSettingsPage> {
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
-                            color: Pallete.neutral700,
+                            color: Pallete.ash,
                           ),
                         ),
                       ),
@@ -232,7 +232,7 @@ class NetworkSettingsPageState extends State<NetworkSettingsPage> {
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
-                            color: Pallete.neutral700,
+                            color: Pallete.ash,
                           ),
                         ),
                       ),
@@ -252,7 +252,7 @@ class NetworkSettingsPageState extends State<NetworkSettingsPage> {
               } catch (error) {
                 developer.log(
                   'ValueListenableBuilder view assembly error: $error',
-                  name: 'NetworkSettingsPage.builder',
+                  name: 'Settings.builder',
                   error: error,
                 );
                 return const SizedBox.shrink();
@@ -264,7 +264,7 @@ class NetworkSettingsPageState extends State<NetworkSettingsPage> {
     } catch (error) {
       developer.log(
         'Build layout execution error: $error',
-        name: 'NetworkSettingsPage.build',
+        name: 'Settings.build',
         error: error,
       );
       return const SizedBox.shrink();
@@ -300,16 +300,16 @@ class Item extends StatelessWidget {
             );
           }
         },
-        leading: Icon(icon, color: Pallete.neutral900, size: 24),
+        leading: Icon(icon, color: Pallete.ink, size: 24),
         title: Text(
           title,
           style: Theme.of(
             context,
-          ).textTheme.bodyLarge?.copyWith(color: Pallete.neutral900),
+          ).textTheme.bodyLarge?.copyWith(color: Pallete.ink),
         ),
         trailing: const Icon(
           Icons.chevron_right,
-          color: Pallete.neutral500,
+          color: Pallete.slate,
           size: 20,
         ),
       );

@@ -1,0 +1,45 @@
+<!--
+  The Windows installer: Zephyron in Program Files with a Start menu entry,
+  made by `wix build` in the Build workflow from the Release folder that
+  `flutter build windows` leaves. Version and Source come from the command
+  line. The upgrade code is the same for every release, so a newer installer
+  replaces an older one.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package
+    Name="Zephyron"
+    Manufacturer="Aveloux"
+    Version="$(Version)"
+    UpgradeCode="1F3C9A52-6D2B-4E8F-9A71-5B0C2D4E6F81"
+    Scope="perMachine">
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Zephyron is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Icon Id="zephyron.ico" SourceFile="$(sys.SOURCEFILEDIR)runner\resources\app_icon.ico" />
+    <Property Id="ARPPRODUCTICON" Value="zephyron.ico" />
+
+    <StandardDirectory Id="ProgramFiles6432Folder">
+      <Directory Id="INSTALLFOLDER" Name="Zephyron">
+        <Files Include="$(Source)\**" />
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Component Id="Shortcut">
+        <Shortcut
+          Id="Menu"
+          Name="Zephyron"
+          Description="Private peer-to-peer messaging over Tor"
+          Target="[INSTALLFOLDER]zephyron.exe"
+          WorkingDirectory="INSTALLFOLDER" />
+        <RegistryValue
+          Root="HKCU"
+          Key="Software\Aveloux\Zephyron"
+          Name="shortcut"
+          Type="integer"
+          Value="1"
+          KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
+  </Package>
+</Wix>

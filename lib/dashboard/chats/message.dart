@@ -14,17 +14,17 @@ import 'package:zephyron/widgets/avatar.dart';
 import 'package:zephyron/widgets/sheet.dart';
 import 'package:zephyron/widgets/stamp.dart';
 
-class MessagePage extends StatefulWidget {
+class Conversation extends StatefulWidget {
   final String? title;
   final String? id;
 
-  const MessagePage({super.key, this.title, this.id});
+  const Conversation({super.key, this.title, this.id});
 
   @override
-  State<MessagePage> createState() => MessagePageState();
+  State<Conversation> createState() => _Conversation();
 }
 
-class MessagePageState extends State<MessagePage> {
+class _Conversation extends State<Conversation> {
   final TextEditingController input = TextEditingController();
   final ScrollController scroll = ScrollController();
   final FocusNode focus = FocusNode();
@@ -416,7 +416,7 @@ class MessagePageState extends State<MessagePage> {
                           final next = position < thread.length - 1
                               ? thread[position + 1]
                               : null;
-                          final newDay =
+                          final dawn =
                               previous == null ||
                               day(previous.time) != day(message.time);
                           bool joined(Message? other) =>
@@ -428,7 +428,7 @@ class MessagePageState extends State<MessagePage> {
                                       .inMinutes
                                       .abs() <
                                   3;
-                          final above = !newDay && joined(previous);
+                          final above = !dawn && joined(previous);
                           final below = joined(next);
                           final fresh = !settled.contains(message.id);
                           settled.add(message.id);
@@ -567,7 +567,7 @@ class MessagePageState extends State<MessagePage> {
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    VoiceNote(
+                                    Memo(
                                       message: message,
                                       foreground: foreground,
                                     ),
@@ -966,10 +966,10 @@ class MessagePageState extends State<MessagePage> {
                                       context,
                                       items: [
                                         if (message.text.isNotEmpty)
-                                          SheetAction(
+                                          Command(
                                             icon: Icons.copy_rounded,
                                             label: 'Copy text',
-                                            onTap: () {
+                                            run: () {
                                               Clipboard.setData(
                                                 ClipboardData(
                                                   text: message.text,
@@ -996,23 +996,23 @@ class MessagePageState extends State<MessagePage> {
                                             },
                                           ),
                                         if (message.attachment)
-                                          SheetAction(
+                                          Command(
                                             icon: Icons.ios_share_rounded,
                                             label: 'Share or save',
-                                            onTap: () =>
+                                            run: () =>
                                                 Viewer.export(context, message),
                                           ),
                                         if (pending)
-                                          SheetAction(
+                                          Command(
                                             icon: Icons.refresh_rounded,
                                             label: 'Retry now',
-                                            onTap: () => courier.flush(peer),
+                                            run: () => courier.flush(peer),
                                           ),
-                                        SheetAction(
+                                        Command(
                                           icon: Icons.delete_outline_rounded,
                                           label: 'Delete for me',
                                           destructive: true,
-                                          onTap: () => courier.erase(message),
+                                          run: () => courier.erase(message),
                                         ),
                                       ],
                                     );
@@ -1049,7 +1049,7 @@ class MessagePageState extends State<MessagePage> {
                           return Column(
                             key: ValueKey(message.id),
                             children: [
-                              if (newDay)
+                              if (dawn)
                                 Padding(
                                   padding: const EdgeInsets.symmetric(
                                     vertical: 16,
@@ -1104,8 +1104,8 @@ class MessagePageState extends State<MessagePage> {
                   color: scheme.surface,
                   child: recording
                       ? Recorder(
-                          onDone: voice,
-                          onCancel: () => setState(() => recording = false),
+                          done: voice,
+                          cancel: () => setState(() => recording = false),
                         )
                       : Row(
                           crossAxisAlignment: CrossAxisAlignment.end,
@@ -1257,10 +1257,10 @@ class Frame extends StatefulWidget {
   });
 
   @override
-  State<Frame> createState() => FrameState();
+  State<Frame> createState() => _Frame();
 }
 
-class FrameState extends State<Frame> {
+class _Frame extends State<Frame> {
   late final Future<Uint8List> bytes = Locker.load(widget.message);
 
   @override
@@ -1398,10 +1398,10 @@ class Typing extends StatefulWidget {
   const Typing({super.key});
 
   @override
-  State<Typing> createState() => TypingState();
+  State<Typing> createState() => _Typing();
 }
 
-class TypingState extends State<Typing> with SingleTickerProviderStateMixin {
+class _Typing extends State<Typing> with SingleTickerProviderStateMixin {
   late final AnimationController wave = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 1000),

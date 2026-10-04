@@ -103,10 +103,10 @@ class Cropper extends StatefulWidget {
       bytes[2] == 0x46;
 
   @override
-  State<Cropper> createState() => CropperState();
+  State<Cropper> createState() => _Cropper();
 }
 
-class CropperState extends State<Cropper> {
+class _Cropper extends State<Cropper> {
   ui.Image? picture;
   double zoom = 1;
   Offset shift = Offset.zero;
@@ -146,11 +146,11 @@ class CropperState extends State<Cropper> {
   Offset fit(Offset offset, Size frame) {
     final image = picture!;
     final factor = scale(frame);
-    final spareX = math.max(0.0, (image.width * factor - frame.width) / 2);
-    final spareY = math.max(0.0, (image.height * factor - frame.height) / 2);
+    final across = math.max(0.0, (image.width * factor - frame.width) / 2);
+    final down = math.max(0.0, (image.height * factor - frame.height) / 2);
     return Offset(
-      offset.dx.clamp(-spareX, spareX),
-      offset.dy.clamp(-spareY, spareY),
+      offset.dx.clamp(-across, across),
+      offset.dy.clamp(-down, down),
     );
   }
 

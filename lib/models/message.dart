@@ -22,7 +22,7 @@ class Message {
     this.status = Status.sending,
   }) : meta = meta ?? <String, dynamic>{};
 
-  factory Message.fromRow(Map<String, dynamic> row) {
+  factory Message.from(Map<String, dynamic> row) {
     int index(Object? value, int length) =>
         ((value as int?) ?? 0).clamp(0, length - 1);
 
@@ -49,7 +49,7 @@ class Message {
     );
   }
 
-  Map<String, dynamic> toRow() {
+  Map<String, dynamic> row() {
     return {
       'id': id,
       'peer': peer,

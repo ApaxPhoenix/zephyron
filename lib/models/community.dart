@@ -93,7 +93,7 @@ class Community {
       .toString()
       .substring(0, 32);
 
-  factory Community.fromRow(Map<String, dynamic> row) {
+  factory Community.from(Map<String, dynamic> row) {
     Uint8List? blob(Object? value) =>
         value is Uint8List && value.isNotEmpty ? value : null;
     final ring = <String, Uint8List>{};
@@ -124,7 +124,7 @@ class Community {
     );
   }
 
-  Map<String, dynamic> toRow() => {
+  Map<String, dynamic> row() => {
     'id': id,
     'name': name,
     'about': about,
@@ -196,7 +196,7 @@ class Post {
     Map<String, dynamic>? meta,
   }) : meta = meta ?? {};
 
-  factory Post.fromRow(Map<String, dynamic> row) {
+  factory Post.from(Map<String, dynamic> row) {
     int index(Object? value, int length) =>
         ((value as int?) ?? 0).clamp(0, length - 1);
     Map<String, dynamic> extra = {};
@@ -220,7 +220,7 @@ class Post {
     );
   }
 
-  Map<String, dynamic> toRow() => {
+  Map<String, dynamic> row() => {
     'id': id,
     'community': community,
     'channel': channel,
