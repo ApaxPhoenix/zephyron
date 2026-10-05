@@ -180,19 +180,7 @@ class VaultPageState extends State<VaultPage> {
                       height: 128,
                       child: Stack(
                         children: [
-                          Container(
-                            height: 72,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [
-                                  scheme.primary,
-                                  scheme.secondary.withValues(alpha: 0.75),
-                                ],
-                              ),
-                            ),
-                          ),
+                          Cover(banner: me.banner, height: 72),
                           Positioned(
                             left: 16,
                             top: 32,
@@ -333,6 +321,15 @@ class VaultPageState extends State<VaultPage> {
                     value: prefs.strangers,
                     onChanged: (value) =>
                         tune((next) => next.strangers = value),
+                  ),
+                  SwitchListTile(
+                    secondary: const Icon(Icons.screenshot_monitor_outlined),
+                    title: const Text('Screen Security'),
+                    subtitle: const Text(
+                      'Block screenshots and screen recording, and hide chats in the app switcher',
+                    ),
+                    value: prefs.shield,
+                    onChanged: (value) => tune((next) => next.shield = value),
                   ),
                   ListTile(
                     leading: const Icon(Icons.block),
@@ -489,6 +486,13 @@ class VaultPageState extends State<VaultPage> {
                     leading: Icon(Icons.key_outlined),
                     title: Text('Message Signing'),
                     subtitle: Text('Ed25519, bound to your discovery key'),
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.enhanced_encryption_outlined),
+                    title: Text('End-to-End Encryption'),
+                    subtitle: Text(
+                      'X3DH and the Double Ratchet with AES-256-GCM, inside Tor. Every message and file has its own key',
+                    ),
                   ),
                   ListTile(
                     leading: Icon(Icons.gpp_maybe_outlined),
