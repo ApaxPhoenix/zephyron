@@ -5,11 +5,11 @@ import 'package:zephyron/enums.dart';
 
 class Profile {
   static const int names = 32;
-  static const int bios = 160;
+  static const int biographies = 160;
   static const int moods = 80;
 
   String name;
-  String bio;
+  String biography;
   String mood;
   Availability availability;
   Uint8List? avatar;
@@ -24,7 +24,7 @@ class Profile {
 
   Profile({
     this.name = '',
-    this.bio = '',
+    this.biography = '',
     this.mood = '',
     this.availability = Availability.available,
     this.avatar,
@@ -33,14 +33,14 @@ class Profile {
     this.revision = 0,
   });
 
-  factory Profile.fromJson(Map<String, dynamic> json) {
-    final picture = json['avatar'] as String?;
-    final cover = json['banner'] as String?;
-    final state = json['availability'] as String?;
+  factory Profile.fromJson(Map<String, dynamic> fields) {
+    final picture = fields['avatar'] as String?;
+    final cover = fields['banner'] as String?;
+    final state = fields['availability'] as String?;
     return Profile(
-      name: clip(json['name'], names),
-      bio: clip(json['bio'], bios),
-      mood: clip(json['mood'], moods),
+      name: clip(fields['name'], names),
+      biography: clip(fields['bio'], biographies),
+      mood: clip(fields['mood'], moods),
       availability: Availability.values.firstWhere(
         (item) => item.name == state,
         orElse: () => Availability.available,
@@ -49,8 +49,8 @@ class Profile {
           ? base64.decode(picture)
           : null,
       banner: cover != null && cover.isNotEmpty ? base64.decode(cover) : null,
-      mailbox: clip(json['mailbox'], 62).toLowerCase(),
-      revision: json['revision'] as int? ?? 0,
+      mailbox: clip(fields['mailbox'], 62).toLowerCase(),
+      revision: fields['revision'] as int? ?? 0,
     );
   }
 
@@ -59,7 +59,7 @@ class Profile {
   Map<String, dynamic> toJson({bool banner = true}) {
     return {
       'name': name,
-      'bio': bio,
+      'bio': biography,
       'mood': mood,
       'availability': availability.name,
       'avatar': avatar == null ? '' : base64.encode(avatar!),
@@ -119,24 +119,24 @@ class Preferences {
     this.rating = Rating.pg,
   });
 
-  factory Preferences.fromJson(Map<String, dynamic> json) {
+  factory Preferences.fromJson(Map<String, dynamic> fields) {
     return Preferences(
-      receipts: json['receipts'] as bool? ?? true,
-      typing: json['typing'] as bool? ?? true,
-      strangers: json['strangers'] as bool? ?? true,
-      banners: json['banners'] as bool? ?? true,
-      haptics: json['haptics'] as bool? ?? true,
-      shield: json['shield'] as bool? ?? true,
-      carry: json['carry'] as bool? ?? true,
-      serve: json['serve'] as String? ?? '',
-      listed: json['listed'] as bool? ?? false,
-      spread: json['spread'] as bool? ?? true,
+      receipts: fields['receipts'] as bool? ?? true,
+      typing: fields['typing'] as bool? ?? true,
+      strangers: fields['strangers'] as bool? ?? true,
+      banners: fields['banners'] as bool? ?? true,
+      haptics: fields['haptics'] as bool? ?? true,
+      shield: fields['shield'] as bool? ?? true,
+      carry: fields['carry'] as bool? ?? true,
+      serve: fields['serve'] as String? ?? '',
+      listed: fields['listed'] as bool? ?? false,
+      spread: fields['spread'] as bool? ?? true,
       theme: ThemeMode.values.firstWhere(
-        (item) => item.name == json['theme'],
+        (item) => item.name == fields['theme'],
         orElse: () => ThemeMode.system,
       ),
       rating: Rating.values.firstWhere(
-        (item) => item.name == json['rating'],
+        (item) => item.name == fields['rating'],
         orElse: () => Rating.pg,
       ),
     );

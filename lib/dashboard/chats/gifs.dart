@@ -67,7 +67,7 @@ class _Gifs extends State<Gifs> {
       final page = await Giphy.query(
         search.text.trim(),
         results.length,
-        Courier.instance.prefs.rating,
+        Courier.instance.preferences.rating,
       );
       if (!mounted || ticket != request) return;
       setState(() {
@@ -163,7 +163,7 @@ class _Gifs extends State<Gifs> {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  Photo(uri: gif.preview),
+                  Photo(link: gif.preview),
                   if (picking == gif.id)
                     Container(
                       color: Colors.black45,
@@ -219,22 +219,22 @@ class _Gifs extends State<Gifs> {
 }
 
 class Photo extends StatefulWidget {
-  final Uri uri;
+  final Uri link;
   final BoxFit fit;
 
-  const Photo({super.key, required this.uri, this.fit = BoxFit.cover});
+  const Photo({super.key, required this.link, this.fit = BoxFit.cover});
 
   @override
   State<Photo> createState() => _Photo();
 }
 
 class _Photo extends State<Photo> {
-  late Future<Uint8List> bytes = Web.fetch(widget.uri);
+  late Future<Uint8List> bytes = Web.fetch(widget.link);
 
   @override
   void didUpdateWidget(Photo previous) {
     super.didUpdateWidget(previous);
-    if (previous.uri != widget.uri) bytes = Web.fetch(widget.uri);
+    if (previous.link != widget.link) bytes = Web.fetch(widget.link);
   }
 
   @override

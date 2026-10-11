@@ -314,10 +314,11 @@ class _Discover extends State<Discover> with SingleTickerProviderStateMixin {
                 subtitle: const Text(
                   'Anyone the listing reaches sees your name, bio, picture and discovery key',
                 ),
-                value: courier.prefs.listed,
+                value: courier.preferences.listed,
                 onChanged: (value) {
-                  final next = Preferences.fromJson(courier.prefs.toJson())
-                    ..listed = value;
+                  final next = Preferences.fromJson(
+                    courier.preferences.toJson(),
+                  )..listed = value;
                   courier.configure(next);
                 },
               ),

@@ -25,7 +25,7 @@ class Vault : ContentProvider() {
             File(context.cacheDir, "outbox").also { it.mkdirs() }
 
         /** A URI other apps can be granted for [file], which must be in the outbox. */
-        fun uri(context: Context, file: File): Uri {
+        fun link(context: Context, file: File): Uri {
             val root = outbox(context).canonicalFile
             val target = file.canonicalFile
             require(target.path.startsWith(root.path + File.separator)) { "Not in the outbox" }
@@ -45,10 +45,10 @@ class Vault : ContentProvider() {
 
     override fun onCreate() = true
 
-    private fun file(uri: Uri): File? {
+    private fun file(link: Uri): File? {
         val context = context ?: return null
         val root = outbox(context).canonicalFile
-        val path = uri.path ?: return null
+        val path = link.path ?: return null
         val target = File(root, path).canonicalFile
         return if (target.path.startsWith(root.path + File.separator)) target else null
     }

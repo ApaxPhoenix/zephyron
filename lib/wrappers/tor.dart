@@ -161,7 +161,7 @@ class Tor {
         if (!opened.isCompleted) opened.completeError(error);
       }
 
-      final sub = socket.listen(
+      final subscription = socket.listen(
         (chunk) {
           if (stage == 2) {
             inbox.add(chunk);
@@ -239,7 +239,7 @@ class Tor {
         },
         cancelOnError: false,
       );
-      inbox.onCancel = sub.cancel;
+      inbox.onCancel = subscription.cancel;
 
       socket.add([
         0x05, // SOCKS version 5 protocol identifier

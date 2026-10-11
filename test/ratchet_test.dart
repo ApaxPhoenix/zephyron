@@ -146,16 +146,16 @@ void main() {
     expect(Ratchet.bucket(5000), 8192);
     final padded = Ratchet.pad(utf8.encode('hello'));
     expect(padded, hasLength(256));
-    expect(utf8.decode(Ratchet.unpad(padded)), 'hello');
+    expect(utf8.decode(Ratchet.strip(padded)), 'hello');
     final broken = Uint8List.fromList(padded)..[0] = 0xFF;
-    expect(() => Ratchet.unpad(broken), throwsA(isA<Unreadable>()));
+    expect(() => Ratchet.strip(broken), throwsA(isA<Unreadable>()));
   });
 
   test('every chunk of a file is the same size on the wire', () async {
     final key = Ratchet.random(32);
-    final full = await Ratchet.chunk(key, 0, List.filled(1000, 1), width: 1000);
-    final tail = await Ratchet.chunk(key, 1, List.filled(17, 2), width: 1000);
+    final full = await Ratchet.wrap(key, 0, List.filled(1000, 1), width: 1000);
+    final tail = await Ratchet.wrap(key, 1, List.filled(17, 2), width: 1000);
     expect(tail.length, full.length);
-    expect(await Ratchet.unchunk(key, 1, tail), List.filled(17, 2));
+    expect(await Ratchet.unwrap(key, 1, tail), List.filled(17, 2));
   });
 }

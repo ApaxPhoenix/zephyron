@@ -19,7 +19,7 @@ void main() {
   setUpAll(unlock);
   setUp(() {
     reset();
-    courier.prefs.strangers = true;
+    courier.preferences.strangers = true;
   });
 
   test(
@@ -64,7 +64,7 @@ void main() {
   });
 
   test('requests are refused when message requests are turned off', () async {
-    courier.prefs.strangers = false;
+    courier.preferences.strangers = false;
     final wire = await Wire.open();
     final frame = sealed(
       carol,
@@ -135,9 +135,9 @@ void main() {
     );
     final id = manifest['id'] as String;
     wire.send(manifest);
-    for (var seq = 0, offset = 0; offset < payload.length; seq++) {
+    for (var sequence = 0, offset = 0; offset < payload.length; sequence++) {
       final end = (offset + Courier.slice).clamp(0, payload.length);
-      wire.send(await piece(id, key, seq, payload.sublist(offset, end)));
+      wire.send(await piece(id, key, sequence, payload.sublist(offset, end)));
       offset = end;
     }
 

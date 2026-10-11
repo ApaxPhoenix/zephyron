@@ -62,7 +62,7 @@ class _Dashboard extends State<Dashboard> {
   /// the app, or a system notification while the app is in the background.
   void announce(Message message) {
     final courier = Courier.instance;
-    if (!mounted || !courier.prefs.banners) return;
+    if (!mounted || !courier.preferences.banners) return;
     if (courier.me.availability == Availability.busy) return;
     final name = courier.roster[message.peer]?.label ?? 'Someone';
     final text = Alerts.count(max(1, courier.unread(message.peer)));

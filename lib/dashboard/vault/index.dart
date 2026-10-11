@@ -69,8 +69,8 @@ class _Vault extends State<Vault> {
 
   Courier get courier => Courier.instance;
 
-  void tune(void Function(Preferences prefs) change) {
-    final next = Preferences.fromJson(courier.prefs.toJson());
+  void tune(void Function(Preferences preferences) change) {
+    final next = Preferences.fromJson(courier.preferences.toJson());
     change(next);
     courier.configure(next);
   }
@@ -92,7 +92,7 @@ class _Vault extends State<Vault> {
     final trustees =
         courier.roster.values.where((item) => item.trusted).toList()
           ..sort((alpha, beta) => alpha.label.compareTo(beta.label));
-    final current = own ? courier.me.mailbox : courier.prefs.serve;
+    final current = own ? courier.me.mailbox : courier.preferences.serve;
     final picked = await Sheets.pick<String>(
       context,
       title: own ? 'Your Mailbox' : 'Be a Mailbox',
@@ -164,7 +164,7 @@ class _Vault extends State<Vault> {
         ]),
         builder: (context, _) {
           final me = courier.me;
-          final prefs = courier.prefs;
+          final preferences = courier.preferences;
           final address = courier.self?.address ?? '';
           final reach = courier.reach.value;
           final progress = Sentinel.summon().progress.value;
@@ -281,8 +281,8 @@ class _Vault extends State<Vault> {
                           Text(
                             me.mood.isNotEmpty
                                 ? me.mood
-                                : me.bio.isNotEmpty
-                                ? me.bio
+                                : me.biography.isNotEmpty
+                                ? me.biography
                                 : 'Add a status and bio',
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
@@ -345,14 +345,14 @@ class _Vault extends State<Vault> {
                     subtitle: const Text(
                       'Let trustees see when you have read their messages',
                     ),
-                    value: prefs.receipts,
+                    value: preferences.receipts,
                     onChanged: (value) => tune((next) => next.receipts = value),
                   ),
                   SwitchListTile(
                     secondary: const Icon(Icons.keyboard_outlined),
                     title: const Text('Typing Indicators'),
                     subtitle: const Text('Show trustees when you are typing'),
-                    value: prefs.typing,
+                    value: preferences.typing,
                     onChanged: (value) => tune((next) => next.typing = value),
                   ),
                   SwitchListTile(
@@ -361,7 +361,7 @@ class _Vault extends State<Vault> {
                     subtitle: const Text(
                       'Allow people who are not trustees to message you',
                     ),
-                    value: prefs.strangers,
+                    value: preferences.strangers,
                     onChanged: (value) =>
                         tune((next) => next.strangers = value),
                   ),
@@ -371,7 +371,7 @@ class _Vault extends State<Vault> {
                     subtitle: const Text(
                       'Hold sealed messages for trustees while the person they are for is offline. You cannot read them',
                     ),
-                    value: prefs.carry,
+                    value: preferences.carry,
                     onChanged: (value) => tune((next) => next.carry = value),
                   ),
                   SwitchListTile(
@@ -380,7 +380,7 @@ class _Vault extends State<Vault> {
                     subtitle: const Text(
                       'Block screenshots and screen recording, and hide chats in the app switcher',
                     ),
-                    value: prefs.shield,
+                    value: preferences.shield,
                     onChanged: (value) => tune((next) => next.shield = value),
                   ),
                   ListTile(
@@ -418,9 +418,9 @@ class _Vault extends State<Vault> {
                     leading: const Icon(Icons.inventory_2_outlined),
                     title: const Text('Be a Mailbox'),
                     subtitle: Text(
-                      prefs.serve.isEmpty
+                      preferences.serve.isEmpty
                           ? 'Off. Turn this phone into the mailbox of a trustee'
-                          : 'Holding messages for ${courier.roster[prefs.serve]?.label ?? prefs.serve.substring(0, 10)}. Keep this phone unlocked and charging',
+                          : 'Holding messages for ${courier.roster[preferences.serve]?.label ?? preferences.serve.substring(0, 10)}. Keep this phone unlocked and charging',
                     ),
                     trailing: Icon(
                       Icons.chevron_right,
@@ -443,7 +443,7 @@ class _Vault extends State<Vault> {
                     subtitle: const Text(
                       'Anyone the listing reaches sees your name, bio, picture and discovery key, and can send you a request',
                     ),
-                    value: prefs.listed,
+                    value: preferences.listed,
                     onChanged: (value) => tune((next) => next.listed = value),
                   ),
                   SwitchListTile(
@@ -452,7 +452,7 @@ class _Vault extends State<Vault> {
                     subtitle: const Text(
                       'Share the listings this phone holds with your trustees, so discovery reaches further',
                     ),
-                    value: prefs.spread,
+                    value: preferences.spread,
                     onChanged: (value) => tune((next) => next.spread = value),
                   ),
                   ListTile(
@@ -478,14 +478,14 @@ class _Vault extends State<Vault> {
                     subtitle: const Text(
                       'Muted automatically on Do not disturb',
                     ),
-                    value: prefs.banners,
+                    value: preferences.banners,
                     onChanged: (value) => tune((next) => next.banners = value),
                   ),
                   SwitchListTile(
                     secondary: const Icon(Icons.vibration),
                     title: const Text('Haptics'),
                     subtitle: const Text('Vibrate on send and long press'),
-                    value: prefs.haptics,
+                    value: preferences.haptics,
                     onChanged: (value) => tune((next) => next.haptics = value),
                   ),
                 ],
@@ -512,7 +512,7 @@ class _Vault extends State<Vault> {
                     leading: const Icon(Icons.shield_outlined),
                     title: const Text('GIF Content Rating'),
                     trailing: choice<Rating>(
-                      value: prefs.rating,
+                      value: preferences.rating,
                       options: [
                         for (final rating in Rating.values)
                           (rating, rating.label),
@@ -529,7 +529,7 @@ class _Vault extends State<Vault> {
                     leading: const Icon(Icons.brightness_6_outlined),
                     title: const Text('Theme'),
                     trailing: choice<ThemeMode>(
-                      value: prefs.theme,
+                      value: preferences.theme,
                       options: const [
                         (ThemeMode.system, 'System'),
                         (ThemeMode.light, 'Light'),

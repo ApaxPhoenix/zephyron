@@ -487,7 +487,7 @@ class _Episode extends State<Episode> {
                 children: [
                   IconButton.filled(
                     tooltip: playing ? 'Pause' : 'Play',
-                    style: Pallete.solid(Theme.of(context).colorScheme),
+                    style: Palette.solid(Theme.of(context).colorScheme),
                     onPressed: opening ? null : toggle,
                     icon: opening
                         ? const SizedBox(

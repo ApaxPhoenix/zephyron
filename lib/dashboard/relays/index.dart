@@ -221,7 +221,7 @@ class _Relays extends State<Relays> {
                             line,
                             style: Theme.of(context).textTheme.labelSmall
                                 ?.copyWith(
-                                  fontFamily: Pallete.mono,
+                                  fontFamily: Palette.mono,
                                   fontFeatures: tabular,
                                 ),
                           ),
@@ -379,7 +379,7 @@ class _Relays extends State<Relays> {
                                       : 'Tor ${vitals!.version}',
                                   overflow: TextOverflow.ellipsis,
                                   style: Theme.of(context).textTheme.bodySmall
-                                      ?.copyWith(fontFamily: Pallete.mono),
+                                      ?.copyWith(fontFamily: Palette.mono),
                                 ),
                               ),
                               TextButton.icon(
@@ -731,7 +731,7 @@ class _Relays extends State<Relays> {
                                                             style:
                                                                 const TextStyle(
                                                                   fontFamily:
-                                                                      Pallete
+                                                                      Palette
                                                                           .mono,
                                                                   fontSize: 12,
                                                                 ),
@@ -813,7 +813,7 @@ class _Relays extends State<Relays> {
                                       autocorrect: false,
                                       enableSuggestions: false,
                                       style: const TextStyle(
-                                        fontFamily: Pallete.mono,
+                                        fontFamily: Palette.mono,
                                         fontSize: 12,
                                       ),
                                       decoration: InputDecoration(

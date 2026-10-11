@@ -3,7 +3,7 @@ import 'package:zephyron/theme.dart';
 import 'package:flutter/services.dart';
 import 'package:zephyron/services/courier.dart';
 import 'package:zephyron/services/share.dart';
-import 'package:zephyron/widgets/qr.dart';
+import 'package:zephyron/widgets/barcode.dart';
 import 'package:zephyron/widgets/sheet.dart';
 
 class Discovery extends StatelessWidget {
@@ -46,12 +46,12 @@ class Discovery extends StatelessWidget {
 
   static Future<void> spread(String address, String name, {bool own = false}) {
     final who = name.trim().isEmpty ? 'this person' : name.trim();
-    final intro = own
+    final introduction = own
         ? 'Add me as a trustee on Zephyron'
         : 'Add $who as a trustee on Zephyron';
     return Share.text(
-      '$intro\n\n${Courier.link(address, name)}\n\nDiscovery key: $address',
-      subject: intro,
+      '$introduction\n\n${Courier.link(address, name)}\n\nDiscovery key: $address',
+      subject: introduction,
     );
   }
 
@@ -96,7 +96,7 @@ class Discovery extends StatelessWidget {
             address,
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontFamily: Pallete.mono,
+              fontFamily: Palette.mono,
               fontSize: 13,
               height: 1.4,
               color: scheme.onSurfaceVariant,
