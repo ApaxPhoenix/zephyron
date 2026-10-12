@@ -140,29 +140,6 @@ class _Persona extends State<Persona> {
       if (cropped != null) setState(() => draft.banner = cropped);
     }
 
-    Future<void> giphy() async {
-      final picked = await Gifs.show(context);
-      if (picked == null) return;
-      final fitted = await squeeze(picked.bytes, Courier.banner);
-      if (fitted != null) setState(() => draft.banner = fitted);
-    }
-
-    Future<void> file() async {
-      try {
-        final picked = await Explorer.file(type: 'image/gif');
-        if (picked == null) return;
-        final bytes = await picked.bytes();
-        if (!Cropper.animated(bytes)) {
-          warn('Choose a GIF file.');
-          return;
-        }
-        final fitted = await squeeze(bytes, Courier.banner);
-        if (fitted != null) setState(() => draft.banner = fitted);
-      } catch (_) {
-        warn('Could not open that file.');
-      }
-    }
-
     await Sheets.actions(
       context,
       items: [
@@ -175,12 +152,31 @@ class _Persona extends State<Persona> {
           Command(
             icon: Icons.gif_box_outlined,
             label: 'Search GIPHY',
-            run: giphy,
+            run: () async {
+              final picked = await Gifs.show(context);
+              if (picked == null) return;
+              final fitted = await squeeze(picked.bytes, Courier.banner);
+              if (fitted != null) setState(() => draft.banner = fitted);
+            },
           ),
         Command(
           icon: Icons.folder_open_outlined,
           label: 'GIF from Files',
-          run: file,
+          run: () async {
+            try {
+              final picked = await Explorer.file(type: 'image/gif');
+              if (picked == null) return;
+              final bytes = await picked.bytes();
+              if (!Cropper.animated(bytes)) {
+                warn('Choose a GIF file.');
+                return;
+              }
+              final fitted = await squeeze(bytes, Courier.banner);
+              if (fitted != null) setState(() => draft.banner = fitted);
+            } catch (_) {
+              warn('Could not open that file.');
+            }
+          },
         ),
         if (draft.banner != null)
           Command(

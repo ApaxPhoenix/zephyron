@@ -143,9 +143,6 @@ class _Chats extends State<Chats> {
                           group.name.toLowerCase().contains(query),
                     )
                     .toList();
-          DateTime when(Object entry) => entry is Community
-              ? mesh.active(entry)
-              : courier.last((entry as Trustee).address)?.time ?? entry.created;
           bool pinned(Object entry) =>
               entry is Community ? entry.pinned : (entry as Trustee).pinned;
           final sorted =
@@ -154,7 +151,16 @@ class _Chats extends State<Chats> {
                   if (pinned(alpha) != pinned(beta)) {
                     return pinned(alpha) ? -1 : 1;
                   }
-                  return when(beta).compareTo(when(alpha));
+                  return (beta is Community
+                          ? mesh.active(beta)
+                          : courier.last((beta as Trustee).address)?.time ??
+                                beta.created)
+                      .compareTo(
+                        (alpha is Community
+                            ? mesh.active(alpha)
+                            : courier.last((alpha as Trustee).address)?.time ??
+                                  alpha.created),
+                      );
                 });
 
           // With nothing narrowed down, one list holds requests, then
@@ -175,21 +181,24 @@ class _Chats extends State<Chats> {
           } else if (filter == Filter.blocked) {
             section('Blocked', list.map(Quiet.new).toList(), label: false);
           } else if (filter == Filter.all && query.isEmpty) {
-            bool talked(Object item) =>
-                item is Community ||
-                (item is Trustee && courier.last(item.address) != null);
             final pleas = [
               for (final item in sorted)
                 if (item is Trustee && item.stranger) Plea(item),
             ];
             final talks = [
               for (final item in sorted)
-                if (talked(item) && !(item is Trustee && item.stranger)) item,
+                if ((item is Community ||
+                        (item is Trustee &&
+                            courier.last(item.address) != null)) &&
+                    !(item is Trustee && item.stranger))
+                  item,
             ];
             final quiet =
                 [
                   for (final item in sorted)
-                    if (item is Trustee && !item.stranger && !talked(item))
+                    if (item is Trustee &&
+                        !item.stranger &&
+                        courier.last(item.address) == null)
                       Quiet(item),
                 ]..sort((alpha, beta) {
                   final left = courier.online(alpha.trustee.address);

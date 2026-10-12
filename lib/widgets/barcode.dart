@@ -49,13 +49,15 @@ class Dots extends CustomPainter {
     final dot = Paint()
       ..color = color
       ..isAntiAlias = true;
-    bool finder(int column, int row) =>
-        (column < 7 && row < 7) ||
-        (column >= count - 7 && row < 7) ||
-        (column < 7 && row >= count - 7);
     for (var row = 0; row < count; row++) {
       for (var column = 0; column < count; column++) {
-        if (!code.dark(column, row) || finder(column, row)) continue;
+        // The three finder eyes are drawn as rings below, not as dots.
+        if (!code.dark(column, row) ||
+            (column < 7 && row < 7) ||
+            (column >= count - 7 && row < 7) ||
+            (column < 7 && row >= count - 7)) {
+          continue;
+        }
         canvas.drawCircle(
           Offset((column + 0.5) * cell, (row + 0.5) * cell),
           cell * 0.45,

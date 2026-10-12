@@ -406,17 +406,6 @@ class Mesh extends ChangeNotifier {
     ),
   );
 
-  static List<int> associated(Map<String, dynamic> frame) => utf8.encode(
-    [
-      frame['c'],
-      frame['i'],
-      frame['a'],
-      frame['s'],
-      frame['t'],
-      if (frame['e'] != null) frame['e'],
-    ].join('\n'),
-  );
-
   static Future<Uint8List> material(Uint8List key, String id) =>
       Ratchet.derive(key, info: 'zephyron/post:$id', length: 44);
 
@@ -459,7 +448,16 @@ class Mesh extends ChangeNotifier {
       ),
       secretKey: SecretKey(keys.sublist(0, 32)),
       nonce: keys.sublist(32),
-      aad: associated(frame),
+      aad: (utf8.encode(
+        [
+          frame['c'],
+          frame['i'],
+          frame['a'],
+          frame['s'],
+          frame['t'],
+          if (frame['e'] != null) frame['e'],
+        ].join('\n'),
+      )),
     );
     frame['x'] = base64.encode([...box.cipherText, ...box.mac.bytes]);
     frame['g'] = Courier.encode(
@@ -518,7 +516,16 @@ class Mesh extends ChangeNotifier {
               mac: Mac(bytes.sublist(bytes.length - 16)),
             ),
             secretKey: SecretKey(keys.sublist(0, 32)),
-            aad: associated(frame),
+            aad: (utf8.encode(
+              [
+                frame['c'],
+                frame['i'],
+                frame['a'],
+                frame['s'],
+                frame['t'],
+                if (frame['e'] != null) frame['e'],
+              ].join('\n'),
+            )),
           );
           break;
         } on SecretBoxAuthenticationError {
@@ -677,8 +684,9 @@ class Mesh extends ChangeNotifier {
     if (name is String && name.trim().isNotEmpty) {
       group.name = Profile.clip(name, Community.names);
     }
-    if (about is String)
+    if (about is String) {
       group.about = Profile.clip(about, Community.descriptions);
+    }
     if (icon is String) {
       final bytes = icon.isEmpty ? null : base64.decode(icon);
       if ((bytes?.length ?? 0) <= icons) group.icon = bytes;
