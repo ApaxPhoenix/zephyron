@@ -89,6 +89,7 @@ class Transfer {
   final int height;
   final int time;
   final int fuse;
+  final int duration;
 
   /// Key that seals each chunk, carried inside the encrypted manifest.
   final Uint8List key;
@@ -110,6 +111,7 @@ class Transfer {
     required this.time,
     required this.key,
     this.fuse = 0,
+    this.duration = 0,
   });
 
   double get progress => size == 0 ? 0 : buffer.length / size;
@@ -670,6 +672,7 @@ class Courier extends ChangeNotifier {
             'size': transfer.size,
             'width': transfer.width,
             'height': transfer.height,
+            if (transfer.duration > 0) 'duration': transfer.duration,
           },
         );
         if (!await Ledger.record(message)) return;
@@ -815,7 +818,13 @@ class Courier extends ChangeNotifier {
             (item) => item.name == data['kind'],
             orElse: () => Kind.text,
           );
-          if (kind != Kind.image && kind != Kind.gif && kind != Kind.file) {
+          if (!const {
+            Kind.image,
+            Kind.gif,
+            Kind.file,
+            Kind.voice,
+            Kind.video,
+          }.contains(kind)) {
             break;
           }
           final size = data['size'];
@@ -850,6 +859,11 @@ class Courier extends ChangeNotifier {
             time: stamp.millisecondsSinceEpoch,
             fuse: clamp(data['fuse']),
             key: key,
+            duration: switch (data['duration']) {
+              final int value when value > 0 && value < 24 * 3600 * 1000 =>
+                value,
+              _ => 0,
+            },
           );
         case Signal.chunk:
           break;
@@ -1061,6 +1075,7 @@ class Courier extends ChangeNotifier {
     String? mime,
     int width = 0,
     int height = 0,
+    int duration = 0,
     String caption = '',
   }) async {
     if (self == null) return;
@@ -1086,6 +1101,7 @@ class Courier extends ChangeNotifier {
           'size': bytes.length,
           'width': width,
           'height': height,
+          if (duration > 0) 'duration': duration,
         },
       ),
     );
@@ -1153,6 +1169,7 @@ class Courier extends ChangeNotifier {
                 'size': clear.length,
                 'width': message.width,
                 'height': message.height,
+                'duration': message.duration.inMilliseconds,
                 'sha': hashing.sha256.convert(clear).toString(),
                 'fuse': message.fuse,
                 'key': base64.encode(key),
