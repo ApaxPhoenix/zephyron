@@ -220,32 +220,28 @@ class Session {
     }
   }
 
-  /// Erases everything but the decoy, then opens it as a normal unlock.
-  static Future<Identity> spring(String decoy, String pass) async {
-    await purge(spare: decoy);
-    final identity = await open(decoy, pass);
-    try {
-      await Ledger.ensure();
-      final kept = (await Ledger.everything())
-          .where((message) => message.attachment)
-          .map((message) => message.id)
-          .toSet();
-      await Locker.prune(kept);
-    } catch (error) {
-      developer.log(
-        'Failed to prune attachments left by erased identities',
-        name: 'Session.spring',
-        level: 1000,
-        error: error,
-      );
-    }
-    return identity;
-  }
-
   static Future<Identity> open(String name, String pass) async {
     final coerced = await Duress.match(pass);
     if (coerced != null) {
-      return spring(coerced.name, coerced.passphrase);
+      // Erases everything but the decoy, then opens it as a normal unlock.
+      await purge(spare: coerced.name);
+      final identity = await open(coerced.name, coerced.passphrase);
+      try {
+        await Ledger.ensure();
+        final kept = (await Ledger.everything())
+            .where((message) => message.attachment)
+            .map((message) => message.id)
+            .toSet();
+        await Locker.prune(kept);
+      } catch (error) {
+        developer.log(
+          'Failed to prune attachments left by erased identities',
+          name: 'Session.open',
+          level: 1000,
+          error: error,
+        );
+      }
+      return identity;
     }
 
     final device = await Warden.remaining();

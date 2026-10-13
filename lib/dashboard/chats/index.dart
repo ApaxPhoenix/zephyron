@@ -219,122 +219,6 @@ class _Chats extends State<Chats> {
             entries.addAll(sorted);
           }
 
-          /// A trustee with no messages yet, or a blocked key, and whether
-          /// they are around.
-          Widget person(Trustee trustee) {
-            final presence = courier.status(trustee.address);
-            final live = courier.online(trustee.address);
-            final detail = trustee.blocked
-                ? null
-                : live
-                ? (trustee.availability != Availability.available
-                      ? trustee.availability.label
-                      : presence.latency != null
-                      ? '${presence.latency}ms'
-                      : 'Online')
-                : presence.seen != null &&
-                      trustee.availability != Availability.invisible
-                ? ago(presence.seen!)
-                : null;
-            return ListTile(
-              key: ValueKey('trustee:${trustee.address}'),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 20.0,
-                vertical: 4.0,
-              ),
-              onTap: () => Navigator.pushNamed(
-                context,
-                trustee.blocked
-                    ? '/dashboard/peers/node'
-                    : '/dashboard/chats/message',
-                arguments: {'id': trustee.address},
-              ),
-              onLongPress: () => Navigator.pushNamed(
-                context,
-                '/dashboard/peers/node',
-                arguments: {'id': trustee.address},
-              ),
-              leading: AnimatedOpacity(
-                opacity: trustee.blocked ? 0.5 : 1,
-                duration: const Duration(milliseconds: 200),
-                child: Portrait(address: trustee.address, size: 48),
-              ),
-              title: Text(
-                trustee.label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              subtitle: Text(
-                trustee.mood.isNotEmpty ? trustee.mood : trustee.address,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: trustee.mood.isNotEmpty
-                    ? null
-                    : const TextStyle(fontFamily: Palette.mono, fontSize: 12),
-              ),
-              trailing: Text(
-                detail ?? '',
-                style: TextStyle(
-                  color: live
-                      ? Avatar.tone(trustee.availability)
-                      : scheme.onSurfaceVariant,
-                  fontWeight: live ? FontWeight.bold : FontWeight.normal,
-                ),
-              ),
-            );
-          }
-
-          Widget room(Community group) {
-            final latest = mesh.latest(group.id);
-            final count = mesh.members(group.id).length;
-            return ListTile(
-              key: ValueKey('group:${group.id}'),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 20.0,
-                vertical: 4.0,
-              ),
-              onTap: () => (Navigator.pushNamed(
-                context,
-                '/dashboard/communities/channel',
-                arguments: {'community': group.id, 'channel': group.general},
-              )),
-              leading: Crest(label: group.name, image: group.icon, size: 48),
-              title: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      group.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: scheme.onSurface,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                  if (latest != null)
-                    Text(
-                      brief(latest.time),
-                      style: Theme.of(context).textTheme.labelSmall,
-                    ),
-                ],
-              ),
-              subtitle: Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: Text(
-                  latest != null
-                      ? '${mesh.called(group.id, latest.author)}: ${latest.text}'
-                      : '$count ${count == 1 ? 'member' : 'members'}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                  ),
-                ),
-              ),
-            );
-          }
-
           Widget content;
           if (courier.roster.isEmpty && mesh.groups().isEmpty) {
             content = Center(
@@ -429,7 +313,64 @@ class _Chats extends State<Chats> {
                       padding: const EdgeInsets.fromLTRB(24, 20, 12, 6),
                     ));
                   }
-                  if (entry is Community) return room(entry);
+                  if (entry is Community) {
+                    final group = entry;
+
+                    final latest = mesh.latest(group.id);
+                    final count = mesh.members(group.id).length;
+                    return ListTile(
+                      key: ValueKey('group:${group.id}'),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 20.0,
+                        vertical: 4.0,
+                      ),
+                      onTap: () => (Navigator.pushNamed(
+                        context,
+                        '/dashboard/communities/channel',
+                        arguments: {
+                          'community': group.id,
+                          'channel': group.general,
+                        },
+                      )),
+                      leading: Crest(
+                        label: group.name,
+                        image: group.icon,
+                        size: 48,
+                      ),
+                      title: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              group.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: scheme.onSurface,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                          if (latest != null)
+                            Text(
+                              brief(latest.time),
+                              style: Theme.of(context).textTheme.labelSmall,
+                            ),
+                        ],
+                      ),
+                      subtitle: Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          latest != null
+                              ? '${mesh.called(group.id, latest.author)}: ${latest.text}'
+                              : '$count ${count == 1 ? 'member' : 'members'}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: scheme.onSurfaceVariant),
+                        ),
+                      ),
+                    );
+                  }
                   if (entry is Plea) {
                     return (ListTile(
                       key: ValueKey('request:${entry.trustee.address}'),
@@ -496,7 +437,79 @@ class _Chats extends State<Chats> {
                       ),
                     ));
                   }
-                  if (entry is Quiet) return person(entry.trustee);
+                  if (entry is Quiet) {
+                    // A trustee with no messages yet, or a blocked key, and whether
+                    // they are around.
+                    final trustee = entry.trustee;
+
+                    final presence = courier.status(trustee.address);
+                    final live = courier.online(trustee.address);
+                    final detail = trustee.blocked
+                        ? null
+                        : live
+                        ? (trustee.availability != Availability.available
+                              ? trustee.availability.label
+                              : presence.latency != null
+                              ? '${presence.latency}ms'
+                              : 'Online')
+                        : presence.seen != null &&
+                              trustee.availability != Availability.invisible
+                        ? ago(presence.seen!)
+                        : null;
+                    return ListTile(
+                      key: ValueKey('trustee:${trustee.address}'),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 20.0,
+                        vertical: 4.0,
+                      ),
+                      onTap: () => Navigator.pushNamed(
+                        context,
+                        trustee.blocked
+                            ? '/dashboard/peers/node'
+                            : '/dashboard/chats/message',
+                        arguments: {'id': trustee.address},
+                      ),
+                      onLongPress: () => Navigator.pushNamed(
+                        context,
+                        '/dashboard/peers/node',
+                        arguments: {'id': trustee.address},
+                      ),
+                      leading: AnimatedOpacity(
+                        opacity: trustee.blocked ? 0.5 : 1,
+                        duration: const Duration(milliseconds: 200),
+                        child: Portrait(address: trustee.address, size: 48),
+                      ),
+                      title: Text(
+                        trustee.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      subtitle: Text(
+                        trustee.mood.isNotEmpty
+                            ? trustee.mood
+                            : trustee.address,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: trustee.mood.isNotEmpty
+                            ? null
+                            : const TextStyle(
+                                fontFamily: Palette.mono,
+                                fontSize: 12,
+                              ),
+                      ),
+                      trailing: Text(
+                        detail ?? '',
+                        style: TextStyle(
+                          color: live
+                              ? Avatar.tone(trustee.availability)
+                              : scheme.onSurfaceVariant,
+                          fontWeight: live
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                        ),
+                      ),
+                    );
+                  }
                   final contact = entry as Trustee;
                   final last = courier.last(contact.address);
                   final unread = courier.unread(contact.address);

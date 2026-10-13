@@ -218,40 +218,6 @@ class _Discover extends State<Discover> with SingleTickerProviderStateMixin {
     );
   }
 
-  Widget tile(Listing listing) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final community = listing.shelf == Shelf.community;
-    final known = community
-        ? mesh.communities.containsKey(listing.subject)
-        : courier.roster[listing.author]?.trusted == true;
-    return ListTile(
-      key: ValueKey(listing.id),
-      onTap: () => details(listing),
-      leading: community
-          ? Crest(label: listing.name, image: listing.picture)
-          : Avatar(label: title(listing), image: listing.picture),
-      title: Text(title(listing), maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: Text(
-        listing.about.isNotEmpty
-            ? listing.about
-            : community
-            ? '${listing.members} ${listing.members == 1 ? 'member' : 'members'}'
-            : listing.author.substring(0, 16),
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-      ),
-      trailing: known
-          ? Text(
-              community ? 'Joined' : 'Trustee',
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: scheme.primary,
-              ),
-            )
-          : Icon(Icons.chevron_right, color: scheme.onSurfaceVariant),
-    );
-  }
-
   Widget shelf(Shelf which) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
@@ -308,7 +274,46 @@ class _Discover extends State<Discover> with SingleTickerProviderStateMixin {
             text: 'Nothing matches "${search.text}".',
           )
         else
-          Group(indent: 76, children: shown.map(tile).toList()),
+          Group(
+            indent: 76,
+            children: shown.map((Listing listing) {
+              final theme = Theme.of(context);
+              final scheme = theme.colorScheme;
+              final community = listing.shelf == Shelf.community;
+              final known = community
+                  ? mesh.communities.containsKey(listing.subject)
+                  : courier.roster[listing.author]?.trusted == true;
+              return ListTile(
+                key: ValueKey(listing.id),
+                onTap: () => details(listing),
+                leading: community
+                    ? Crest(label: listing.name, image: listing.picture)
+                    : Avatar(label: title(listing), image: listing.picture),
+                title: Text(
+                  title(listing),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Text(
+                  listing.about.isNotEmpty
+                      ? listing.about
+                      : community
+                      ? '${listing.members} ${listing.members == 1 ? 'member' : 'members'}'
+                      : listing.author.substring(0, 16),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                trailing: known
+                    ? Text(
+                        community ? 'Joined' : 'Trustee',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: scheme.primary,
+                        ),
+                      )
+                    : Icon(Icons.chevron_right, color: scheme.onSurfaceVariant),
+              );
+            }).toList(),
+          ),
         const SizedBox(height: 20),
         if (people)
           Group(

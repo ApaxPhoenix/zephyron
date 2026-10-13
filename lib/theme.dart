@@ -306,8 +306,4 @@ class Palette {
   static ThemeData day(BuildContext context) {
     return compose(context, Brightness.light);
   }
-
-  static ThemeData night(BuildContext context) {
-    return compose(context, Brightness.dark);
-  }
 }

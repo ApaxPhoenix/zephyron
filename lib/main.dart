@@ -227,7 +227,7 @@ class _Zephyron extends State<Zephyron> with WidgetsBindingObserver {
             DefaultWidgetsLocalizations.delegate,
           ],
           theme: Palette.day(context),
-          darkTheme: Palette.night(context),
+          darkTheme: Palette.compose(context, Brightness.dark),
           themeMode: mode,
           builder: (context, child) => Curtain(
             enabled: Courier.instance.shielded,

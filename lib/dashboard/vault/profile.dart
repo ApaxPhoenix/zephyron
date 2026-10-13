@@ -63,51 +63,73 @@ class _Persona extends State<Persona> {
     }
   }
 
-  Future<Uint8List?> gallery({bool camera = false}) async {
-    try {
-      final picked = await Explorer.photo(
-        camera: camera,
-        front: true,
-        limit: 2048,
-        quality: 92,
-      );
-      return picked == null ? null : await picked.bytes();
-    } catch (_) {
-      warn('Could not open that picture.');
-      return null;
-    }
-  }
-
   Future<void> picture() async {
-    Future<void> pick({bool camera = false}) async {
-      final bytes = await gallery(camera: camera);
-      if (bytes == null || !mounted) return;
-      if (Cropper.animated(bytes)) {
-        final fitted = await squeeze(bytes, Courier.portrait);
-        if (fitted != null) setState(() => draft.avatar = fitted);
-        return;
-      }
-      final cropped = await Cropper.open(context, bytes);
-      if (cropped == null) return;
-      if (cropped.length > Courier.portrait) {
-        warn('That picture is too large.');
-        return;
-      }
-      setState(() => draft.avatar = cropped);
-    }
-
     await Sheets.actions(
       context,
       items: [
         Command(
           icon: Icons.photo_library_outlined,
           label: 'Choose from Gallery',
-          run: () => pick(),
+          run: () async {
+            final Uint8List? bytes;
+            try {
+              final picked = await Explorer.photo(
+                camera: false,
+                front: true,
+                limit: 2048,
+                quality: 92,
+              );
+              bytes = picked == null ? null : await picked.bytes();
+            } catch (_) {
+              warn('Could not open that picture.');
+              return;
+            }
+            if (bytes == null || !mounted) return;
+            if (Cropper.animated(bytes)) {
+              final fitted = await squeeze(bytes, Courier.portrait);
+              if (fitted != null) setState(() => draft.avatar = fitted);
+              return;
+            }
+            final cropped = await Cropper.open(context, bytes);
+            if (cropped == null) return;
+            if (cropped.length > Courier.portrait) {
+              warn('That picture is too large.');
+              return;
+            }
+            setState(() => draft.avatar = cropped);
+          },
         ),
         Command(
           icon: Icons.photo_camera_outlined,
           label: 'Take a Photo',
-          run: () => pick(camera: true),
+          run: () async {
+            final Uint8List? bytes;
+            try {
+              final picked = await Explorer.photo(
+                camera: true,
+                front: true,
+                limit: 2048,
+                quality: 92,
+              );
+              bytes = picked == null ? null : await picked.bytes();
+            } catch (_) {
+              warn('Could not open that picture.');
+              return;
+            }
+            if (bytes == null || !mounted) return;
+            if (Cropper.animated(bytes)) {
+              final fitted = await squeeze(bytes, Courier.portrait);
+              if (fitted != null) setState(() => draft.avatar = fitted);
+              return;
+            }
+            final cropped = await Cropper.open(context, bytes);
+            if (cropped == null) return;
+            if (cropped.length > Courier.portrait) {
+              warn('That picture is too large.');
+              return;
+            }
+            setState(() => draft.avatar = cropped);
+          },
         ),
         if (draft.avatar != null)
           Command(
@@ -121,32 +143,42 @@ class _Persona extends State<Persona> {
   }
 
   Future<void> banner() async {
-    Future<void> photo() async {
-      final bytes = await gallery();
-      if (bytes == null || !mounted) return;
-      if (Cropper.animated(bytes)) {
-        final fitted = await squeeze(bytes, Courier.banner);
-        if (fitted != null) setState(() => draft.banner = fitted);
-        return;
-      }
-      final cropped = await Cropper.open(
-        context,
-        bytes,
-        aspect: 3,
-        round: false,
-        width: 960,
-        title: 'Crop Banner',
-      );
-      if (cropped != null) setState(() => draft.banner = cropped);
-    }
-
     await Sheets.actions(
       context,
       items: [
         Command(
           icon: Icons.photo_library_outlined,
           label: 'Choose a Photo',
-          run: photo,
+          run: () async {
+            final Uint8List? bytes;
+            try {
+              final picked = await Explorer.photo(
+                camera: false,
+                front: true,
+                limit: 2048,
+                quality: 92,
+              );
+              bytes = picked == null ? null : await picked.bytes();
+            } catch (_) {
+              warn('Could not open that picture.');
+              return;
+            }
+            if (bytes == null || !mounted) return;
+            if (Cropper.animated(bytes)) {
+              final fitted = await squeeze(bytes, Courier.banner);
+              if (fitted != null) setState(() => draft.banner = fitted);
+              return;
+            }
+            final cropped = await Cropper.open(
+              context,
+              bytes,
+              aspect: 3,
+              round: false,
+              width: 960,
+              title: 'Crop Banner',
+            );
+            if (cropped != null) setState(() => draft.banner = cropped);
+          },
         ),
         if (Giphy.ready)
           Command(

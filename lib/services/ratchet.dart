@@ -32,10 +32,8 @@ class Pair {
 
   static final X25519 curve = X25519();
 
-  static Future<Pair> fresh() async => seeded(Ratchet.random(32));
-
-  static Future<Pair> seeded(List<int> seed) async {
-    final pair = await curve.newKeyPairFromSeed(seed);
+  static Future<Pair> fresh() async {
+    final pair = await curve.newKeyPairFromSeed(Ratchet.random(32));
     final public = await pair.extractPublicKey();
     return Pair(
       Uint8List.fromList(await pair.extractPrivateKeyBytes()),
@@ -202,22 +200,19 @@ class Ratchet {
     );
   }
 
-  /// Runs [task] after any other work on the session in [slot] has finished.
-  static Future<T> guarded<T>(String slot, Future<T> Function() task) {
-    final previous = locks[slot] ?? Future<void>.value();
-    final result = previous.then((_) => task());
-    locks[slot] = result.then<void>((_) {}, onError: (_) {});
-    return result;
-  }
-
   /// This identity's long-term X25519 key, derived from its seed.
-  static Future<Pair> identity(Identity self) {
+  static Future<Pair> identity(Identity self) async {
     final seed = Uint8List.fromList([
       for (var index = 0; index < 32; index++)
         int.parse(self.private.substring(index * 2, index * 2 + 2), radix: 16),
     ]);
-    return Pair.seeded(
+    final pair = await Pair.curve.newKeyPairFromSeed(
       hashing.sha256.convert([...utf8.encode('zephyron/ik'), ...seed]).bytes,
+    );
+    final public = await pair.extractPublicKey();
+    return Pair(
+      Uint8List.fromList(await pair.extractPrivateKeyBytes()),
+      Uint8List.fromList(public.bytes),
     );
   }
 
@@ -474,102 +469,122 @@ class Ratchet {
     Identity self,
     String peer,
     List<int> clear,
-  ) => guarded(slot(self, peer), () async {
-    var state = await session(self, peer);
-    if (state == null) {
-      if (!lead(self, peer)) throw const Unpaired();
-      state = await begin(self, peer);
+  ) async {
+    // Work on this session waits for whatever ran on it before.
+    final key = slot(self, peer);
+    final previous = locks[key] ?? Future<void>.value();
+    final turn = Completer<void>();
+    locks[key] = turn.future;
+    await previous;
+    try {
+      var state = await session(self, peer);
+      if (state == null) {
+        if (!lead(self, peer)) throw const Unpaired();
+        state = await begin(self, peer);
+      }
+      if (state.sending == null) {
+        // The answering side has not heard from the lead since a restart of
+        // the session; it cannot send until the lead's ratchet key arrives.
+        throw const Unpaired();
+      }
+      final (chain, key) = advance(state.sending!);
+      final header = {
+        'dh': base64.encode(state.mine.public),
+        'pn': state.previous,
+        'n': state.sent,
+        if (state.opening != null) 'x3dh': state.opening,
+      };
+      final encoded = utf8.encode(jsonEncode(header));
+      final sealed = await lock(key, pad(clear), encoded);
+      state
+        ..sending = chain
+        ..sent += 1;
+      await keep(self, peer, state);
+      return {'h': header, 'c': base64.encode(sealed)};
+    } finally {
+      turn.complete();
     }
-    if (state.sending == null) {
-      // The answering side has not heard from the lead since a restart of
-      // the session; it cannot send until the lead's ratchet key arrives.
-      throw const Unpaired();
-    }
-    final (chain, key) = advance(state.sending!);
-    final header = {
-      'dh': base64.encode(state.mine.public),
-      'pn': state.previous,
-      'n': state.sent,
-      if (state.opening != null) 'x3dh': state.opening,
-    };
-    final encoded = utf8.encode(jsonEncode(header));
-    final sealed = await lock(key, pad(clear), encoded);
-    state
-      ..sending = chain
-      ..sent += 1;
-    await keep(self, peer, state);
-    return {'h': header, 'c': base64.encode(sealed)};
-  });
+  }
 
   /// Decrypts an envelope from [peer], starting a session if it opens one.
   static Future<Uint8List> open(
     Identity self,
     String peer,
     Map<String, dynamic> envelope,
-  ) => guarded(slot(self, peer), () async {
-    final header = envelope['h'];
-    final body = envelope['c'];
-    if (header is! Map<String, dynamic> || body is! String) {
-      throw const Unreadable('malformed');
-    }
-    final public = base64.decode(header['dh'] as String);
-    final count = header['n'] as int;
-    final previous = header['pn'] as int;
-    final encoded = utf8.encode(jsonEncode(header));
-    final sealed = base64.decode(body);
-
-    var state = await session(self, peer);
-    final opening = header['x3dh'];
-    if (opening is Map<String, dynamic> && !lead(self, peer)) {
-      final known = state?.theirs;
-      final same =
-          known != null && _equal(known, public) && state!.received > 0;
-      if (state == null || !same) {
-        state = await answer(self, opening);
+  ) async {
+    // Work on this session waits for whatever ran on it before.
+    final key = slot(self, peer);
+    final previous = locks[key] ?? Future<void>.value();
+    final turn = Completer<void>();
+    locks[key] = turn.future;
+    await previous;
+    try {
+      final header = envelope['h'];
+      final body = envelope['c'];
+      if (header is! Map<String, dynamic> || body is! String) {
+        throw const Unreadable('malformed');
       }
-    }
-    if (state == null) throw const Unreadable('no session');
+      final public = base64.decode(header['dh'] as String);
+      final count = header['n'] as int;
+      final previous = header['pn'] as int;
+      final encoded = utf8.encode(jsonEncode(header));
+      final sealed = base64.decode(body);
 
-    final slot = '${base64.encode(public)}:$count';
-    final kept = state.skipped.remove(slot);
-    if (kept != null) {
-      final clear = await unlock(base64.decode(kept), sealed, encoded);
-      await keep(self, peer, state);
+      var state = await session(self, peer);
+      final opening = header['x3dh'];
+      if (opening is Map<String, dynamic> && !lead(self, peer)) {
+        final known = state?.theirs;
+        final same =
+            known != null && _equal(known, public) && state!.received > 0;
+        if (state == null || !same) {
+          state = await answer(self, opening);
+        }
+      }
+      if (state == null) throw const Unreadable('no session');
+
+      final slot = '${base64.encode(public)}:$count';
+      final kept = state.skipped.remove(slot);
+      if (kept != null) {
+        final clear = await unlock(base64.decode(kept), sealed, encoded);
+        await keep(self, peer, state);
+        return strip(clear);
+      }
+
+      final working = Bond.fromJson(state.toJson());
+      if (working.theirs == null || !_equal(working.theirs!, public)) {
+        await skip(working, previous);
+        working
+          ..previous = working.sent
+          ..sent = 0
+          ..received = 0
+          ..theirs = public;
+        final (root, receiving) = await step(
+          working.root,
+          await working.mine.agree(public),
+        );
+        working.mine = await Pair.fresh();
+        final (next, sending) = await step(
+          root,
+          await working.mine.agree(public),
+        );
+        working
+          ..root = next
+          ..receiving = receiving
+          ..sending = sending;
+      }
+      await skip(working, count);
+      final (chain, key) = advance(working.receiving!);
+      final clear = await unlock(key, sealed, encoded);
+      working
+        ..receiving = chain
+        ..received += 1
+        ..opening = null;
+      await keep(self, peer, working);
       return strip(clear);
+    } finally {
+      turn.complete();
     }
-
-    final working = Bond.fromJson(state.toJson());
-    if (working.theirs == null || !_equal(working.theirs!, public)) {
-      await skip(working, previous);
-      working
-        ..previous = working.sent
-        ..sent = 0
-        ..received = 0
-        ..theirs = public;
-      final (root, receiving) = await step(
-        working.root,
-        await working.mine.agree(public),
-      );
-      working.mine = await Pair.fresh();
-      final (next, sending) = await step(
-        root,
-        await working.mine.agree(public),
-      );
-      working
-        ..root = next
-        ..receiving = receiving
-        ..sending = sending;
-    }
-    await skip(working, count);
-    final (chain, key) = advance(working.receiving!);
-    final clear = await unlock(key, sealed, encoded);
-    working
-      ..receiving = chain
-      ..received += 1
-      ..opening = null;
-    await keep(self, peer, working);
-    return strip(clear);
-  });
+  }
 
   /// Stores keys for messages up to [until] that have not arrived yet.
   static Future<void> skip(Bond state, int until) async {
