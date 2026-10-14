@@ -48,40 +48,6 @@ class _Compose extends State<Compose> {
     super.dispose();
   }
 
-  void absorb(String text) {
-    final found = Courier.parse(text);
-    if (found == null) return;
-    address.text = found.address;
-    if (name.text.trim().isEmpty && found.name.isNotEmpty) {
-      name.text = found.name;
-    }
-  }
-
-  Future<void> submit() async {
-    absorb(address.text);
-    if (!key.currentState!.validate()) return;
-    setState(() {
-      busy = true;
-      problem = null;
-    });
-    try {
-      final trustee = await Courier.instance.add(address.text, name.text);
-      if (mounted) Navigator.pop(context, trustee);
-    } on FormatException catch (error) {
-      setState(() {
-        busy = false;
-        problem = error.message;
-      });
-      key.currentState!.validate();
-    } catch (_) {
-      setState(() {
-        busy = false;
-        problem = 'Could not save this trustee. Try again.';
-      });
-      key.currentState!.validate();
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final courier = Courier.instance;
@@ -129,7 +95,7 @@ class _Compose extends State<Compose> {
                 enableSuggestions: false,
                 keyboardType: TextInputType.url,
                 textInputAction: TextInputAction.next,
-                style: const TextStyle(fontFamily: Pallete.mono, fontSize: 14),
+                style: const TextStyle(fontFamily: Palette.mono, fontSize: 14),
                 decoration: InputDecoration(
                   hintText: 'Paste an .onion key or zephyron:// link',
                   errorMaxLines: 3,
@@ -142,8 +108,13 @@ class _Compose extends State<Compose> {
                       );
                       final text = data?.text?.trim() ?? '';
                       setState(() {
-                        if (Courier.parse(text) != null) {
-                          absorb(text);
+                        final found = Courier.parse(text);
+                        if (found != null) {
+                          address.text = found.address;
+                          if (name.text.trim().isEmpty &&
+                              found.name.isNotEmpty) {
+                            name.text = found.name;
+                          }
                         } else {
                           address.text = text;
                         }
@@ -171,7 +142,40 @@ class _Compose extends State<Compose> {
                 controller: name,
                 textCapitalization: TextCapitalization.words,
                 textInputAction: TextInputAction.done,
-                onFieldSubmitted: (_) => submit(),
+                onFieldSubmitted: (_) async {
+                  // A pasted card fills in the address and, if empty, the name.
+                  final found = Courier.parse(address.text);
+                  if (found != null) {
+                    address.text = found.address;
+                    if (name.text.trim().isEmpty && found.name.isNotEmpty) {
+                      name.text = found.name;
+                    }
+                  }
+                  if (!key.currentState!.validate()) return;
+                  setState(() {
+                    busy = true;
+                    problem = null;
+                  });
+                  try {
+                    final trustee = await Courier.instance.add(
+                      address.text,
+                      name.text,
+                    );
+                    if (mounted) Navigator.pop(this.context, trustee);
+                  } on FormatException catch (error) {
+                    setState(() {
+                      busy = false;
+                      problem = error.message;
+                    });
+                    key.currentState!.validate();
+                  } catch (_) {
+                    setState(() {
+                      busy = false;
+                      problem = 'Could not save this trustee. Try again.';
+                    });
+                    key.currentState!.validate();
+                  }
+                },
                 decoration: const InputDecoration(
                   hintText: 'Optional, only visible on this device',
                 ),
@@ -180,7 +184,44 @@ class _Compose extends State<Compose> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: busy ? null : submit,
+                  onPressed: busy
+                      ? null
+                      : () async {
+                          // A pasted card fills in the address and, if empty, the name.
+                          final found = Courier.parse(address.text);
+                          if (found != null) {
+                            address.text = found.address;
+                            if (name.text.trim().isEmpty &&
+                                found.name.isNotEmpty) {
+                              name.text = found.name;
+                            }
+                          }
+                          if (!key.currentState!.validate()) return;
+                          setState(() {
+                            busy = true;
+                            problem = null;
+                          });
+                          try {
+                            final trustee = await Courier.instance.add(
+                              address.text,
+                              name.text,
+                            );
+                            if (mounted) Navigator.pop(this.context, trustee);
+                          } on FormatException catch (error) {
+                            setState(() {
+                              busy = false;
+                              problem = error.message;
+                            });
+                            key.currentState!.validate();
+                          } catch (_) {
+                            setState(() {
+                              busy = false;
+                              problem =
+                                  'Could not save this trustee. Try again.';
+                            });
+                            key.currentState!.validate();
+                          }
+                        },
                   child: AnimatedSwitcher(
                     duration: const Duration(milliseconds: 200),
                     child: busy
@@ -253,7 +294,7 @@ class Identifier extends StatelessWidget {
                     maxLines: compact ? 1 : 3,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontFamily: Pallete.mono,
+                      fontFamily: Palette.mono,
                       fontSize: 13,
                       color: scheme.onSurface,
                     ),

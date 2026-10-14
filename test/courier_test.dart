@@ -132,12 +132,14 @@ void main() {
         'availability': 'invisible',
       });
       expect(profile.name.length, Profile.names);
-      expect(profile.bio.length, Profile.bios);
+      expect(profile.biography.length, Profile.biographies);
       expect(profile.availability, Availability.invisible);
     });
 
     test('attachments seal and open with AES-256-GCM', () async {
-      final clear = Uint8List.fromList(List.generate(70000, (i) => i % 251));
+      final clear = Uint8List.fromList(
+        List.generate(70000, (index) => index % 251),
+      );
       final key = Locker.random(32);
       final nonce = Locker.random(12);
       final sealed = await Locker.encrypt(clear, key, nonce);

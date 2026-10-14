@@ -168,70 +168,6 @@ class _Relays extends State<Relays> {
             final routing = route.clamp(0, roads - 1);
             final tabs = DefaultTabController.of(context);
 
-            Widget visitor(Channel channel) {
-              return Builder(
-                builder: (context) {
-                  final peer = channel.peer;
-                  final known = peer == null ? null : courier.roster[peer];
-                  return ListTile(
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 4,
-                    ),
-                    onTap: peer == null
-                        ? null
-                        : () => Navigator.pushNamed(
-                            context,
-                            '/dashboard/peers/node',
-                            arguments: {'id': peer},
-                          ),
-                    leading: peer == null
-                        ? Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(color: scheme.outline),
-                            ),
-                            child: Icon(
-                              Icons.person_outline,
-                              size: 20,
-                              color: scheme.onSurfaceVariant,
-                            ),
-                          )
-                        : Portrait(address: peer, size: 40),
-                    title: Text(
-                      known?.label ??
-                          (peer == null ? 'Anonymous' : peer.substring(0, 10)),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    subtitle: Text(
-                      '${channel.inbound ? 'Joined your node' : 'You connected'} ${ago(channel.opened)}',
-                    ),
-                    trailing: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        for (final line in [
-                          '↓ ${measure(channel.received)}',
-                          '↑ ${measure(channel.sent)}',
-                        ])
-                          Text(
-                            line,
-                            style: Theme.of(context).textTheme.labelSmall
-                                ?.copyWith(
-                                  fontFamily: Pallete.mono,
-                                  fontFeatures: tabular,
-                                ),
-                          ),
-                      ],
-                    ),
-                  );
-                },
-              );
-            }
-
             Widget jump(
               IconData icon,
               String title,
@@ -379,7 +315,7 @@ class _Relays extends State<Relays> {
                                       : 'Tor ${vitals!.version}',
                                   overflow: TextOverflow.ellipsis,
                                   style: Theme.of(context).textTheme.bodySmall
-                                      ?.copyWith(fontFamily: Pallete.mono),
+                                      ?.copyWith(fontFamily: Palette.mono),
                                 ),
                               ),
                               TextButton.icon(
@@ -469,7 +405,75 @@ class _Relays extends State<Relays> {
                             crowding,
                             visitors,
                           ))
-                            visitor(channel),
+                            Builder(
+                              builder: (context) {
+                                final peer = channel.peer;
+                                final known = peer == null
+                                    ? null
+                                    : courier.roster[peer];
+                                return ListTile(
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                    vertical: 4,
+                                  ),
+                                  onTap: peer == null
+                                      ? null
+                                      : () => Navigator.pushNamed(
+                                          context,
+                                          '/dashboard/peers/node',
+                                          arguments: {'id': peer},
+                                        ),
+                                  leading: peer == null
+                                      ? Container(
+                                          width: 40,
+                                          height: 40,
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            border: Border.all(
+                                              color: scheme.outline,
+                                            ),
+                                          ),
+                                          child: Icon(
+                                            Icons.person_outline,
+                                            size: 20,
+                                            color: scheme.onSurfaceVariant,
+                                          ),
+                                        )
+                                      : Portrait(address: peer, size: 40),
+                                  title: Text(
+                                    known?.label ??
+                                        (peer == null
+                                            ? 'Anonymous'
+                                            : peer.substring(0, 10)),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  subtitle: Text(
+                                    '${channel.inbound ? 'Joined your node' : 'You connected'} ${ago(channel.opened)}',
+                                  ),
+                                  trailing: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      for (final line in [
+                                        '↓ ${measure(channel.received)}',
+                                        '↑ ${measure(channel.sent)}',
+                                      ])
+                                        Text(
+                                          line,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .labelSmall
+                                              ?.copyWith(
+                                                fontFamily: Palette.mono,
+                                                fontFeatures: tabular,
+                                              ),
+                                        ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
                         ],
                       ),
                   ],
@@ -731,7 +735,7 @@ class _Relays extends State<Relays> {
                                                             style:
                                                                 const TextStyle(
                                                                   fontFamily:
-                                                                      Pallete
+                                                                      Palette
                                                                           .mono,
                                                                   fontSize: 12,
                                                                 ),
@@ -813,7 +817,7 @@ class _Relays extends State<Relays> {
                                       autocorrect: false,
                                       enableSuggestions: false,
                                       style: const TextStyle(
-                                        fontFamily: Pallete.mono,
+                                        fontFamily: Palette.mono,
                                         fontSize: 12,
                                       ),
                                       decoration: InputDecoration(

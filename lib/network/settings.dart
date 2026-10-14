@@ -16,14 +16,14 @@ class _Settings extends State<Settings> {
   Widget build(BuildContext context) {
     try {
       return Scaffold(
-        backgroundColor: Pallete.white,
+        backgroundColor: Palette.white,
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
           leading: IconButton(
             icon: const Icon(
               Icons.arrow_back_ios_new,
-              color: Pallete.ink,
+              color: Palette.ink,
               size: 24,
             ),
             onPressed: () {
@@ -64,7 +64,7 @@ class _Settings extends State<Settings> {
                         style: Theme.of(context).textTheme.headlineMedium
                             ?.copyWith(
                               fontWeight: FontWeight.bold,
-                              color: Pallete.ink,
+                              color: Palette.ink,
                             ),
                       ),
                       const SizedBox(height: 32),
@@ -75,28 +75,28 @@ class _Settings extends State<Settings> {
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
-                            color: Pallete.ash,
+                            color: Palette.ash,
                           ),
                         ),
                       ),
                       DropdownButtonFormField<String>(
                         initialValue: appearance,
-                        dropdownColor: Pallete.snow,
-                        style: TextStyle(color: Pallete.ink),
+                        dropdownColor: Palette.snow,
+                        style: TextStyle(color: Palette.ink),
                         decoration: InputDecoration(
                           labelText: 'Appearance mode',
-                          labelStyle: TextStyle(color: Pallete.slate),
+                          labelStyle: TextStyle(color: Palette.slate),
                           prefixIcon: const Icon(
                             Icons.my_location,
-                            color: Pallete.ink,
+                            color: Palette.ink,
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Pallete.silver),
+                            borderSide: BorderSide(color: Palette.silver),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Pallete.azure),
+                            borderSide: BorderSide(color: Palette.azure),
                           ),
                         ),
                         items: const [
@@ -132,22 +132,22 @@ class _Settings extends State<Settings> {
                       const SizedBox(height: 16),
                       DropdownButtonFormField<String>(
                         initialValue: speed,
-                        dropdownColor: Pallete.snow,
-                        style: TextStyle(color: Pallete.ink),
+                        dropdownColor: Palette.snow,
+                        style: TextStyle(color: Palette.ink),
                         decoration: InputDecoration(
                           labelText: 'Rendering speed',
-                          labelStyle: TextStyle(color: Pallete.slate),
+                          labelStyle: TextStyle(color: Palette.slate),
                           prefixIcon: const Icon(
                             Icons.speed,
-                            color: Pallete.ink,
+                            color: Palette.ink,
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Pallete.silver),
+                            borderSide: BorderSide(color: Palette.silver),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Pallete.azure),
+                            borderSide: BorderSide(color: Palette.azure),
                           ),
                         ),
                         items:
@@ -178,7 +178,7 @@ class _Settings extends State<Settings> {
                       Text(
                         'Cache size limit',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Pallete.ink,
+                          color: Palette.ink,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -188,8 +188,8 @@ class _Settings extends State<Settings> {
                         max: 2000,
                         divisions: 19,
                         label: '${settings.cache.toInt()} MB',
-                        activeColor: Pallete.royal,
-                        inactiveColor: Pallete.mist,
+                        activeColor: Palette.royal,
+                        inactiveColor: Palette.mist,
                         onChanged: (value) {
                           try {
                             notifier.value = settings.copyWith(cache: value);
@@ -210,7 +210,7 @@ class _Settings extends State<Settings> {
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
-                            color: Pallete.ash,
+                            color: Palette.ash,
                           ),
                         ),
                       ),
@@ -232,7 +232,7 @@ class _Settings extends State<Settings> {
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
-                            color: Pallete.ash,
+                            color: Palette.ash,
                           ),
                         ),
                       ),
@@ -300,16 +300,16 @@ class Item extends StatelessWidget {
             );
           }
         },
-        leading: Icon(icon, color: Pallete.ink, size: 24),
+        leading: Icon(icon, color: Palette.ink, size: 24),
         title: Text(
           title,
           style: Theme.of(
             context,
-          ).textTheme.bodyLarge?.copyWith(color: Pallete.ink),
+          ).textTheme.bodyLarge?.copyWith(color: Palette.ink),
         ),
         trailing: const Icon(
           Icons.chevron_right,
-          color: Pallete.slate,
+          color: Palette.slate,
           size: 20,
         ),
       );

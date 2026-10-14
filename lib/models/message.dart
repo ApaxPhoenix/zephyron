@@ -23,9 +23,6 @@ class Message {
   }) : meta = meta ?? <String, dynamic>{};
 
   factory Message.from(Map<String, dynamic> row) {
-    int index(Object? value, int length) =>
-        ((value as int?) ?? 0).clamp(0, length - 1);
-
     Map<String, dynamic> extra = {};
     final raw = row['meta'] as String?;
     if (raw != null && raw.isNotEmpty) {
@@ -40,12 +37,19 @@ class Message {
       mine: (row['mine'] as int? ?? 0) == 1,
       // An unknown kind is shown as text rather than as some other card.
       kind: (row['kind'] as int? ?? 0) < Kind.values.length
-          ? Kind.values[index(row['kind'], Kind.values.length)]
+          ? Kind.values[((((row['kind']) as int?) ?? 0).clamp(
+              0,
+              Kind.values.length - 1,
+            ))]
           : Kind.text,
       text: row['text'] as String? ?? '',
       time: DateTime.fromMillisecondsSinceEpoch(row['time'] as int? ?? 0),
       meta: extra,
-      status: Status.values[index(row['status'], Status.values.length)],
+      status:
+          Status.values[((((row['status']) as int?) ?? 0).clamp(
+            0,
+            Status.values.length - 1,
+          ))],
     );
   }
 

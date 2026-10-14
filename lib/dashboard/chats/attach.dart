@@ -70,46 +70,6 @@ class Attach {
       }
     }
 
-    Future<void> clip() async {
-      try {
-        final picked = await Explorer.video();
-        if (picked == null) return;
-        if (picked.size > Locker.ceiling) {
-          await picked.discard();
-          warn('Videos are limited to 25 MB. Try a shorter clip.');
-          return;
-        }
-        final facts = await probe(picked.file);
-        final thumb = await Still.grab(picked.path);
-        final bytes = await picked.bytes();
-        if (!context.mounted) return;
-        final caption = await Preview.show(
-          context,
-          bytes: bytes,
-          name: picked.name,
-          media: false,
-        );
-        if (caption == null) return;
-        final mime = Locker.mime(picked.name);
-        await courier.attach(
-          peer,
-          bytes,
-          kind: Kind.video,
-          name: picked.name,
-          mime: mime.startsWith('video/') ? mime : 'video/mp4',
-          width: facts.width,
-          height: facts.height,
-          duration: facts.duration.inMilliseconds,
-          thumb: thumb,
-          caption: caption,
-        );
-      } on FormatException catch (error) {
-        warn(error.message);
-      } catch (_) {
-        warn('Could not attach that video.');
-      }
-    }
-
     Widget option(IconData icon, String label, VoidCallback run) {
       return Builder(
         builder: (sheet) => InkWell(
@@ -174,7 +134,47 @@ class Attach {
                     'Camera',
                     () => photo(camera: true),
                   ),
-                  option(Icons.videocam_outlined, 'Video', () => clip()),
+                  option(Icons.videocam_outlined, 'Video', () async {
+                    try {
+                      final picked = await Explorer.video();
+                      if (picked == null) return;
+                      if (picked.size > Locker.ceiling) {
+                        await picked.discard();
+                        warn(
+                          'Videos are limited to 25 MB. Try a shorter clip.',
+                        );
+                        return;
+                      }
+                      final facts = await probe(picked.file);
+                      final thumb = await Still.grab(picked.path);
+                      final bytes = await picked.bytes();
+                      if (!context.mounted) return;
+                      final caption = await Preview.show(
+                        context,
+                        bytes: bytes,
+                        name: picked.name,
+                        media: false,
+                      );
+                      if (caption == null) return;
+                      final mime = Locker.mime(picked.name);
+                      await courier.attach(
+                        peer,
+                        bytes,
+                        kind: Kind.video,
+                        name: picked.name,
+                        mime: mime.startsWith('video/') ? mime : 'video/mp4',
+                        width: facts.width,
+                        height: facts.height,
+                        duration: facts.duration.inMilliseconds,
+                        thumb: thumb,
+                        caption: caption,
+                      );
+                    } on FormatException catch (error) {
+                      warn(error.message);
+                    } catch (_) {
+                      warn('Could not attach that video.');
+                    }
+                  }),
                   option(Icons.gif_rounded, 'GIF', () async {
                     final picked = await Gifs.show(context);
                     if (picked == null) return;
@@ -468,7 +468,7 @@ class Chooser extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        fontFamily: Pallete.mono,
+                        fontFamily: Palette.mono,
                         fontSize: 12,
                       ),
                     ),

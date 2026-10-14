@@ -2,16 +2,16 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zephyron/services/qr.dart';
-import 'package:zephyron/widgets/qr.dart';
+import 'package:zephyron/services/mosaic.dart';
+import 'package:zephyron/widgets/barcode.dart';
 
 void main() {
   /// Reads the 15 format bits back out of the first copy, beside the
   /// top-left finder.
-  int format(Qr code) {
+  int format(Mosaic code) {
     var bits = 0;
-    void take(int x, int y, int index) {
-      if (code.dark(x, y)) bits |= 1 << index;
+    void take(int column, int row, int index) {
+      if (code.dark(column, row)) bits |= 1 << index;
     }
 
     for (var index = 0; index <= 5; index++) {
@@ -27,7 +27,7 @@ void main() {
   }
 
   /// The format bits for [level] and [mask], as the standard defines them.
-  int bch(Correction level, int mask) {
+  int checksum(Correction level, int mask) {
     final data = level.bits << 3 | mask;
     var rest = data;
     for (var step = 0; step < 10; step++) {
@@ -45,14 +45,18 @@ void main() {
       Correction.high: 0x1689,
     };
     for (final entry in table.entries) {
-      expect(bch(entry.key, 0), entry.value, reason: '${entry.key}');
-      final code = Qr.encode('zephyron', correction: entry.key);
-      expect(format(code), bch(entry.key, code.mask), reason: '${entry.key}');
+      expect(checksum(entry.key, 0), entry.value, reason: '${entry.key}');
+      final code = Mosaic.encode('zephyron', correction: entry.key);
+      expect(
+        format(code),
+        checksum(entry.key, code.mask),
+        reason: '${entry.key}',
+      );
     }
   });
 
   test('the version is written from version 7 on', () {
-    final code = Qr.encode('x' * 140, correction: Correction.low);
+    final code = Mosaic.encode('x' * 140, correction: Correction.low);
     expect(code.version, 7);
     var bits = 0;
     for (var index = 0; index < 18; index++) {
@@ -64,16 +68,16 @@ void main() {
   });
 
   test('alignment patterns sit where the standard puts them', () {
-    expect(Qr.alignments(1), isEmpty);
-    expect(Qr.alignments(2), [6, 18]);
-    expect(Qr.alignments(7), [6, 22, 38]);
-    expect(Qr.alignments(32), [6, 34, 60, 86, 112, 138]);
-    expect(Qr.alignments(40), [6, 30, 58, 86, 114, 142, 170]);
+    expect(Mosaic.alignments(1), isEmpty);
+    expect(Mosaic.alignments(2), [6, 18]);
+    expect(Mosaic.alignments(7), [6, 22, 38]);
+    expect(Mosaic.alignments(32), [6, 34, 60, 86, 112, 138]);
+    expect(Mosaic.alignments(40), [6, 30, 58, 86, 114, 142, 170]);
   });
 
   test('byte capacities match the standard', () {
     int bytes(int version, Correction level) =>
-        (Qr.limit(version, level) * 8 - 4 - (version < 10 ? 8 : 16)) ~/ 8;
+        (Mosaic.limit(version, level) * 8 - 4 - (version < 10 ? 8 : 16)) ~/ 8;
     expect(bytes(1, Correction.low), 17);
     expect(bytes(1, Correction.medium), 14);
     expect(bytes(1, Correction.quartile), 11);
@@ -85,7 +89,7 @@ void main() {
     expect(bytes(40, Correction.quartile), 1663);
     expect(bytes(40, Correction.high), 1273);
     expect(
-      () => Qr.encode('x' * 2954, correction: Correction.low),
+      () => Mosaic.encode('x' * 2954, correction: Correction.low),
       throwsArgumentError,
     );
   });
@@ -115,7 +119,7 @@ void main() {
         'ef9a060efb3ffa912af3fa3336a855a89927220d028fd1f641baa2d97912c485',
       ),
     ]) {
-      final code = Qr.encode(text, correction: level);
+      final code = Mosaic.encode(text, correction: level);
       expect(code.version, version);
       expect(code.mask, mask);
       final bits = code.modules

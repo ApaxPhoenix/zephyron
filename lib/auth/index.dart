@@ -29,15 +29,21 @@ class _Auth extends State<Auth> {
 
   @override
   Widget build(BuildContext context) {
-    void show(int page) => controller.animateToPage(
-      page,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
-    );
-
     final items = <Widget>[
-      Signup(unlock: () => show(1)),
-      Login(register: () => show(0)),
+      Signup(
+        unlock: () => (controller.animateToPage(
+          1,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        )),
+      ),
+      Login(
+        register: () => (controller.animateToPage(
+          0,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        )),
+      ),
     ];
 
     try {
@@ -72,9 +78,9 @@ class _Auth extends State<Auth> {
                 },
                 child: PageView(
                   controller: controller,
-                  onPageChanged: (i) {
+                  onPageChanged: (page) {
                     try {
-                      setState(() => index = i);
+                      setState(() => index = page);
                     } catch (error) {
                       developer.log(
                         'Failed to sync state with active view index: $error',
@@ -101,11 +107,11 @@ class _Auth extends State<Auth> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: List.generate(
                   items.length,
-                  (i) => AnimatedContainer(
+                  (dot) => AnimatedContainer(
                     duration: const Duration(milliseconds: 300),
                     curve: Curves.easeInOut,
                     margin: const EdgeInsets.symmetric(horizontal: 4.0),
-                    width: i == index ? 34.0 : 10.0,
+                    width: dot == index ? 34.0 : 10.0,
                     height: 11.0,
                     decoration: BoxDecoration(
                       color: Theme.of(context).colorScheme.primary,

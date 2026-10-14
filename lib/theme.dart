@@ -1,7 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
-class Pallete {
+class Palette {
   static const royal = Color.fromRGBO(48, 94, 231, 1);
   static const azure = Color.fromRGBO(58, 118, 240, 1);
   static const white = Color.fromRGBO(255, 255, 255, 1);
@@ -305,9 +305,5 @@ class Pallete {
 
   static ThemeData day(BuildContext context) {
     return compose(context, Brightness.light);
-  }
-
-  static ThemeData night(BuildContext context) {
-    return compose(context, Brightness.dark);
   }
 }

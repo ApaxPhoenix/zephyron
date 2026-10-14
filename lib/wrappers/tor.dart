@@ -161,7 +161,7 @@ class Tor {
         if (!opened.isCompleted) opened.completeError(error);
       }
 
-      final sub = socket.listen(
+      final subscription = socket.listen(
         (chunk) {
           if (stage == 2) {
             inbox.add(chunk);
@@ -239,7 +239,7 @@ class Tor {
         },
         cancelOnError: false,
       );
-      inbox.onCancel = sub.cancel;
+      inbox.onCancel = subscription.cancel;
 
       socket.add([
         0x05, // SOCKS version 5 protocol identifier
@@ -715,7 +715,16 @@ class Sentinel {
 
     final file = File('$location/control.sock');
 
-    if (circuit == null) {
+    // Tor runs once per process: a second tor_run_main aborts the app. A
+    // process that started it already, as when Android keeps the app alive
+    // after its screen closes and a new Flutter engine starts in it, or when
+    // a slow bootstrap timed out, finds it by the process id kept beside it
+    // and talks to the Tor that is running instead.
+    final owner = File('$location/process');
+    if (circuit == null &&
+        !(await owner.exists() &&
+            await owner.readAsString() == '$pid' &&
+            await file.exists())) {
       final residue = File('$location/state');
       if (await residue.exists()) await residue.delete();
 
@@ -743,6 +752,7 @@ class Sentinel {
           );
         }),
       );
+      await owner.writeAsString('$pid');
     }
 
     if (!await file.exists()) {
@@ -761,7 +771,12 @@ class Sentinel {
           );
         } catch (error) {
           round += 1;
-          if (round >= 10) rethrow;
+          if (round >= 10) {
+            // Nothing answers, so the Tor that process id named is gone and
+            // the next attempt starts one.
+            if (circuit == null && await owner.exists()) await owner.delete();
+            rethrow;
+          }
           await Future.delayed(const Duration(milliseconds: 200));
         }
       }
@@ -786,13 +801,9 @@ class Sentinel {
     }
 
     final phase = await order('GETINFO status/bootstrap-phase');
-    gauge(phase);
+    final reached = RegExp(r'PROGRESS=(\d+)').firstMatch(phase);
+    if (reached != null) progress.value = int.parse(reached.group(1)!);
     if (!phase.contains('PROGRESS=100')) await listen();
-  }
-
-  void gauge(String line) {
-    final match = RegExp(r'PROGRESS=(\d+)').firstMatch(line);
-    if (match != null) progress.value = int.parse(match.group(1)!);
   }
 
   /// Forgets cached onion service descriptors and introduction points that
@@ -998,7 +1009,10 @@ class Sentinel {
   Future<void> listen() async {
     while (await flow!.moveNext()) {
       final line = flow!.current;
-      if (line.contains('BOOTSTRAP')) gauge(line);
+      if (line.contains('BOOTSTRAP')) {
+        final reached = RegExp(r'PROGRESS=(\d+)').firstMatch(line);
+        if (reached != null) progress.value = int.parse(reached.group(1)!);
+      }
       if (line.contains('BOOTSTRAP') && line.contains('PROGRESS=100')) return;
     }
     final issue = StateError(

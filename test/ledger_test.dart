@@ -78,9 +78,11 @@ void main() {
     );
 
     expect(Profile.fromJson((await Ledger.read('profile'))!).name, 'Bob');
-    final prefs = Preferences.fromJson((await Ledger.read('preferences'))!);
-    expect(prefs.receipts, isFalse);
-    expect(prefs.rating, Rating.g);
+    final preferences = Preferences.fromJson(
+      (await Ledger.read('preferences'))!,
+    );
+    expect(preferences.receipts, isFalse);
+    expect(preferences.rating, Rating.g);
   });
 
   test('stores from the first messaging build are migrated', () async {
@@ -135,8 +137,8 @@ void main() {
   });
 
   test('addresses saved by older builds are mended once', () async {
-    final pub = Identity.unpack(alice.address)!;
-    final old = Identity.legacy(pub);
+    final public = Identity.unpack(alice.address)!;
+    final old = Identity.legacy(public);
     expect(old, isNot(alice.address));
     await Ledger.keep(Trustee(address: old, nickname: 'Al'));
     await Ledger.record(

@@ -275,7 +275,7 @@ class Catalog extends ChangeNotifier {
       );
       final about = Profile.clip(
         frame['b'],
-        community ? Community.abouts : Profile.bios,
+        community ? Community.descriptions : Profile.biographies,
       );
       final raw = frame['p'];
       final picture = raw is String && raw.isNotEmpty
@@ -387,63 +387,68 @@ class Catalog extends ChangeNotifier {
 
   /// Brings this identity's own listings in line with what it chose: lists
   /// or renews what should be listed and takes down the rest.
-  Future<void> refresh() => renewing = renewing
-      .then((_) => renew())
-      .catchError(
-        (Object error) => developer.log(
-          'Could not update this identity\'s listings',
-          name: 'Catalog.refresh',
-          level: 900,
-          error: error,
-        ),
+  Future<void> refresh() async {
+    // One update at a time: each waits for the one before it.
+    final previous = renewing;
+    final turn = Completer<void>();
+    renewing = turn.future;
+    await previous;
+    try {
+      final self = courier.self;
+      if (self == null || courier.secret == null) return;
+      final me = courier.me;
+      await settle(
+        Shelf.person,
+        self.address,
+        courier.preferences.listed
+            ? (
+                name: me.name,
+                about: me.biography,
+                picture: await thumbnail(me.avatar),
+                members: 0,
+                invitation: const <String, dynamic>{},
+              )
+            : null,
       );
-
-  Future<void> renew() async {
-    final self = courier.self;
-    if (self == null || courier.secret == null) return;
-    final me = courier.me;
-    await settle(
-      Shelf.person,
-      self.address,
-      courier.prefs.listed
-          ? (
-              name: me.name,
-              about: me.bio,
-              picture: await thumbnail(me.avatar),
-              members: 0,
-              invitation: const <String, dynamic>{},
-            )
-          : null,
-    );
-    final mesh = Mesh.instance;
-    final wanted = <String>{};
-    for (final community in mesh.communities.values.toList()) {
-      if (community.founder != self.address ||
-          community.group ||
-          !community.listed) {
-        continue;
+      final mesh = Mesh.instance;
+      final wanted = <String>{};
+      for (final community in mesh.communities.values.toList()) {
+        if (community.founder != self.address ||
+            community.group ||
+            !community.listed) {
+          continue;
+        }
+        wanted.add(community.id);
+        final invitation = mesh.invitation(community);
+        await settle(Shelf.community, community.id, (
+          name: community.name,
+          about: community.about,
+          picture: await thumbnail(community.icon),
+          members: mesh.members(community.id).length,
+          invitation: {
+            'key': invitation['key'],
+            'keys': invitation['keys'],
+            'created': invitation['created'],
+          },
+        ));
       }
-      wanted.add(community.id);
-      final invitation = mesh.invitation(community);
-      await settle(Shelf.community, community.id, (
-        name: community.name,
-        about: community.about,
-        picture: await thumbnail(community.icon),
-        members: mesh.members(community.id).length,
-        invitation: {
-          'key': invitation['key'],
-          'keys': invitation['keys'],
-          'created': invitation['created'],
-        },
-      ));
-    }
-    for (final item in listings.values.toList()) {
-      if (item.shelf == Shelf.community &&
-          item.author == self.address &&
-          !item.gone &&
-          !wanted.contains(item.subject)) {
-        await settle(Shelf.community, item.subject, null);
+      for (final item in listings.values.toList()) {
+        if (item.shelf == Shelf.community &&
+            item.author == self.address &&
+            !item.gone &&
+            !wanted.contains(item.subject)) {
+          await settle(Shelf.community, item.subject, null);
+        }
       }
+    } catch (error) {
+      developer.log(
+        'Could not update this identity\'s listings',
+        name: 'Catalog.refresh',
+        level: 900,
+        error: error,
+      );
+    } finally {
+      turn.complete();
     }
   }
 
@@ -538,7 +543,7 @@ class Catalog extends ChangeNotifier {
       (item) =>
           !expired(item) &&
           !hidden.contains(item.id) &&
-          (courier.prefs.spread || item.author == self),
+          (courier.preferences.spread || item.author == self),
     );
   }
 
@@ -633,7 +638,7 @@ class Catalog extends ChangeNotifier {
           if (listing == null || hidden.contains(listing.id)) continue;
           if (await accept(listing)) fresh.add(item);
         }
-        if (fresh.isEmpty || !courier.prefs.spread) return;
+        if (fresh.isEmpty || !courier.preferences.spread) return;
         developer.log(
           'Passing ${fresh.length} new listings on to connected trustees',
           name: 'Catalog.receive',

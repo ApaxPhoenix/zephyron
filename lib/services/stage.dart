@@ -172,21 +172,21 @@ class Stage extends ChangeNotifier {
     return sign != 0 ? -magnitude : magnitude;
   }
 
-  static Uint8List compress(Int16List pcm) =>
-      Uint8List.fromList([for (final sample in pcm) squeeze(sample)]);
+  static Uint8List compress(Int16List samples) =>
+      Uint8List.fromList([for (final sample in samples) squeeze(sample)]);
 
   static Int16List expand(Uint8List law) =>
       Int16List.fromList([for (final byte in law) stretch(byte)]);
 
   /// Loudness from 0 to 1, for the speaking ring.
-  static double loudness(Int16List pcm) {
-    if (pcm.isEmpty) return 0;
+  static double loudness(Int16List samples) {
+    if (samples.isEmpty) return 0;
     var sum = 0.0;
-    for (final sample in pcm) {
+    for (final sample in samples) {
       sum += sample * sample;
     }
-    final rms = sqrt(sum / pcm.length) / 32768;
-    return (rms * 6).clamp(0.0, 1.0);
+    final power = sqrt(sum / samples.length) / 32768;
+    return (power * 6).clamp(0.0, 1.0);
   }
 
   static Future<Uint8List> key(Community community, String room) =>
@@ -196,24 +196,28 @@ class Stage extends ChangeNotifier {
   static Future<Uint8List> line(Uint8List secret, String call) =>
       Ratchet.derive(secret, info: 'zephyron/call:$call');
 
-  static List<int> label(String community, String room, String from, int seq) =>
-      utf8.encode('voice:$community:$room:$from:$seq');
+  static List<int> label(
+    String community,
+    String room,
+    String from,
+    int number,
+  ) => utf8.encode('voice:$community:$room:$from:$number');
 
   /// Seals one packet of speech for everyone in [room].
   static Future<Map<String, dynamic>> pack(
     Community community,
     String room,
     String from,
-    int seq,
-    Int16List pcm,
+    int number,
+    Int16List samples,
   ) async => {
     ...await seal(
       await key(community, room),
       community.id,
       room,
       from,
-      seq,
-      pcm,
+      number,
+      samples,
     ),
     'c': community.id,
   };
@@ -235,20 +239,20 @@ class Stage extends ChangeNotifier {
     String scope,
     String room,
     String from,
-    int seq,
-    Int16List pcm,
+    int number,
+    Int16List samples,
   ) async {
     final nonce = Ratchet.random(12);
     final box = await AesGcm.with256bits().encrypt(
-      compress(pcm),
+      compress(samples),
       secretKey: SecretKey(secret),
       nonce: nonce,
-      aad: label(scope, room, from, seq),
+      aad: label(scope, room, from, number),
     );
     return {
       'op': 'voice',
       'r': room,
-      'q': seq,
+      'q': number,
       'n': base64.encode(nonce),
       'd': base64.encode([...box.cipherText, ...box.mac.bytes]),
     };
@@ -262,7 +266,7 @@ class Stage extends ChangeNotifier {
   ) async {
     try {
       final room = data['r'] as String;
-      final seq = data['q'] as int;
+      final number = data['q'] as int;
       final sealed = base64.decode(data['d'] as String);
       if (sealed.length < 16 || sealed.length > frame + 16) return null;
       final clear = await AesGcm.with256bits().decrypt(
@@ -272,7 +276,7 @@ class Stage extends ChangeNotifier {
           mac: Mac(sealed.sublist(sealed.length - 16)),
         ),
         secretKey: SecretKey(secret),
-        aad: label(scope, room, from, seq),
+        aad: label(scope, room, from, number),
       );
       return expand(Uint8List.fromList(clear));
     } catch (_) {
@@ -305,18 +309,20 @@ class Stage extends ChangeNotifier {
               .take(24)
               .toList();
     for (final peer in targets) {
-      unawaited(() async {
-        try {
-          final channel = await courier.dial(peer);
-          mesh.send(channel, peer, {
-            'op': 'room',
-            'c': group.id,
-            'r': here,
-            'state': state,
-            'muted': muted,
-          });
-        } catch (_) {}
-      }());
+      unawaited(
+        courier
+            .dial(peer)
+            .then(
+              (channel) => mesh.send(channel, peer, {
+                'op': 'room',
+                'c': group.id,
+                'r': here,
+                'state': state,
+                'muted': muted,
+              }),
+              onError: (_) {},
+            ),
+      );
     }
   }
 
@@ -399,14 +405,19 @@ class Stage extends ChangeNotifier {
 
   /// Sends [body] to [to] as part of a direct call, dialing if needed.
   void tell(String to, Map<String, dynamic> body) {
-    void write(Channel channel) =>
-        channel.send(courier.seal(Signal.call, to, body: jsonEncode(body)));
     final open = courier.channels[to];
     if (open != null && open.alive) {
-      write(open);
+      (open.send(courier.seal(Signal.call, to, body: jsonEncode(body))));
       return;
     }
-    unawaited(courier.dial(to).then(write).catchError((_) {}));
+    unawaited(
+      courier
+          .dial(to)
+          .then((Channel channel) {
+            channel.send(courier.seal(Signal.call, to, body: jsonEncode(body)));
+          })
+          .catchError((_) {}),
+    );
   }
 
   /// Rings [to], a trustee. The call key goes inside the end-to-end
@@ -707,21 +718,6 @@ class Stage extends ChangeNotifier {
     }
   }
 
-  /// Queues a packet of [from]'s speech in [id].
-  void hear(String from, String id, Int16List pcm) {
-    final now = DateTime.now();
-    final seat = seated(id)[from] ??= Seat(seen: now);
-    seat
-      ..seen = now
-      ..level = loudness(pcm);
-    final queue = buffers.putIfAbsent(from, Queue.new);
-    queue.add(pcm);
-    while (queue.length > backlog) {
-      queue.removeFirst();
-    }
-    notifyListeners();
-  }
-
   /// Mixes one packet from every speaker who has enough buffered.
   Int16List mix() {
     final out = Int32List(frame);
@@ -809,9 +805,21 @@ class Stage extends ChangeNotifier {
         notifyListeners();
       case 'voice':
         if (room != id || group.id != community) return;
-        final pcm = await unpack(group, from, data);
-        if (pcm == null) return;
-        hear(from, id, pcm);
+        final samples = await unpack(group, from, data);
+        if (samples == null) return;
+        // Queues a packet of [from]'s speech in [id].
+
+        final now = DateTime.now();
+        final seat = seated(id)[from] ??= Seat(seen: now);
+        seat
+          ..seen = now
+          ..level = loudness(samples);
+        final queue = buffers.putIfAbsent(from, Queue.new);
+        queue.add(samples);
+        while (queue.length > backlog) {
+          queue.removeFirst();
+        }
+        notifyListeners();
     }
   }
 
@@ -888,9 +896,21 @@ class Stage extends ChangeNotifier {
         if (from != peer || id != room || connected == null || key == null) {
           return;
         }
-        final pcm = await unseal(await line(key, id), 'direct', from, data);
-        if (pcm == null) return;
-        hear(from, id, pcm);
+        final samples = await unseal(await line(key, id), 'direct', from, data);
+        if (samples == null) return;
+        // Queues a packet of [from]'s speech in [id].
+
+        final now = DateTime.now();
+        final seat = seated(id)[from] ??= Seat(seen: now);
+        seat
+          ..seen = now
+          ..level = loudness(samples);
+        final queue = buffers.putIfAbsent(from, Queue.new);
+        queue.add(samples);
+        while (queue.length > backlog) {
+          queue.removeFirst();
+        }
+        notifyListeners();
     }
   }
 

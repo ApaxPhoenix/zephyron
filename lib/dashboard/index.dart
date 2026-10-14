@@ -36,14 +36,28 @@ class _Dashboard extends State<Dashboard> {
 
     final identity = Session.user;
     if (identity == null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => relock());
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        // Locking keeps the address online, holding what arrives sealed.
+        await Courier.instance.stop(keep: true);
+        if (!mounted) return;
+        Navigator.of(
+          context,
+        ).pushNamedAndRemoveUntil('/auth', (route) => false);
+      });
       return;
     }
 
     try {
       Courier.instance.start(identity);
       Stage.instance.addListener(ring);
-      expiry = Session.expired.stream.listen((_) => relock());
+      expiry = Session.expired.stream.listen((_) async {
+        // Locking keeps the address online, holding what arrives sealed.
+        await Courier.instance.stop(keep: true);
+        if (!mounted) return;
+        Navigator.of(
+          context,
+        ).pushNamedAndRemoveUntil('/auth', (route) => false);
+      });
       arrivals = Courier.instance.arrivals.stream.listen(announce);
       unawaited(Alerts.permit());
       unawaited(Alerts.stand(true));
@@ -62,7 +76,7 @@ class _Dashboard extends State<Dashboard> {
   /// the app, or a system notification while the app is in the background.
   void announce(Message message) {
     final courier = Courier.instance;
-    if (!mounted || !courier.prefs.banners) return;
+    if (!mounted || !courier.preferences.banners) return;
     if (courier.me.availability == Availability.busy) return;
     final name = courier.roster[message.peer]?.label ?? 'Someone';
     final text = Alerts.count(max(1, courier.unread(message.peer)));
@@ -116,13 +130,6 @@ class _Dashboard extends State<Dashboard> {
     if (call == null || call.id == rung || !mounted) return;
     rung = call.id;
     Navigator.of(context).pushNamed('/dashboard/chats/call');
-  }
-
-  /// Locking keeps the address online, holding what arrives sealed.
-  Future<void> relock() async {
-    await Courier.instance.stop(keep: true);
-    if (!mounted) return;
-    Navigator.of(context).pushNamedAndRemoveUntil('/auth', (route) => false);
   }
 
   @override

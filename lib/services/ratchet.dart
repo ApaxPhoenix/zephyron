@@ -6,7 +6,7 @@ import 'package:crypto/crypto.dart' as hashing;
 import 'package:cryptography/cryptography.dart';
 import 'package:zephyron/models/identity.dart';
 import 'package:zephyron/sql/ledger.dart';
-import 'package:zephyron/wrappers/oqs.dart';
+import 'package:zephyron/wrappers/capsule.dart';
 
 /// Thrown when a message cannot be opened with the session held for a peer.
 class Unreadable implements Exception {
@@ -32,10 +32,8 @@ class Pair {
 
   static final X25519 curve = X25519();
 
-  static Future<Pair> fresh() async => seeded(Ratchet.random(32));
-
-  static Future<Pair> seeded(List<int> seed) async {
-    final pair = await curve.newKeyPairFromSeed(seed);
+  static Future<Pair> fresh() async {
+    final pair = await curve.newKeyPairFromSeed(Ratchet.random(32));
     final public = await pair.extractPublicKey();
     return Pair(
       Uint8List.fromList(await pair.extractPrivateKeyBytes()),
@@ -60,9 +58,9 @@ class Pair {
     'public': base64.encode(public),
   };
 
-  factory Pair.fromJson(Map<String, dynamic> json) => Pair(
-    base64.decode(json['secret'] as String),
-    base64.decode(json['public'] as String),
+  factory Pair.fromJson(Map<String, dynamic> fields) => Pair(
+    base64.decode(fields['secret'] as String),
+    base64.decode(fields['public'] as String),
   );
 }
 
@@ -115,23 +113,23 @@ class Bond {
     'quantum': quantum,
   };
 
-  factory Bond.fromJson(Map<String, dynamic> json) {
+  factory Bond.fromJson(Map<String, dynamic> fields) {
     Uint8List? bytes(Object? value) =>
         value is String ? base64.decode(value) : null;
     return Bond(
-      root: base64.decode(json['root'] as String),
-      mine: Pair.fromJson(Map<String, dynamic>.from(json['mine'] as Map)),
-      theirs: bytes(json['theirs']),
-      sending: bytes(json['sending']),
-      receiving: bytes(json['receiving']),
-      sent: json['sent'] as int? ?? 0,
-      received: json['received'] as int? ?? 0,
-      previous: json['previous'] as int? ?? 0,
-      skipped: Map<String, String>.from(json['skipped'] as Map? ?? {}),
-      opening: json['opening'] == null
+      root: base64.decode(fields['root'] as String),
+      mine: Pair.fromJson(Map<String, dynamic>.from(fields['mine'] as Map)),
+      theirs: bytes(fields['theirs']),
+      sending: bytes(fields['sending']),
+      receiving: bytes(fields['receiving']),
+      sent: fields['sent'] as int? ?? 0,
+      received: fields['received'] as int? ?? 0,
+      previous: fields['previous'] as int? ?? 0,
+      skipped: Map<String, String>.from(fields['skipped'] as Map? ?? {}),
+      opening: fields['opening'] == null
           ? null
-          : Map<String, dynamic>.from(json['opening'] as Map),
-      quantum: json['quantum'] as bool? ?? false,
+          : Map<String, dynamic>.from(fields['opening'] as Map),
+      quantum: fields['quantum'] as bool? ?? false,
     );
   }
 }
@@ -185,7 +183,7 @@ class Ratchet {
     return out;
   }
 
-  static Uint8List unpad(Uint8List padded) {
+  static Uint8List strip(Uint8List padded) {
     if (padded.length < 4) throw const Unreadable('too short to unpad');
     final length = ByteData.view(
       padded.buffer,
@@ -202,22 +200,19 @@ class Ratchet {
     );
   }
 
-  /// Runs [task] after any other work on the session in [slot] has finished.
-  static Future<T> guarded<T>(String slot, Future<T> Function() task) {
-    final previous = locks[slot] ?? Future<void>.value();
-    final result = previous.then((_) => task());
-    locks[slot] = result.then<void>((_) {}, onError: (_) {});
-    return result;
-  }
-
   /// This identity's long-term X25519 key, derived from its seed.
-  static Future<Pair> identity(Identity self) {
+  static Future<Pair> identity(Identity self) async {
     final seed = Uint8List.fromList([
       for (var index = 0; index < 32; index++)
         int.parse(self.private.substring(index * 2, index * 2 + 2), radix: 16),
     ]);
-    return Pair.seeded(
+    final pair = await Pair.curve.newKeyPairFromSeed(
       hashing.sha256.convert([...utf8.encode('zephyron/ik'), ...seed]).bytes,
+    );
+    final public = await pair.extractPublicKey();
+    return Pair(
+      Uint8List.fromList(await pair.extractPrivateKeyBytes()),
+      Uint8List.fromList(public.bytes),
     );
   }
 
@@ -235,8 +230,8 @@ class Ratchet {
         now - (list.last['created'] as int) < rotation.inMilliseconds;
     if (fresh) {
       // A prekey made before liboqs was bundled gains its post-quantum half.
-      if (Kem.available && list.last['kem'] == null) {
-        list.last['kem'] = kem();
+      if (Capsule.available && list.last['kem'] == null) {
+        list.last['kem'] = capsule();
         await Ledger.write('prekeys:${self.address}', {'keys': list});
       }
       return list;
@@ -247,7 +242,7 @@ class Ratchet {
       'id': list.isEmpty ? 1 : (list.last['id'] as int) + 1,
       'created': now,
       ...pair.toJson(),
-      if (Kem.available) 'kem': kem(),
+      if (Capsule.available) 'kem': capsule(),
     });
     list.removeWhere(
       (item) =>
@@ -258,8 +253,8 @@ class Ratchet {
     return list;
   }
 
-  static Map<String, String> kem() {
-    final pair = Kem.pair();
+  static Map<String, String> capsule() {
+    final pair = Capsule.pair();
     return {
       'public': base64.encode(pair.public),
       'secret': base64.encode(pair.secret),
@@ -270,32 +265,34 @@ class Ratchet {
   /// present it carries an ML-KEM-768 key beside the X25519 prekey.
   static Future<Map<String, dynamic>> bundle(Identity self) async {
     final current = (await prekeys(self)).last;
-    final kem = current['kem'] as Map?;
+    final capsule = current['kem'] as Map?;
     return {
       'ik': base64.encode((await identity(self)).public),
       'id': current['id'],
       'spk': current['public'],
-      if (kem != null) 'pq': kem['public'],
+      if (capsule != null) 'pq': capsule['public'],
     };
   }
 
   /// Remembers a peer's bundle, taken from a frame they signed.
   static Future<void> learn(String peer, Object? bundle) async {
     if (bundle is! Map) return;
-    final ik = bundle['ik'];
-    final spk = bundle['spk'];
+    final anchor = bundle['ik'];
+    final signed = bundle['spk'];
     final id = bundle['id'];
-    if (ik is! String || spk is! String || id is! int) return;
-    if (base64.decode(ik).length != 32 || base64.decode(spk).length != 32) {
+    if (anchor is! String || signed is! String || id is! int) return;
+    if (base64.decode(anchor).length != 32 ||
+        base64.decode(signed).length != 32) {
       return;
     }
-    final pq = bundle['pq'];
-    final quantum = pq is String && base64.decode(pq).length == Kem.publics;
+    final lattice = bundle['pq'];
+    final quantum =
+        lattice is String && base64.decode(lattice).length == Capsule.publics;
     await Ledger.write('bundle:$peer', {
-      'ik': ik,
-      'spk': spk,
+      'ik': anchor,
+      'spk': signed,
       'id': id,
-      if (quantum) 'pq': pq,
+      if (quantum) 'pq': lattice,
     });
   }
 
@@ -357,28 +354,28 @@ class Ratchet {
   static Future<Bond> begin(Identity self, String peer) async {
     final stored = await Ledger.read('bundle:$peer');
     if (stored == null) throw const Unpaired();
-    final ik = base64.decode(stored['ik'] as String);
-    final spk = base64.decode(stored['spk'] as String);
+    final anchor = base64.decode(stored['ik'] as String);
+    final signed = base64.decode(stored['spk'] as String);
     final mine = await identity(self);
     final ephemeral = await Pair.fresh();
-    final pq = stored['pq'];
-    final sealed = pq is String && Kem.available
-        ? Kem.seal(base64.decode(pq))
+    final lattice = stored['pq'];
+    final sealed = lattice is String && Capsule.available
+        ? Capsule.seal(base64.decode(lattice))
         : null;
 
     final secret = await derive([
       ...List.filled(32, 0xFF),
-      ...await mine.agree(spk),
-      ...await ephemeral.agree(ik),
-      ...await ephemeral.agree(spk),
+      ...await mine.agree(signed),
+      ...await ephemeral.agree(anchor),
+      ...await ephemeral.agree(signed),
       ...?sealed?.secret,
     ], info: sealed == null ? 'zephyron/x3dh' : 'zephyron/pqxdh');
     final ratchet = await Pair.fresh();
-    final (root, sending) = await step(secret, await ratchet.agree(spk));
+    final (root, sending) = await step(secret, await ratchet.agree(signed));
     final state = Bond(
       root: root,
       mine: ratchet,
-      theirs: spk,
+      theirs: signed,
       sending: sending,
       quantum: sealed != null,
       opening: {
@@ -400,32 +397,32 @@ class Ratchet {
     final keys = await prekeys(self);
     final chosen = keys.where((item) => item['id'] == opening['id']);
     if (chosen.isEmpty) throw const Unreadable('prekey has expired');
-    final prekey = Pair.fromJson(chosen.first);
+    final spare = Pair.fromJson(chosen.first);
     final mine = await identity(self);
-    final ik = base64.decode(opening['ik'] as String);
-    final ek = base64.decode(opening['ek'] as String);
+    final anchor = base64.decode(opening['ik'] as String);
+    final ephemeral = base64.decode(opening['ek'] as String);
 
     Uint8List? shared;
     final cipher = opening['kem'];
     if (cipher is String) {
-      final kem = chosen.first['kem'] as Map?;
-      if (kem == null || !Kem.available) {
+      final capsule = chosen.first['kem'] as Map?;
+      if (capsule == null || !Capsule.available) {
         throw const Unreadable('post-quantum key is not on this phone');
       }
-      shared = Kem.open(
+      shared = Capsule.open(
         base64.decode(cipher),
-        base64.decode(kem['secret'] as String),
+        base64.decode(capsule['secret'] as String),
       );
     }
 
     final secret = await derive([
       ...List.filled(32, 0xFF),
-      ...await prekey.agree(ik),
-      ...await mine.agree(ek),
-      ...await prekey.agree(ek),
+      ...await spare.agree(anchor),
+      ...await mine.agree(ephemeral),
+      ...await spare.agree(ephemeral),
       ...?shared,
     ], info: shared == null ? 'zephyron/x3dh' : 'zephyron/pqxdh');
-    return Bond(root: secret, mine: prekey, quantum: shared != null);
+    return Bond(root: secret, mine: spare, quantum: shared != null);
   }
 
   static Future<Uint8List> lock(
@@ -472,98 +469,122 @@ class Ratchet {
     Identity self,
     String peer,
     List<int> clear,
-  ) => guarded(slot(self, peer), () async {
-    var state = await session(self, peer);
-    if (state == null) {
-      if (!lead(self, peer)) throw const Unpaired();
-      state = await begin(self, peer);
+  ) async {
+    // Work on this session waits for whatever ran on it before.
+    final key = slot(self, peer);
+    final previous = locks[key] ?? Future<void>.value();
+    final turn = Completer<void>();
+    locks[key] = turn.future;
+    await previous;
+    try {
+      var state = await session(self, peer);
+      if (state == null) {
+        if (!lead(self, peer)) throw const Unpaired();
+        state = await begin(self, peer);
+      }
+      if (state.sending == null) {
+        // The answering side has not heard from the lead since a restart of
+        // the session; it cannot send until the lead's ratchet key arrives.
+        throw const Unpaired();
+      }
+      final (chain, key) = advance(state.sending!);
+      final header = {
+        'dh': base64.encode(state.mine.public),
+        'pn': state.previous,
+        'n': state.sent,
+        if (state.opening != null) 'x3dh': state.opening,
+      };
+      final encoded = utf8.encode(jsonEncode(header));
+      final sealed = await lock(key, pad(clear), encoded);
+      state
+        ..sending = chain
+        ..sent += 1;
+      await keep(self, peer, state);
+      return {'h': header, 'c': base64.encode(sealed)};
+    } finally {
+      turn.complete();
     }
-    if (state.sending == null) {
-      // The answering side has not heard from the lead since a restart of
-      // the session; it cannot send until the lead's ratchet key arrives.
-      throw const Unpaired();
-    }
-    final (chain, key) = advance(state.sending!);
-    final header = {
-      'dh': base64.encode(state.mine.public),
-      'pn': state.previous,
-      'n': state.sent,
-      if (state.opening != null) 'x3dh': state.opening,
-    };
-    final encoded = utf8.encode(jsonEncode(header));
-    final sealed = await lock(key, pad(clear), encoded);
-    state
-      ..sending = chain
-      ..sent += 1;
-    await keep(self, peer, state);
-    return {'h': header, 'c': base64.encode(sealed)};
-  });
+  }
 
   /// Decrypts an envelope from [peer], starting a session if it opens one.
   static Future<Uint8List> open(
     Identity self,
     String peer,
     Map<String, dynamic> envelope,
-  ) => guarded(slot(self, peer), () async {
-    final header = envelope['h'];
-    final body = envelope['c'];
-    if (header is! Map<String, dynamic> || body is! String) {
-      throw const Unreadable('malformed');
-    }
-    final dh = base64.decode(header['dh'] as String);
-    final count = header['n'] as int;
-    final previous = header['pn'] as int;
-    final encoded = utf8.encode(jsonEncode(header));
-    final sealed = base64.decode(body);
-
-    var state = await session(self, peer);
-    final opening = header['x3dh'];
-    if (opening is Map<String, dynamic> && !lead(self, peer)) {
-      final known = state?.theirs;
-      final same = known != null && _equal(known, dh) && state!.received > 0;
-      if (state == null || !same) {
-        state = await answer(self, opening);
+  ) async {
+    // Work on this session waits for whatever ran on it before.
+    final key = slot(self, peer);
+    final previous = locks[key] ?? Future<void>.value();
+    final turn = Completer<void>();
+    locks[key] = turn.future;
+    await previous;
+    try {
+      final header = envelope['h'];
+      final body = envelope['c'];
+      if (header is! Map<String, dynamic> || body is! String) {
+        throw const Unreadable('malformed');
       }
-    }
-    if (state == null) throw const Unreadable('no session');
+      final public = base64.decode(header['dh'] as String);
+      final count = header['n'] as int;
+      final previous = header['pn'] as int;
+      final encoded = utf8.encode(jsonEncode(header));
+      final sealed = base64.decode(body);
 
-    final slot = '${base64.encode(dh)}:$count';
-    final kept = state.skipped.remove(slot);
-    if (kept != null) {
-      final clear = await unlock(base64.decode(kept), sealed, encoded);
-      await keep(self, peer, state);
-      return unpad(clear);
-    }
+      var state = await session(self, peer);
+      final opening = header['x3dh'];
+      if (opening is Map<String, dynamic> && !lead(self, peer)) {
+        final known = state?.theirs;
+        final same =
+            known != null && _equal(known, public) && state!.received > 0;
+        if (state == null || !same) {
+          state = await answer(self, opening);
+        }
+      }
+      if (state == null) throw const Unreadable('no session');
 
-    final working = Bond.fromJson(state.toJson());
-    if (working.theirs == null || !_equal(working.theirs!, dh)) {
-      await skip(working, previous);
+      final slot = '${base64.encode(public)}:$count';
+      final kept = state.skipped.remove(slot);
+      if (kept != null) {
+        final clear = await unlock(base64.decode(kept), sealed, encoded);
+        await keep(self, peer, state);
+        return strip(clear);
+      }
+
+      final working = Bond.fromJson(state.toJson());
+      if (working.theirs == null || !_equal(working.theirs!, public)) {
+        await skip(working, previous);
+        working
+          ..previous = working.sent
+          ..sent = 0
+          ..received = 0
+          ..theirs = public;
+        final (root, receiving) = await step(
+          working.root,
+          await working.mine.agree(public),
+        );
+        working.mine = await Pair.fresh();
+        final (next, sending) = await step(
+          root,
+          await working.mine.agree(public),
+        );
+        working
+          ..root = next
+          ..receiving = receiving
+          ..sending = sending;
+      }
+      await skip(working, count);
+      final (chain, key) = advance(working.receiving!);
+      final clear = await unlock(key, sealed, encoded);
       working
-        ..previous = working.sent
-        ..sent = 0
-        ..received = 0
-        ..theirs = dh;
-      final (root, receiving) = await step(
-        working.root,
-        await working.mine.agree(dh),
-      );
-      working.mine = await Pair.fresh();
-      final (next, sending) = await step(root, await working.mine.agree(dh));
-      working
-        ..root = next
-        ..receiving = receiving
-        ..sending = sending;
+        ..receiving = chain
+        ..received += 1
+        ..opening = null;
+      await keep(self, peer, working);
+      return strip(clear);
+    } finally {
+      turn.complete();
     }
-    await skip(working, count);
-    final (chain, key) = advance(working.receiving!);
-    final clear = await unlock(key, sealed, encoded);
-    working
-      ..receiving = chain
-      ..received += 1
-      ..opening = null;
-    await keep(self, peer, working);
-    return unpad(clear);
-  });
+  }
 
   /// Stores keys for messages up to [until] that have not arrived yet.
   static Future<void> skip(Bond state, int until) async {
@@ -593,24 +614,24 @@ class Ratchet {
   /// Seals one attachment chunk with the per-file key from its manifest.
   /// With [width], every chunk is padded to that many bytes, so the last
   /// one looks like the rest and the file's exact size stays hidden.
-  static Future<Uint8List> chunk(
+  static Future<Uint8List> wrap(
     Uint8List key,
-    int seq,
+    int sequence,
     List<int> clear, {
     int? width,
   }) {
     return lock(
       key,
       pad(clear, width: width == null ? null : width + 4),
-      utf8.encode('chunk:$seq'),
+      utf8.encode('chunk:$sequence'),
     );
   }
 
-  static Future<Uint8List> unchunk(
+  static Future<Uint8List> unwrap(
     Uint8List key,
-    int seq,
+    int sequence,
     Uint8List sealed,
   ) async {
-    return unpad(await unlock(key, sealed, utf8.encode('chunk:$seq')));
+    return strip(await unlock(key, sealed, utf8.encode('chunk:$sequence')));
   }
 }
