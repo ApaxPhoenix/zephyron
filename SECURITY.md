@@ -123,6 +123,34 @@ whom, when, and how many messages were sent. A phone holds at most 200
 messages from one sender and 2,000 in all, and drops anything older than
 7 days.
 
+### A locked phone
+
+Locking closes the encrypted store, but your address stays online so people
+can still reach you. A foreground service with a quiet "Ready to receive
+messages" notification keeps Android from stopping the app, and with it Tor.
+
+* What arrives while locked is sealed again on arrival, to a holding key: an
+  X25519 key pair whose private half lives inside the encrypted store, so it
+  can only be opened after the next unlock. Each frame is sealed with a fresh
+  ephemeral key, HKDF and AES-GCM. The file it is kept in is named by a hash
+  of your address, not the address itself.
+* Only signed frames addressed to the locked identity are held: messages,
+  receipts, read notices and timer changes. A phone holds at most 500 frames,
+  100 from any one sender and none larger than 64 KB, and drops the rest.
+* The phone tells the sender it kept a message, so the sender stops retrying.
+  That answer is unsigned, because the signing key is locked away, so a phone
+  only believes it on a connection it dialed itself, where Tor has already
+  proven who is on the other end.
+* Panic wipes and erased identities take the held frames with them.
+
+### Notifications
+
+Notifications go through the phone's own notification manager. They say who
+wrote and how many messages there are, never what the messages say. While
+the phone is locked they don't name the sender either, since the sender is
+sealed away too, and the lock screen shows only "New messages". Do not
+disturb and turning banners off silence them.
+
 ### Strangers, spam and bots
 
 Strangers can't reach your chats. Unless you turn message requests off, what
@@ -174,9 +202,9 @@ entirely.
   like an attack erase them all.
 * **Coercion.** A duress passphrase opens a decoy identity and quietly erases
   the rest. A panic wipe erases everything after a five-second countdown.
-* **Everyday exposure.** The app locks after 10 minutes without use. It
-  blocks screenshots and screen recording, and hides chats in the app
-  switcher.
+* **Everyday exposure.** The app locks after 10 minutes without use, and
+  reopens on the unlock page. It blocks screenshots and screen recording,
+  and hides chats in the app switcher.
 * **Plain copies.** Opening or sharing an attachment leaves a decrypted copy
   in the cache until the vault locks. Picked photos and files are deleted as
   soon as they are read. Anything you share to another app leaves
@@ -197,6 +225,20 @@ entirely.
 * **What you choose to share.** Listing yourself, joining a public community
   or forwarding a file makes that information public on purpose.
 * **Software you rely on.** Zephyron keeps third-party packages to a short
-  list. It builds native libraries such as liboqs from pinned source with
-  scripts in this repository. Even so, a compromised dependency or toolchain
-  could compromise the app. Releases aren't reproducible yet.
+  list, and picking, playing and sharing media is its own code. It builds
+  native libraries such as liboqs from pinned source with scripts in this
+  repository. Even so, a compromised dependency or toolchain could
+  compromise the app.
+* **Tor inside the app.** Tor runs inside the app's own process, and only
+  once per process. When Android keeps the process alive after the app's
+  screen closes, the app finds the Tor already running there by the process
+  id kept beside its files, rather than starting a second one.
+
+### Releases
+
+GitHub Actions builds every release from the commit it tags, after the tests
+pass, and attaches a SHA-256 checksum for every package. Android builds are
+signed with the project's key, and freeRASP is given that key's own
+certificate hash, so a build signed with anything else closes itself. The
+iOS and macOS packages are unsigned, and releases aren't reproducible yet, so
+a release can't yet be checked against the source byte for byte.
