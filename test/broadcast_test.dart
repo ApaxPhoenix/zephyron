@@ -87,7 +87,7 @@ void main() {
     expect(body['op'], 'piece');
     final scrambled = base64.decode(body['d'] as String);
     expect(scrambled, isNot(audio.sublist(Broadcast.piece)));
-    final clear = await Ratchet.unchunk(
+    final clear = await Ratchet.unwrap(
       await Broadcast.key(community, id),
       1,
       scrambled,
@@ -147,7 +147,7 @@ void main() {
       meta: {
         'blob': id,
         'size': audio.length,
-        'sha': sha(audio),
+        'sha': checksum(audio),
         'duration': 1000,
       },
     );
@@ -164,8 +164,8 @@ void main() {
         .listen((frame) async {
           final ask = jsonDecode(frame['body'] as String) as Map;
           if (ask['op'] != 'fetch') return;
-          final seq = ask['s'] as int;
-          final start = seq * Broadcast.piece;
+          final sequence = ask['s'] as int;
+          final start = sequence * Broadcast.piece;
           final end = (start + Broadcast.piece).clamp(0, audio.length);
           wire.send(
             sealed(
@@ -175,11 +175,11 @@ void main() {
                 'op': 'piece',
                 'c': community.id,
                 'b': id,
-                's': seq,
+                's': sequence,
                 'd': base64.encode(
-                  await Ratchet.chunk(
+                  await Ratchet.wrap(
                     await Broadcast.key(community, id),
-                    seq,
+                    sequence,
                     audio.sublist(start, end),
                   ),
                 ),
@@ -196,4 +196,4 @@ void main() {
   });
 }
 
-String sha(Uint8List bytes) => sha256.convert(bytes).toString();
+String checksum(Uint8List bytes) => sha256.convert(bytes).toString();

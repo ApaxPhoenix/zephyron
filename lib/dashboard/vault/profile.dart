@@ -27,14 +27,16 @@ class _Persona extends State<Persona> {
   late final TextEditingController mood = TextEditingController(
     text: draft.mood,
   );
-  late final TextEditingController bio = TextEditingController(text: draft.bio);
+  late final TextEditingController biography = TextEditingController(
+    text: draft.biography,
+  );
   bool busy = false;
 
   @override
   void dispose() {
     name.dispose();
     mood.dispose();
-    bio.dispose();
+    biography.dispose();
     super.dispose();
   }
 
@@ -350,8 +352,8 @@ class _Persona extends State<Persona> {
                 Text('Bio', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 12),
                 TextFormField(
-                  controller: bio,
-                  maxLength: Profile.bios,
+                  controller: biography,
+                  maxLength: Profile.biographies,
                   minLines: 2,
                   maxLines: 4,
                   textCapitalization: TextCapitalization.sentences,
@@ -407,7 +409,10 @@ class _Persona extends State<Persona> {
                             draft
                               ..name = Profile.clip(name.text, Profile.names)
                               ..mood = Profile.clip(mood.text, Profile.moods)
-                              ..bio = Profile.clip(bio.text, Profile.bios);
+                              ..biography = Profile.clip(
+                                biography.text,
+                                Profile.biographies,
+                              );
                             await Courier.instance.publish(draft);
                             if (context.mounted) Navigator.pop(context);
                           },

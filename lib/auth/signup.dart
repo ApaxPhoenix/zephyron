@@ -289,7 +289,7 @@ class _Signup extends State<Signup> {
   Widget build(BuildContext context) {
     try {
       final theme = Theme.of(context);
-      final words = (seed ?? '').split(' ').where((w) => w.isNotEmpty);
+      final words = (seed ?? '').split(' ').where((word) => word.isNotEmpty);
 
       return Scaffold(
         body: SafeArea(

@@ -375,7 +375,7 @@ class Mesh extends ChangeNotifier {
   Map<String, int> clock(String community) {
     final seen = <String, Set<int>>{};
     for (final post in posts[community] ?? const <Post>[]) {
-      seen.putIfAbsent(post.author, () => {}).add(post.seq);
+      seen.putIfAbsent(post.author, () => {}).add(post.sequence);
     }
     return {
       for (final entry in seen.entries)
@@ -440,7 +440,7 @@ class Mesh extends ChangeNotifier {
     }
     final mine = (posts[community.id] ?? const <Post>[])
         .where((post) => post.author == self.address)
-        .fold<int>(0, (top, post) => max(top, post.seq));
+        .fold<int>(0, (top, post) => max(top, post.sequence));
     final frame = <String, dynamic>{
       'c': community.id,
       'i': Courier.token(),
@@ -476,10 +476,13 @@ class Mesh extends ChangeNotifier {
       if (community == null) return null;
       final id = frame['i'];
       final author = frame['a'];
-      final seq = frame['s'];
+      final sequence = frame['s'];
       final time = frame['t'];
       final sealed = frame['x'];
-      if (id is! String || author is! String || seq is! int || seq < 1) {
+      if (id is! String ||
+          author is! String ||
+          sequence is! int ||
+          sequence < 1) {
         return null;
       }
       if (time is! int || sealed is! String) return null;
@@ -524,7 +527,7 @@ class Mesh extends ChangeNotifier {
       }
       if (clear == null) return null;
       final body =
-          jsonDecode(utf8.decode(Ratchet.unpad(Uint8List.fromList(clear))))
+          jsonDecode(utf8.decode(Ratchet.strip(Uint8List.fromList(clear))))
               as Map<String, dynamic>;
       final note = Note.values.where((item) => item.name == body['n']);
       if (note.isEmpty) return null;
@@ -539,7 +542,7 @@ class Mesh extends ChangeNotifier {
         community: community.id,
         channel: '${body['ch'] ?? ''}',
         author: Identity.onion(key),
-        seq: seq,
+        sequence: sequence,
         time: stamp.isAfter(now) ? now : stamp,
         note: note.first,
         text: text,
@@ -674,7 +677,8 @@ class Mesh extends ChangeNotifier {
     if (name is String && name.trim().isNotEmpty) {
       group.name = Profile.clip(name, Community.names);
     }
-    if (about is String) group.about = Profile.clip(about, Community.abouts);
+    if (about is String)
+      group.about = Profile.clip(about, Community.descriptions);
     if (icon is String) {
       final bytes = icon.isEmpty ? null : base64.decode(icon);
       if ((bytes?.length ?? 0) <= icons) group.icon = bytes;
@@ -731,7 +735,7 @@ class Mesh extends ChangeNotifier {
     final community = Community(
       id: Courier.token(),
       name: Profile.clip(name, Community.names),
-      about: Profile.clip(about, Community.abouts),
+      about: Profile.clip(about, Community.descriptions),
       key: Ratchet.random(32),
       founder: self.address,
       icon: icon,
@@ -884,7 +888,7 @@ class Mesh extends ChangeNotifier {
       'keys': ring,
       'community': id,
       'name': Profile.clip(meta['name'], Community.names),
-      'about': Profile.clip(meta['about'], Community.abouts),
+      'about': Profile.clip(meta['about'], Community.descriptions),
       'key': key,
       'founder': founder,
       'created': created,
@@ -1004,7 +1008,7 @@ class Mesh extends ChangeNotifier {
         .toSet();
     final targets = {
       ...open,
-      ...others.where((a) => !open.contains(a)).take(reach),
+      ...others.where((address) => !open.contains(address)).take(reach),
     };
     for (final peer in targets) {
       try {
@@ -1082,8 +1086,8 @@ class Mesh extends ChangeNotifier {
         }
         final missing = [
           for (final post in posts[community.id] ?? const <Post>[])
-            if (post.seq > (theirs[post.author] ?? 0)) post,
-        ]..sort((alpha, beta) => alpha.seq.compareTo(beta.seq));
+            if (post.sequence > (theirs[post.author] ?? 0)) post,
+        ]..sort((alpha, beta) => alpha.sequence.compareTo(beta.sequence));
         var batch = <Map<String, dynamic>>[];
         var size = 0;
         for (final post in missing) {

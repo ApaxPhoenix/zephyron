@@ -4,21 +4,21 @@ import 'package:zephyron/models/identity.dart';
 import 'package:zephyron/services/keccak.dart';
 
 void main() {
-  String hex(List<int> bytes) =>
+  String hexadecimal(List<int> bytes) =>
       bytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();
 
   test('SHA3-256 matches the FIPS 202 examples', () {
     expect(
-      hex(Keccak.digest(const [])),
+      hexadecimal(Keccak.digest(const [])),
       'a7ffc6f8bf1ed76651c14756a061d662f580ff4de43b49fa82d80a4b80f8434a',
     );
     expect(
-      hex(Keccak.digest(utf8.encode('abc'))),
+      hexadecimal(Keccak.digest(utf8.encode('abc'))),
       '3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532',
     );
     expect(
-      hex(Keccak.digest(utf8.encode('a' * 200))),
-      hex(Keccak.digest(utf8.encode('a' * 200))),
+      hexadecimal(Keccak.digest(utf8.encode('a' * 200))),
+      hexadecimal(Keccak.digest(utf8.encode('a' * 200))),
     );
   });
 
@@ -28,8 +28,8 @@ void main() {
       expect(Keccak.digest(List.filled(length, 0x61)), hasLength(32));
     }
     expect(
-      hex(Keccak.digest(utf8.encode('a' * 136))),
-      isNot(hex(Keccak.digest(utf8.encode('a' * 135)))),
+      hexadecimal(Keccak.digest(utf8.encode('a' * 136))),
+      isNot(hexadecimal(Keccak.digest(utf8.encode('a' * 135)))),
     );
   });
 
@@ -45,8 +45,8 @@ void main() {
 
   test('addresses from older builds are mended to the real one', () {
     final identity = Identity.parse('mend test seed');
-    final pub = Identity.unpack(identity.address)!;
-    final old = Identity.legacy(pub);
+    final public = Identity.unpack(identity.address)!;
+    final old = Identity.legacy(public);
     expect(old, isNot(identity.address));
     expect(Identity.valid(old), isFalse);
     expect(Identity.mend(old), identity.address);

@@ -183,7 +183,7 @@ class _Recorder extends State<Recorder> {
         const SizedBox(width: 8),
         IconButton.filled(
           tooltip: 'Send voice message',
-          style: Pallete.solid(Theme.of(context).colorScheme),
+          style: Palette.solid(Theme.of(context).colorScheme),
           onPressed: live ? finish : null,
           icon: const Icon(Icons.arrow_upward_rounded),
         ),

@@ -10,7 +10,7 @@ class Trustee {
   DateTime created;
 
   String alias;
-  String bio;
+  String biography;
   String mood;
   Availability availability;
   Uint8List? avatar;
@@ -34,7 +34,7 @@ class Trustee {
     this.archived = false,
     DateTime? created,
     this.alias = '',
-    this.bio = '',
+    this.biography = '',
     this.mood = '',
     this.availability = Availability.available,
     this.avatar,
@@ -59,7 +59,7 @@ class Trustee {
       archived: (row['archived'] as int? ?? 0) == 1,
       created: DateTime.fromMillisecondsSinceEpoch(row['created'] as int? ?? 0),
       alias: row['alias'] as String? ?? '',
-      bio: row['bio'] as String? ?? '',
+      biography: row['bio'] as String? ?? '',
       mood: row['mood'] as String? ?? '',
       availability: Availability
           .values[index(row['availability'], Availability.values.length)],
@@ -81,7 +81,7 @@ class Trustee {
       'archived': archived ? 1 : 0,
       'created': created.millisecondsSinceEpoch,
       'alias': alias,
-      'bio': bio,
+      'bio': biography,
       'mood': mood,
       'availability': availability.index,
       'avatar': avatar,

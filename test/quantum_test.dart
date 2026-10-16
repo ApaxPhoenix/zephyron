@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zephyron/models/identity.dart';
 import 'package:zephyron/services/ratchet.dart';
-import 'package:zephyron/wrappers/oqs.dart';
+import 'package:zephyron/wrappers/capsule.dart';
 import 'support.dart';
 
 /// Runs against the bundled ML-KEM-768 from liboqs when ZEPHYRON_OQS points
@@ -10,26 +10,26 @@ import 'support.dart';
 void main() {
   setUpAll(unlock);
 
-  final skip = Kem.available
+  final skip = Capsule.available
       ? false
       : 'Set ZEPHYRON_OQS to a desktop liboqs build to run these';
 
   test('key, ciphertext and secret sizes match FIPS 203', () {
-    final pair = Kem.pair();
-    expect(pair.public, hasLength(Kem.publics));
-    expect(pair.secret, hasLength(Kem.secrets));
-    final sealed = Kem.seal(pair.public);
-    expect(sealed.cipher, hasLength(Kem.ciphers));
-    expect(sealed.secret, hasLength(Kem.shared));
+    final pair = Capsule.pair();
+    expect(pair.public, hasLength(Capsule.publics));
+    expect(pair.secret, hasLength(Capsule.secrets));
+    final sealed = Capsule.seal(pair.public);
+    expect(sealed.cipher, hasLength(Capsule.ciphers));
+    expect(sealed.secret, hasLength(Capsule.shared));
   }, skip: skip);
 
   test('both sides reach the same secret, a tampered ciphertext does not', () {
-    final pair = Kem.pair();
-    final sealed = Kem.seal(pair.public);
-    expect(Kem.open(sealed.cipher, pair.secret), sealed.secret);
+    final pair = Capsule.pair();
+    final sealed = Capsule.seal(pair.public);
+    expect(Capsule.open(sealed.cipher, pair.secret), sealed.secret);
     final bent = sealed.cipher.sublist(0)..[100] ^= 1;
-    expect(Kem.open(bent, pair.secret), isNot(sealed.secret));
-    expect(Kem.seal(pair.public).secret, isNot(sealed.secret));
+    expect(Capsule.open(bent, pair.secret), isNot(sealed.secret));
+    expect(Capsule.seal(pair.public).secret, isNot(sealed.secret));
   }, skip: skip);
 
   group('sessions', () {

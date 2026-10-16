@@ -323,7 +323,7 @@ class _Creation extends State<Creation> {
                 const SizedBox(height: 10),
                 TextFormField(
                   controller: about,
-                  maxLength: Community.abouts,
+                  maxLength: Community.descriptions,
                   minLines: 2,
                   maxLines: 4,
                   textCapitalization: TextCapitalization.sentences,

@@ -7,7 +7,7 @@ import 'package:zephyron/enums.dart';
 /// can invite, post and add channels, and members are listed by seniority.
 class Community {
   static const int names = 48;
-  static const int abouts = 240;
+  static const int descriptions = 240;
 
   final String id;
   String name;
@@ -174,7 +174,7 @@ class Post {
   final String author;
 
   /// Per-author counter, so members can tell exactly what they are missing.
-  final int seq;
+  final int sequence;
   final DateTime time;
   final Note note;
   final String text;
@@ -188,7 +188,7 @@ class Post {
     required this.community,
     required this.channel,
     required this.author,
-    required this.seq,
+    required this.sequence,
     required this.time,
     required this.note,
     required this.text,
@@ -211,7 +211,7 @@ class Post {
       community: row['community'] as String,
       channel: row['channel'] as String? ?? '',
       author: row['author'] as String,
-      seq: row['seq'] as int? ?? 0,
+      sequence: row['seq'] as int? ?? 0,
       time: DateTime.fromMillisecondsSinceEpoch(row['time'] as int? ?? 0),
       note: Note.values[index(row['note'], Note.values.length)],
       text: row['text'] as String? ?? '',
@@ -225,7 +225,7 @@ class Post {
     'community': community,
     'channel': channel,
     'author': author,
-    'seq': seq,
+    'seq': sequence,
     'time': time.millisecondsSinceEpoch,
     'note': note.index,
     'text': text,

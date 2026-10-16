@@ -177,12 +177,12 @@ Future<String> confide(Identity from, Object inner) async {
 Future<Map<String, dynamic>> piece(
   String id,
   Uint8List key,
-  int seq,
+  int sequence,
   List<int> data,
 ) async => {
   'v': Courier.protocol,
   'kind': 'chunk',
   'id': id,
-  'seq': seq,
-  'data': base64.encode(await Ratchet.chunk(key, seq, data)),
+  'seq': sequence,
+  'data': base64.encode(await Ratchet.wrap(key, sequence, data)),
 };

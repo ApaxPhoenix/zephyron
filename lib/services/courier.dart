@@ -93,7 +93,7 @@ class Transfer {
   final String text;
   final String name;
   final String mime;
-  final String sha;
+  final String checksum;
   final int size;
   final int width;
   final int height;
@@ -117,7 +117,7 @@ class Transfer {
     required this.text,
     required this.name,
     required this.mime,
-    required this.sha,
+    required this.checksum,
     required this.size,
     required this.width,
     required this.height,
@@ -181,7 +181,7 @@ class Courier extends ChangeNotifier {
   String? focus;
   int generation = 0;
   Profile me = Profile();
-  Preferences prefs = Preferences();
+  Preferences preferences = Preferences();
 
   final Map<String, Trustee> roster = {};
   final Map<String, List<Message>> threads = {};
@@ -237,10 +237,12 @@ class Courier extends ChangeNotifier {
       if (profile.name.isEmpty) profile.name = Session.profile ?? '';
       if (profile.revision == 0) profile.revision = 1;
       me = profile;
-      prefs = chosen == null ? Preferences() : Preferences.fromJson(chosen);
-      theme.value = prefs.theme;
-      shielded.value = prefs.shield;
-      unawaited(Shield.apply(prefs.shield));
+      preferences = chosen == null
+          ? Preferences()
+          : Preferences.fromJson(chosen);
+      theme.value = preferences.theme;
+      shielded.value = preferences.shield;
+      unawaited(Shield.apply(preferences.shield));
 
       roster
         ..clear()
@@ -328,13 +330,13 @@ class Courier extends ChangeNotifier {
     if (holding != null && address != null) {
       Keeper.instance
         ..begin()
-        ..alerts = prefs.banners && me.availability != Availability.busy;
+        ..alerts = preferences.banners && me.availability != Availability.busy;
     }
     self = null;
     secret = null;
     focus = null;
     me = Profile();
-    prefs = Preferences();
+    preferences = Preferences();
 
     if (holding == null) {
       await server?.close();
@@ -785,15 +787,15 @@ class Courier extends ChangeNotifier {
         final transfer = id is String ? transfers[id] : null;
         if (transfer == null || !identical(transfer.channel, channel)) return;
 
-        final seq = decoded['seq'];
+        final sequence = decoded['seq'];
         final data = decoded['data'];
-        if (seq != transfer.next || data is! String) {
+        if (sequence != transfer.next || data is! String) {
           transfers.remove(transfer.id);
           return;
         }
         try {
           transfer.buffer.add(
-            await Ratchet.unchunk(transfer.key, seq, base64.decode(data)),
+            await Ratchet.unwrap(transfer.key, sequence, base64.decode(data)),
           );
         } catch (_) {
           transfers.remove(transfer.id);
@@ -811,7 +813,8 @@ class Courier extends ChangeNotifier {
 
         transfers.remove(transfer.id);
         final clear = transfer.buffer.takeBytes();
-        if (hashing.sha256.convert(clear).toString() != transfer.sha) return;
+        if (hashing.sha256.convert(clear).toString() != transfer.checksum)
+          return;
 
         final sealed = await Locker.store(transfer.id, clear);
         if (epoch != generation) return;
@@ -921,7 +924,7 @@ class Courier extends ChangeNotifier {
           known.mailbox = Identity.valid(mailbox) ? mailbox : '';
           known
             ..alias = profile.name
-            ..bio = profile.bio
+            ..biography = profile.biography
             ..mood = profile.mood
             ..availability = profile.availability
             ..avatar = (profile.avatar?.length ?? 0) <= portrait
@@ -964,9 +967,9 @@ class Courier extends ChangeNotifier {
             break;
           }
           final size = data['size'];
-          final sha = '${data['sha'] ?? ''}';
+          final checksum = '${data['sha'] ?? ''}';
           if (size is! int || size <= 0 || size > Locker.ceiling) break;
-          if (!RegExp(r'^[0-9a-f]{64}$').hasMatch(sha)) break;
+          if (!RegExp(r'^[0-9a-f]{64}$').hasMatch(checksum)) break;
           if (!await admit(from)) break;
 
           final active = transfers.values
@@ -988,7 +991,7 @@ class Courier extends ChangeNotifier {
             text: Profile.clip(data['text'], limit),
             name: name.isEmpty ? 'file' : name,
             mime: Profile.clip(data['mime'], 80),
-            sha: sha,
+            checksum: checksum,
             size: size,
             width: dimension(data['width']),
             height: dimension(data['height']),
@@ -1307,8 +1310,8 @@ class Courier extends ChangeNotifier {
   ) async {
     final friend = roster[from]?.trusted == true;
     final allowed =
-        (prefs.carry && (friend || roster[to]?.trusted == true)) ||
-        (prefs.serve.isNotEmpty && prefs.serve == to);
+        (preferences.carry && (friend || roster[to]?.trusted == true)) ||
+        (preferences.serve.isNotEmpty && preferences.serve == to);
     if (!allowed || roster[from]?.blocked == true) return;
     final id = frame['id'];
     if (id is! String) return;
@@ -1472,7 +1475,7 @@ class Courier extends ChangeNotifier {
   Future<bool> admit(String from) async {
     final known = roster[from];
     if (known != null) return !known.blocked;
-    if (!prefs.strangers) return false;
+    if (!preferences.strangers) return false;
     final stranger = Trustee(address: from, trust: Trust.stranger);
     roster[from] = stranger;
     await Ledger.keep(stranger);
@@ -1627,8 +1630,8 @@ class Courier extends ChangeNotifier {
           await entrust(peer);
           rethrow;
         }
-        final ack = Completer<void>();
-        waiting[message.id] = ack;
+        final confirmation = Completer<void>();
+        waiting[message.id] = confirmation;
 
         if (message.attachment) {
           final clear = await Locker.load(message);
@@ -1664,18 +1667,18 @@ class Courier extends ChangeNotifier {
           );
           if (!opened) throw const SocketException('Channel closed');
 
-          var seq = 0;
+          var sequence = 0;
           for (var offset = 0; offset < clear.length; offset += slice) {
             final end = min(offset + slice, clear.length);
             final written = await channel.send({
               'v': protocol,
               'kind': Signal.chunk.name,
               'id': message.id,
-              'seq': seq,
+              'seq': sequence,
               'data': base64.encode(
-                await Ratchet.chunk(
+                await Ratchet.wrap(
                   key,
-                  seq,
+                  sequence,
                   clear.sublist(offset, end),
                   width: slice,
                 ),
@@ -1684,9 +1687,9 @@ class Courier extends ChangeNotifier {
             if (!written) {
               throw const SocketException('Channel closed mid transfer');
             }
-            seq += 1;
+            sequence += 1;
             progress[message.id] = end / clear.length;
-            if (seq % 4 == 0 || end == clear.length) notifyListeners();
+            if (sequence % 4 == 0 || end == clear.length) notifyListeners();
           }
         } else {
           final body = await whisper(
@@ -1710,7 +1713,7 @@ class Courier extends ChangeNotifier {
         final patience = Duration(
           seconds: 30 + (message.attachment ? message.size ~/ 16384 : 0),
         );
-        await ack.future.timeout(patience);
+        await confirmation.future.timeout(patience);
         progress.remove(message.id);
         await upgrade(peer, message.id, Status.delivered);
       }
@@ -1733,10 +1736,10 @@ class Courier extends ChangeNotifier {
     final id = token();
     try {
       final channel = await dial(peer);
-      final ack = Completer<void>();
-      waiting[id] = ack;
+      final confirmation = Completer<void>();
+      waiting[id] = confirmation;
       channel.send(seal(Signal.ping, peer, id: id));
-      await ack.future.timeout(const Duration(seconds: 30));
+      await confirmation.future.timeout(const Duration(seconds: 30));
       state.latency = clock.elapsedMilliseconds;
       state.seen = DateTime.now();
       notifyListeners();
@@ -1750,7 +1753,8 @@ class Courier extends ChangeNotifier {
   }
 
   void typing(String peer) {
-    if (!prefs.typing || invisible || roster[peer]?.trusted != true) return;
+    if (!preferences.typing || invisible || roster[peer]?.trusted != true)
+      return;
     final channel = channels[peer];
     if (channel == null || !channel.alive || self == null) return;
     final last = hinted[peer];
@@ -1785,7 +1789,8 @@ class Courier extends ChangeNotifier {
       );
       return;
     }
-    if (!prefs.receipts || invisible || roster[peer]?.trusted != true) return;
+    if (!preferences.receipts || invisible || roster[peer]?.trusted != true)
+      return;
     try {
       await hesitate();
       if (self == null) return;
@@ -1817,17 +1822,17 @@ class Courier extends ChangeNotifier {
     }
   }
 
-  Future<void> configure(Preferences preferences) async {
-    final relist = prefs.listed != preferences.listed;
-    prefs = preferences;
-    theme.value = preferences.theme;
-    if (shielded.value != preferences.shield) {
-      shielded.value = preferences.shield;
-      unawaited(Shield.apply(preferences.shield));
+  Future<void> configure(Preferences incoming) async {
+    final toggled = preferences.listed != incoming.listed;
+    preferences = incoming;
+    theme.value = incoming.theme;
+    if (shielded.value != incoming.shield) {
+      shielded.value = incoming.shield;
+      unawaited(Shield.apply(incoming.shield));
     }
-    await Ledger.write('preferences', preferences.toJson());
+    await Ledger.write('preferences', incoming.toJson());
     notifyListeners();
-    if (relist) unawaited(Catalog.instance.refresh());
+    if (toggled) unawaited(Catalog.instance.refresh());
   }
 
   Future<Trustee> add(String address, String nickname) async {

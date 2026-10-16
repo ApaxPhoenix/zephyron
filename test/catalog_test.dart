@@ -26,8 +26,8 @@ void main() {
 
   setUp(() async {
     reset();
-    courier.prefs = Preferences();
-    courier.me = Profile(name: 'Bob Stone', bio: 'Night owl');
+    courier.preferences = Preferences();
+    courier.me = Profile(name: 'Bob Stone', biography: 'Night owl');
     courier.roster[alice.address] = Trustee(address: alice.address);
     for (final id in catalog.listings.keys.toList()) {
       await Ledger.unlist(id);
@@ -229,7 +229,7 @@ void main() {
   test('a trustee is sent the listings it is missing', () async {
     final theirs = await as(carol, Shelf.person, carol.address, name: 'Carol');
     await catalog.accept(Catalog.check(theirs)!);
-    courier.prefs.listed = true;
+    courier.preferences.listed = true;
     await catalog.refresh();
 
     Future<List<String>> offered() async {
@@ -253,12 +253,12 @@ void main() {
     }
 
     expect(await offered(), unorderedEquals([bob.address, carol.address]));
-    courier.prefs.spread = false;
+    courier.preferences.spread = false;
     expect(await offered(), [bob.address]);
   });
 
   test('listing yourself publishes, and unlisting takes it down', () async {
-    courier.prefs.listed = true;
+    courier.preferences.listed = true;
     await catalog.refresh();
     final mine =
         catalog.listings[Listing.key(Shelf.person, bob.address, bob.address)]!;
@@ -273,11 +273,11 @@ void main() {
       reason: 'nothing changed, so nothing is published again',
     );
 
-    courier.me.bio = 'Early bird';
+    courier.me.biography = 'Early bird';
     await catalog.refresh();
     expect(catalog.listings[mine.id]!.about, 'Early bird');
 
-    courier.prefs.listed = false;
+    courier.preferences.listed = false;
     await catalog.refresh();
     expect(catalog.listings[mine.id]!.gone, isTrue);
   });
