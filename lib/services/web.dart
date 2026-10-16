@@ -17,26 +17,29 @@ class Web {
   static int held = 0;
   static const int budget = 24 * 1024 * 1024;
 
-  static Future<Uint8List> fetch(Uri uri, {int limit = 8 * 1024 * 1024}) async {
-    final key = uri.toString();
+  static Future<Uint8List> fetch(
+    Uri link, {
+    int limit = 8 * 1024 * 1024,
+  }) async {
+    final key = link.toString();
     final hit = memory.remove(key);
     if (hit != null) {
       memory[key] = hit;
       return hit;
     }
 
-    final request = await client.getUrl(uri);
+    final request = await client.getUrl(link);
     final response = await request.close().timeout(const Duration(seconds: 45));
     if (response.statusCode != HttpStatus.ok) {
       await response.drain<void>();
-      throw HttpException('HTTP ${response.statusCode}', uri: uri);
+      throw HttpException('HTTP ${response.statusCode}', uri: link);
     }
 
     final builder = BytesBuilder(copy: false);
     await for (final chunk in response.timeout(const Duration(seconds: 45))) {
       builder.add(chunk);
       if (builder.length > limit) {
-        throw HttpException('Response larger than $limit bytes', uri: uri);
+        throw HttpException('Response larger than $limit bytes', uri: link);
       }
     }
     final bytes = builder.takeBytes();
@@ -76,7 +79,7 @@ class Giphy {
 
   static Future<List<Gif>> query(String text, int offset, Rating rating) async {
     if (!ready) throw StateError('GIPHY_API_KEY is not configured');
-    final uri = Uri.https(
+    final link = Uri.https(
       'api.giphy.com',
       text.isEmpty ? '/v1/gifs/trending' : '/v1/gifs/search',
       {
@@ -88,8 +91,8 @@ class Giphy {
         if (text.isNotEmpty) 'q': text,
       },
     );
-    final bytes = await Web.fetch(uri, limit: 2 * 1024 * 1024);
-    Web.held -= Web.memory.remove(uri.toString())?.length ?? 0;
+    final bytes = await Web.fetch(link, limit: 2 * 1024 * 1024);
+    Web.held -= Web.memory.remove(link.toString())?.length ?? 0;
     final body = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
 
     final results = <Gif>[];

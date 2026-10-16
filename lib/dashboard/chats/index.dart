@@ -261,7 +261,7 @@ class _Chats extends State<Chats> {
                 overflow: TextOverflow.ellipsis,
                 style: trustee.mood.isNotEmpty
                     ? null
-                    : const TextStyle(fontFamily: Pallete.mono, fontSize: 12),
+                    : const TextStyle(fontFamily: Palette.mono, fontSize: 12),
               ),
               trailing: Text(
                 detail ?? '',

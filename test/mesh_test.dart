@@ -91,15 +91,15 @@ void main() {
 
   test('the sync clock stops at the first missing post', () async {
     final community = await founded();
-    Post numbered(int seq) => Post(
+    Post numbered(int sequence) => Post(
       id: Courier.token(),
       community: community.id,
       channel: community.general,
       author: alice.address,
-      seq: seq,
+      sequence: sequence,
       time: DateTime.now(),
       note: Note.text,
-      text: 'post $seq',
+      text: 'post $sequence',
       frame: '{}',
     );
     mesh.index(numbered(1));

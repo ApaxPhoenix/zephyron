@@ -30,7 +30,7 @@ class Keccak {
     0x8000000080008008,
   ];
 
-  /// How far each lane turns, by x then y.
+  /// How far each lane turns, by column then row.
   static const List<List<int>> turns = [
     [0, 36, 3, 41, 18],
     [1, 44, 10, 45, 2],
@@ -61,34 +61,36 @@ class Keccak {
         final columns = List<int>.filled(5, 0);
         final mixed = List<int>.filled(25, 0);
         for (final constant in constants) {
-          for (var x = 0; x < 5; x++) {
-            columns[x] =
-                lanes[x] ^
-                lanes[x + 5] ^
-                lanes[x + 10] ^
-                lanes[x + 15] ^
-                lanes[x + 20];
+          for (var column = 0; column < 5; column++) {
+            columns[column] =
+                lanes[column] ^
+                lanes[column + 5] ^
+                lanes[column + 10] ^
+                lanes[column + 15] ^
+                lanes[column + 20];
           }
-          for (var x = 0; x < 5; x++) {
+          for (var column = 0; column < 5; column++) {
             final change =
-                columns[(x + 4) % 5] ^ rotate(columns[(x + 1) % 5], 1);
-            for (var y = 0; y < 25; y += 5) {
-              lanes[x + y] ^= change;
+                columns[(column + 4) % 5] ^
+                rotate(columns[(column + 1) % 5], 1);
+            for (var row = 0; row < 25; row += 5) {
+              lanes[column + row] ^= change;
             }
           }
-          for (var x = 0; x < 5; x++) {
-            for (var y = 0; y < 5; y++) {
-              mixed[y + 5 * ((2 * x + 3 * y) % 5)] = rotate(
-                lanes[x + 5 * y],
-                turns[x][y],
+          for (var column = 0; column < 5; column++) {
+            for (var row = 0; row < 5; row++) {
+              mixed[row + 5 * ((2 * column + 3 * row) % 5)] = rotate(
+                lanes[column + 5 * row],
+                turns[column][row],
               );
             }
           }
-          for (var y = 0; y < 25; y += 5) {
-            for (var x = 0; x < 5; x++) {
-              lanes[x + y] =
-                  mixed[x + y] ^
-                  (~mixed[(x + 1) % 5 + y] & mixed[(x + 2) % 5 + y]);
+          for (var row = 0; row < 25; row += 5) {
+            for (var column = 0; column < 5; column++) {
+              lanes[column + row] =
+                  mixed[column + row] ^
+                  (~mixed[(column + 1) % 5 + row] &
+                      mixed[(column + 2) % 5 + row]);
             }
           }
           lanes[0] ^= constant;

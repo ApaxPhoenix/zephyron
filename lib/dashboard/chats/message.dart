@@ -68,7 +68,7 @@ class _Conversation extends State<Conversation> {
         mime: 'audio/mp4',
         duration: take.duration.inMilliseconds,
       );
-      if (courier.prefs.haptics) HapticFeedback.lightImpact();
+      if (courier.preferences.haptics) HapticFeedback.lightImpact();
       bottom();
     } catch (_) {
       if (!mounted) return;
@@ -959,7 +959,7 @@ class _Conversation extends State<Conversation> {
                                 ),
                                 child: GestureDetector(
                                   onLongPress: () {
-                                    if (courier.prefs.haptics) {
+                                    if (courier.preferences.haptics) {
                                       HapticFeedback.selectionClick();
                                     }
                                     Sheets.actions(
@@ -1166,7 +1166,7 @@ class _Conversation extends State<Conversation> {
                                       tooltip: 'Record voice message',
                                       icon: const Icon(Icons.mic_none_rounded),
                                       onPressed: () {
-                                        if (courier.prefs.haptics) {
+                                        if (courier.preferences.haptics) {
                                           HapticFeedback.selectionClick();
                                         }
                                         setState(() => recording = true);
@@ -1187,7 +1187,7 @@ class _Conversation extends State<Conversation> {
                                       ),
                                       onPressed: ready
                                           ? () {
-                                              if (courier.prefs.haptics) {
+                                              if (courier.preferences.haptics) {
                                                 HapticFeedback.lightImpact();
                                               }
                                               courier.send(peer, input.text);

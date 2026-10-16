@@ -170,7 +170,7 @@ enum Signal {
   /// Requests the full profile of the receiver.
   whois,
 
-  /// Carries name, bio, status, availability and picture.
+  /// Carries name, biography, status, availability and picture.
   profile,
 
   /// A text or trustee card message.

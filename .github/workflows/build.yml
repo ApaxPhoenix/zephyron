@@ -303,6 +303,8 @@ jobs:
             -d "Version=$env:NAME" -d "Source=$env:GITHUB_WORKSPACE\$release" `
             -o "bin\zephyron-$env:VERSION-windows-${{ matrix.architecture }}.msi"
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          # WiX leaves its debug data beside the installer; nobody installs that.
+          Remove-Item "bin\*.wixpdb"
 
       # The bundle under /opt/zephyron with a launcher, as a .deb and an .rpm,
       # and as two archives.

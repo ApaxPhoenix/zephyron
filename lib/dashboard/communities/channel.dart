@@ -43,7 +43,7 @@ class _Board extends State<Board> {
     draft.clear();
     try {
       await mesh.say(community, room.id, text);
-      if (Courier.instance.prefs.haptics) HapticFeedback.lightImpact();
+      if (Courier.instance.preferences.haptics) HapticFeedback.lightImpact();
     } finally {
       if (mounted) setState(() => sending = false);
     }
@@ -406,7 +406,7 @@ class _Board extends State<Board> {
                         const SizedBox(width: 8),
                         IconButton.filled(
                           tooltip: 'Send',
-                          style: Pallete.solid(Theme.of(context).colorScheme),
+                          style: Palette.solid(Theme.of(context).colorScheme),
                           onPressed: draft.text.trim().isEmpty || sending
                               ? null
                               : () => send(community, room),

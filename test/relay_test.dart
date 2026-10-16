@@ -17,7 +17,7 @@ void main() {
 
   setUp(() async {
     reset();
-    courier.prefs = Preferences();
+    courier.preferences = Preferences();
     courier.roster[alice.address] = Trustee(address: alice.address);
     dana = Identity.parse(
       'dana relay ${DateTime.now().microsecondsSinceEpoch}',
@@ -62,7 +62,7 @@ void main() {
   });
 
   test('with carrying off, nothing is held', () async {
-    courier.prefs.carry = false;
+    courier.preferences.carry = false;
     final wire = await Wire.open();
     wire.send(parcel(alice, carol, sealed(alice, Signal.message, to: carol)));
     await Future<void>.delayed(const Duration(milliseconds: 300));
@@ -71,7 +71,7 @@ void main() {
   });
 
   test('a mailbox holds mail for its owner from anyone', () async {
-    courier.prefs.serve = carol.address;
+    courier.preferences.serve = carol.address;
     final wire = await Wire.open();
     final frame = sealed(dana, Signal.message, to: carol, body: 'for carol');
     wire.send(parcel(dana, carol, frame));

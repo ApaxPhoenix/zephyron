@@ -81,10 +81,10 @@ void main() {
   });
 
   test('preferences fall back to defaults for unknown values', () {
-    final prefs = Preferences.fromJson({'theme': 'neon', 'rating': 'x'});
-    expect(prefs.theme, ThemeMode.system);
-    expect(prefs.rating, Rating.pg);
-    expect(prefs.receipts, isTrue);
+    final preferences = Preferences.fromJson({'theme': 'neon', 'rating': 'x'});
+    expect(preferences.theme, ThemeMode.system);
+    expect(preferences.rating, Rating.pg);
+    expect(preferences.receipts, isTrue);
   });
 
   group('Stamps', () {

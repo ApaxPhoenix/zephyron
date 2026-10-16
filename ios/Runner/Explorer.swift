@@ -162,12 +162,12 @@ final class Explorer: NSObject, UIImagePickerControllerDelegate, UINavigationCon
     finish(nil)
   }
 
-  func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
-    guard let url = urls.first else {
+  func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt links: [URL]) {
+    guard let link = links.first else {
       finish(nil)
       return
     }
-    finish(keep(url, name: url.lastPathComponent))
+    finish(keep(link, name: link.lastPathComponent))
   }
 
   func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
@@ -185,13 +185,13 @@ extension Explorer: PHPickerViewControllerDelegate {
     }
     let name = item.suggestedName ?? "picked"
     if item.hasItemConformingToTypeIdentifier(UTType.gif.identifier) {
-      item.loadFileRepresentation(forTypeIdentifier: UTType.gif.identifier) { url, _ in
-        self.finish(url.flatMap { self.keep($0, name: "\(name).gif") })
+      item.loadFileRepresentation(forTypeIdentifier: UTType.gif.identifier) { link, _ in
+        self.finish(link.flatMap { self.keep($0, name: "\(name).gif") })
       }
     } else if item.hasItemConformingToTypeIdentifier(UTType.movie.identifier) {
-      item.loadFileRepresentation(forTypeIdentifier: UTType.movie.identifier) { url, _ in
+      item.loadFileRepresentation(forTypeIdentifier: UTType.movie.identifier) { link, _ in
         self.finish(
-          url.flatMap {
+          link.flatMap {
             self.keep($0, name: "\(name).\($0.pathExtension.isEmpty ? "mov" : $0.pathExtension)")
           })
       }

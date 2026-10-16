@@ -275,7 +275,7 @@ class Catalog extends ChangeNotifier {
       );
       final about = Profile.clip(
         frame['b'],
-        community ? Community.abouts : Profile.bios,
+        community ? Community.descriptions : Profile.biographies,
       );
       final raw = frame['p'];
       final picture = raw is String && raw.isNotEmpty
@@ -405,10 +405,10 @@ class Catalog extends ChangeNotifier {
     await settle(
       Shelf.person,
       self.address,
-      courier.prefs.listed
+      courier.preferences.listed
           ? (
               name: me.name,
-              about: me.bio,
+              about: me.biography,
               picture: await thumbnail(me.avatar),
               members: 0,
               invitation: const <String, dynamic>{},
@@ -538,7 +538,7 @@ class Catalog extends ChangeNotifier {
       (item) =>
           !expired(item) &&
           !hidden.contains(item.id) &&
-          (courier.prefs.spread || item.author == self),
+          (courier.preferences.spread || item.author == self),
     );
   }
 
@@ -633,7 +633,7 @@ class Catalog extends ChangeNotifier {
           if (listing == null || hidden.contains(listing.id)) continue;
           if (await accept(listing)) fresh.add(item);
         }
-        if (fresh.isEmpty || !courier.prefs.spread) return;
+        if (fresh.isEmpty || !courier.preferences.spread) return;
         developer.log(
           'Passing ${fresh.length} new listings on to connected trustees',
           name: 'Catalog.receive',

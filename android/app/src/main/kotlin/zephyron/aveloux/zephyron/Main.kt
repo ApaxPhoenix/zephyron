@@ -113,10 +113,10 @@ class Main : FlutterActivity() {
                     }
                     "file" -> {
                         val file = File(requireNotNull(call.argument<String>("path")))
-                        val uri = Vault.uri(this, file)
+                        val link = Vault.link(this, file)
                         intent.type = call.argument<String>("mime") ?: Vault.mime(file.name)
-                        intent.putExtra(Intent.EXTRA_STREAM, uri)
-                        intent.clipData = ClipData.newRawUri("", uri)
+                        intent.putExtra(Intent.EXTRA_STREAM, link)
+                        intent.clipData = ClipData.newRawUri("", link)
                         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     }
                     else -> {
@@ -209,12 +209,12 @@ class Main : FlutterActivity() {
                     result.success(null)
                 }
                 "feed" -> {
-                    val pcm = call.argument<ByteArray>("pcm")
+                    val samples = call.argument<ByteArray>("pcm")
                     val track = speaker
-                    if (pcm != null && track != null) {
+                    if (samples != null && track != null) {
                         // Writing blocks while the buffer is full, so it never
                         // runs on the UI thread.
-                        writer.execute { track.write(pcm, 0, pcm.size) }
+                        writer.execute { track.write(samples, 0, samples.size) }
                     }
                     result.success(null)
                 }

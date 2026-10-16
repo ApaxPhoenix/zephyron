@@ -129,7 +129,7 @@ class _Compose extends State<Compose> {
                 enableSuggestions: false,
                 keyboardType: TextInputType.url,
                 textInputAction: TextInputAction.next,
-                style: const TextStyle(fontFamily: Pallete.mono, fontSize: 14),
+                style: const TextStyle(fontFamily: Palette.mono, fontSize: 14),
                 decoration: InputDecoration(
                   hintText: 'Paste an .onion key or zephyron:// link',
                   errorMaxLines: 3,
@@ -253,7 +253,7 @@ class Identifier extends StatelessWidget {
                     maxLines: compact ? 1 : 3,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontFamily: Pallete.mono,
+                      fontFamily: Palette.mono,
                       fontSize: 13,
                       color: scheme.onSurface,
                     ),
