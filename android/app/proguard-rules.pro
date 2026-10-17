@@ -7,6 +7,9 @@
 -keep class io.flutter.provider.** { *; }
 -keep class io.flutter.plugin.editing.** { *; }
 
+# Flutter references Play Core split-install classes (deferred components), which this app doesn't use
+-dontwarn com.google.android.play.core.**
+
 # Aggressive Obfuscation for custom code
 -repackageclasses ''
 -allowaccessmodification

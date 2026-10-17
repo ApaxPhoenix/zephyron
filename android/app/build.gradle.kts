@@ -1,6 +1,14 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+val keystore = Properties().apply {
+    val source = rootProject.file("key.properties")
+    if (source.exists()) load(FileInputStream(source))
 }
 
 android {
@@ -28,9 +36,22 @@ android {
         buildConfigField("String", "SHA256_SIGNATURE", "\"$signature\"")
     }
 
+    signingConfigs {
+        create("release") {
+            if (!keystore.isEmpty) {
+                keyAlias = keystore.getProperty("keyAlias")
+                keyPassword = keystore.getProperty("keyPassword")
+                storeFile = file(keystore.getProperty("storeFile"))
+                storePassword = keystore.getProperty("storePassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName(
+                if (keystore.isEmpty) "debug" else "release"
+            )
 
             // Enable R8 code shrinking, obfuscation, and optimization
             isMinifyEnabled = true
