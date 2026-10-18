@@ -6,6 +6,7 @@ import 'package:crypto/crypto.dart' as hashing;
 import 'package:cryptography/cryptography.dart';
 import 'package:zephyron/models/identity.dart';
 import 'package:zephyron/sql/ledger.dart';
+import 'package:zephyron/wrappers/oqs.dart';
 
 /// Thrown when a message cannot be opened with the session held for a peer.
 class Unreadable implements Exception {
@@ -82,6 +83,10 @@ class Bond {
   /// X3DH details repeated on every message until the peer answers.
   Map<String, dynamic>? opening;
 
+  /// Whether the session's root also came from ML-KEM-768, so recording
+  /// today's traffic for a future quantum computer gains nothing.
+  bool quantum;
+
   Bond({
     required this.root,
     required this.mine,
@@ -93,6 +98,7 @@ class Bond {
     this.previous = 0,
     Map<String, String>? skipped,
     this.opening,
+    this.quantum = false,
   }) : skipped = skipped ?? {};
 
   Map<String, dynamic> toJson() => {
@@ -106,6 +112,7 @@ class Bond {
     'previous': previous,
     'skipped': skipped,
     'opening': opening,
+    'quantum': quantum,
   };
 
   factory Bond.fromJson(Map<String, dynamic> json) {
@@ -124,6 +131,7 @@ class Bond {
       opening: json['opening'] == null
           ? null
           : Map<String, dynamic>.from(json['opening'] as Map),
+      quantum: json['quantum'] as bool? ?? false,
     );
   }
 }
@@ -150,6 +158,42 @@ class Ratchet {
   static const int hoard = 1000;
 
   static final Map<String, Future<void>> locks = {};
+
+  /// Smallest size class a sealed message is padded to.
+  static const int floor = 256;
+
+  /// The size class for [length] bytes: 256, 512, 1024 and so on, so a
+  /// ciphertext's length tells an observer only roughly how big it is.
+  static int bucket(int length) {
+    var size = floor;
+    while (size < length) {
+      size *= 2;
+    }
+    return size;
+  }
+
+  /// Prefixes [clear] with its length and pads it with zeros to [width],
+  /// or to its size class. The zeros are hidden by the encryption around it.
+  static Uint8List pad(List<int> clear, {int? width}) {
+    final size = width ?? bucket(clear.length + 4);
+    if (clear.length + 4 > size) {
+      throw ArgumentError('${clear.length} bytes do not fit in $size');
+    }
+    final out = Uint8List(size);
+    ByteData.view(out.buffer).setUint32(0, clear.length);
+    out.setRange(4, 4 + clear.length, clear);
+    return out;
+  }
+
+  static Uint8List unpad(Uint8List padded) {
+    if (padded.length < 4) throw const Unreadable('too short to unpad');
+    final length = ByteData.view(
+      padded.buffer,
+      padded.offsetInBytes,
+    ).getUint32(0);
+    if (length > padded.length - 4) throw const Unreadable('bad padding');
+    return Uint8List.sublistView(padded, 4, 4 + length);
+  }
 
   static Uint8List random(int length) {
     final source = Random.secure();
@@ -197,13 +241,21 @@ class Ratchet {
     final fresh =
         list.isNotEmpty &&
         now - (list.last['created'] as int) < rotation.inMilliseconds;
-    if (fresh) return list;
+    if (fresh) {
+      // A prekey made before liboqs was bundled gains its post-quantum half.
+      if (Kem.available && list.last['kem'] == null) {
+        list.last['kem'] = kem();
+        await Ledger.write('prekeys:${self.address}', {'keys': list});
+      }
+      return list;
+    }
 
     final pair = await Pair.fresh();
     list.add({
       'id': list.isEmpty ? 1 : (list.last['id'] as int) + 1,
       'created': now,
       ...pair.toJson(),
+      if (Kem.available) 'kem': kem(),
     });
     list.removeWhere(
       (item) =>
@@ -214,13 +266,24 @@ class Ratchet {
     return list;
   }
 
-  /// What a peer needs to start a session with this identity.
+  static Map<String, String> kem() {
+    final pair = Kem.pair();
+    return {
+      'public': base64.encode(pair.public),
+      'secret': base64.encode(pair.secret),
+    };
+  }
+
+  /// What a peer needs to start a session with this identity. With liboqs
+  /// present it carries an ML-KEM-768 key beside the X25519 prekey.
   static Future<Map<String, dynamic>> bundle(Identity self) async {
     final current = (await prekeys(self)).last;
+    final kem = current['kem'] as Map?;
     return {
       'ik': base64.encode((await identity(self)).public),
       'id': current['id'],
       'spk': current['public'],
+      if (kem != null) 'pq': kem['public'],
     };
   }
 
@@ -234,7 +297,14 @@ class Ratchet {
     if (base64.decode(ik).length != 32 || base64.decode(spk).length != 32) {
       return;
     }
-    await Ledger.write('bundle:$peer', {'ik': ik, 'spk': spk, 'id': id});
+    final pq = bundle['pq'];
+    final quantum = pq is String && base64.decode(pq).length == Kem.publics;
+    await Ledger.write('bundle:$peer', {
+      'ik': ik,
+      'spk': spk,
+      'id': id,
+      if (quantum) 'pq': pq,
+    });
   }
 
   static String slot(Identity self, String peer) =>
@@ -299,13 +369,18 @@ class Ratchet {
     final spk = base64.decode(stored['spk'] as String);
     final mine = await identity(self);
     final ephemeral = await Pair.fresh();
+    final pq = stored['pq'];
+    final sealed = pq is String && Kem.available
+        ? Kem.seal(base64.decode(pq))
+        : null;
 
     final secret = await derive([
       ...List.filled(32, 0xFF),
       ...await mine.agree(spk),
       ...await ephemeral.agree(ik),
       ...await ephemeral.agree(spk),
-    ], info: 'zephyron/x3dh');
+      ...?sealed?.secret,
+    ], info: sealed == null ? 'zephyron/x3dh' : 'zephyron/pqxdh');
     final ratchet = await Pair.fresh();
     final (root, sending) = await step(secret, await ratchet.agree(spk));
     final state = Bond(
@@ -313,10 +388,12 @@ class Ratchet {
       mine: ratchet,
       theirs: spk,
       sending: sending,
+      quantum: sealed != null,
       opening: {
         'ik': base64.encode(mine.public),
         'ek': base64.encode(ephemeral.public),
         'id': stored['id'],
+        if (sealed != null) 'kem': base64.encode(sealed.cipher),
       },
     );
     await keep(self, peer, state);
@@ -336,13 +413,27 @@ class Ratchet {
     final ik = base64.decode(opening['ik'] as String);
     final ek = base64.decode(opening['ek'] as String);
 
+    Uint8List? shared;
+    final cipher = opening['kem'];
+    if (cipher is String) {
+      final kem = chosen.first['kem'] as Map?;
+      if (kem == null || !Kem.available) {
+        throw const Unreadable('post-quantum key is not on this phone');
+      }
+      shared = Kem.open(
+        base64.decode(cipher),
+        base64.decode(kem['secret'] as String),
+      );
+    }
+
     final secret = await derive([
       ...List.filled(32, 0xFF),
       ...await prekey.agree(ik),
       ...await mine.agree(ek),
       ...await prekey.agree(ek),
-    ], info: 'zephyron/x3dh');
-    return Bond(root: secret, mine: prekey);
+      ...?shared,
+    ], info: shared == null ? 'zephyron/x3dh' : 'zephyron/pqxdh');
+    return Bond(root: secret, mine: prekey, quantum: shared != null);
   }
 
   static Future<Uint8List> lock(
@@ -408,7 +499,7 @@ class Ratchet {
       if (state.opening != null) 'x3dh': state.opening,
     };
     final encoded = utf8.encode(jsonEncode(header));
-    final sealed = await lock(key, clear, encoded);
+    final sealed = await lock(key, pad(clear), encoded);
     state
       ..sending = chain
       ..sent += 1;
@@ -449,7 +540,7 @@ class Ratchet {
     if (kept != null) {
       final clear = await unlock(base64.decode(kept), sealed, encoded);
       await keep(self, peer, state);
-      return clear;
+      return unpad(clear);
     }
 
     final working = Bond.fromJson(state.toJson());
@@ -479,7 +570,7 @@ class Ratchet {
       ..received += 1
       ..opening = null;
     await keep(self, peer, working);
-    return clear;
+    return unpad(clear);
   });
 
   /// Stores keys for messages up to [until] that have not arrived yet.
@@ -508,11 +599,26 @@ class Ratchet {
   }
 
   /// Seals one attachment chunk with the per-file key from its manifest.
-  static Future<Uint8List> chunk(Uint8List key, int seq, List<int> clear) {
-    return lock(key, clear, utf8.encode('chunk:$seq'));
+  /// With [width], every chunk is padded to that many bytes, so the last
+  /// one looks like the rest and the file's exact size stays hidden.
+  static Future<Uint8List> chunk(
+    Uint8List key,
+    int seq,
+    List<int> clear, {
+    int? width,
+  }) {
+    return lock(
+      key,
+      pad(clear, width: width == null ? null : width + 4),
+      utf8.encode('chunk:$seq'),
+    );
   }
 
-  static Future<Uint8List> unchunk(Uint8List key, int seq, Uint8List sealed) {
-    return unlock(key, sealed, utf8.encode('chunk:$seq'));
+  static Future<Uint8List> unchunk(
+    Uint8List key,
+    int seq,
+    Uint8List sealed,
+  ) async {
+    return unpad(await unlock(key, sealed, utf8.encode('chunk:$seq')));
   }
 }
