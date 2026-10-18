@@ -55,8 +55,9 @@ class AttemptLedger {
   Map<String, dynamic> toJson() {
     return {
       'strikes': strikes,
-      'recentFailures':
-      recentFailures.map((moment) => moment.toIso8601String()).toList(),
+      'recentFailures': recentFailures
+          .map((moment) => moment.toIso8601String())
+          .toList(),
       'quarantineCount': quarantineCount,
       'quarantinedUntil': quarantinedUntil?.toIso8601String(),
     };
@@ -75,6 +76,11 @@ class Session {
 
   static Identity? user;
   static Timer? timer;
+
+  static String? profile;
+
+  static final StreamController<void> expired =
+      StreamController<void>.broadcast();
 
   static bool get active => user != null;
 
@@ -252,6 +258,7 @@ class Session {
       }
 
       user = Identity.fromInput(data['seed'] as String);
+      profile = name;
       await forgive(name);
       await enroll(name);
       touch();
@@ -272,7 +279,7 @@ class Session {
       record.strikes += 1;
       record.recentFailures = [
         ...record.recentFailures.where(
-              (moment) => now.difference(moment) <= throttleWindow,
+          (moment) => now.difference(moment) <= throttleWindow,
         ),
         now,
       ];
@@ -324,17 +331,23 @@ class Session {
   }
 
   static Future<Identity> compose(
-      String name,
-      String pass,
-      Identity identity,
-      String seed,
-      ) async {
+    String name,
+    String pass,
+    Identity identity,
+    String seed,
+  ) async {
     try {
       final base = await Database.open(name, pass);
       await Database.save(base, identity, seed);
       await enroll(name);
+      if (!(await sessions()).contains(name)) {
+        throw StateError(
+          'The identity could not be saved to secure storage on this device.',
+        );
+      }
       await forgive(name);
       user = identity;
+      profile = name;
       touch();
       developer.log(
         'New user session composed and persisted successfully for profile: $name',
@@ -363,8 +376,11 @@ class Session {
     try {
       timer?.cancel();
       timer = null;
+      final unlocked = user != null;
       user = null;
+      profile = null;
       await Database.dispose();
+      if (unlocked) expired.add(null);
       developer.log(
         'Disposed active session and wiped user identity credentials from memory',
         name: 'Session.dispose',
