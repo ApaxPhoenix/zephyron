@@ -12,17 +12,17 @@ import 'package:zephyron/widgets/section.dart';
 import 'package:zephyron/widgets/sheet.dart';
 import 'package:zephyron/widgets/stamp.dart';
 
-class ChatsPage extends StatefulWidget {
-  const ChatsPage({super.key});
+class Chats extends StatefulWidget {
+  const Chats({super.key});
 
   @override
-  State<ChatsPage> createState() => ChatsPageState();
+  State<Chats> createState() => _Chats();
 }
 
-class ChatsPageState extends State<ChatsPage> {
+class _Chats extends State<Chats> {
   final TextEditingController search = TextEditingController();
   final Set<String> shown = {};
-  ChatFilters filter = ChatFilters.all;
+  Filter filter = Filter.all;
 
   Courier get courier => Courier.instance;
 
@@ -32,36 +32,28 @@ class ChatsPageState extends State<ChatsPage> {
     super.dispose();
   }
 
-  Future<void> chat() async {
-    final contact = await Compose.show(context);
-    if (contact == null || !mounted) return;
-    Navigator.pushNamed(
-      context,
-      '/dashboard/chats/message',
-      arguments: {'id': contact.address},
-    );
-  }
-
   Future<void> compose() => Sheets.actions(
     context,
     items: [
-      SheetAction(
+      Command(
         icon: Icons.chat_bubble_outline,
         label: 'New Chat',
-        onTap: chat,
+        run: () async {
+          final contact = await Compose.show(context);
+          if (contact == null || !mounted) return;
+          Navigator.pushNamed(
+            context,
+            '/dashboard/chats/message',
+            arguments: {'id': contact.address},
+          );
+        },
       ),
-      SheetAction(
+      Command(
         icon: Icons.group_add_outlined,
         label: 'New Group',
-        onTap: () => Navigator.pushNamed(context, '/dashboard/chats/group'),
+        run: () => Navigator.pushNamed(context, '/dashboard/chats/group'),
       ),
     ],
-  );
-
-  void open(Community group) => Navigator.pushNamed(
-    context,
-    '/dashboard/communities/channel',
-    arguments: {'community': group.id, 'channel': group.general},
   );
 
   @override
@@ -102,21 +94,21 @@ class ChatsPageState extends State<ChatsPage> {
           final query = search.text.trim().toLowerCase();
           final list =
               courier.roster.values.where((contact) {
-                if (contact.blocked != (filter == ChatFilters.blocked)) {
+                if (contact.blocked != (filter == Filter.blocked)) {
                   return false;
                 }
-                if (filter == ChatFilters.requests && !contact.stranger) {
+                if (filter == Filter.requests && !contact.stranger) {
                   return false;
                 }
-                if (filter != ChatFilters.blocked &&
-                    contact.archived != (filter == ChatFilters.archived)) {
+                if (filter != Filter.blocked &&
+                    contact.archived != (filter == Filter.archived)) {
                   return false;
                 }
-                if (filter == ChatFilters.unread &&
+                if (filter == Filter.unread &&
                     courier.unread(contact.address) == 0) {
                   return false;
                 }
-                if (filter == ChatFilters.pinned && !contact.pinned) {
+                if (filter == Filter.pinned && !contact.pinned) {
                   return false;
                 }
                 if (query.isEmpty) return true;
@@ -136,17 +128,15 @@ class ChatsPageState extends State<ChatsPage> {
               });
           final rooms =
               const {
-                ChatFilters.archived,
-                ChatFilters.unread,
-                ChatFilters.requests,
-                ChatFilters.blocked,
+                Filter.archived,
+                Filter.unread,
+                Filter.requests,
+                Filter.blocked,
               }.contains(filter)
               ? const <Community>[]
               : mesh
                     .groups()
-                    .where(
-                      (group) => filter != ChatFilters.pinned || group.pinned,
-                    )
+                    .where((group) => filter != Filter.pinned || group.pinned)
                     .where(
                       (group) =>
                           query.isEmpty ||
@@ -159,7 +149,7 @@ class ChatsPageState extends State<ChatsPage> {
           bool pinned(Object entry) =>
               entry is Community ? entry.pinned : (entry as Trustee).pinned;
           final sorted =
-              <Object>[if (filter != ChatFilters.groups) ...list, ...rooms]
+              <Object>[if (filter != Filter.groups) ...list, ...rooms]
                 ..sort((alpha, beta) {
                   if (pinned(alpha) != pinned(beta)) {
                     return pinned(alpha) ? -1 : 1;
@@ -180,11 +170,11 @@ class ChatsPageState extends State<ChatsPage> {
             entries.addAll(items);
           }
 
-          if (filter == ChatFilters.requests) {
+          if (filter == Filter.requests) {
             section('Requests', list.map(Plea.new).toList(), label: false);
-          } else if (filter == ChatFilters.blocked) {
+          } else if (filter == Filter.blocked) {
             section('Blocked', list.map(Quiet.new).toList(), label: false);
-          } else if (filter == ChatFilters.all && query.isEmpty) {
+          } else if (filter == Filter.all && query.isEmpty) {
             bool talked(Object item) =>
                 item is Community ||
                 (item is Trustee && courier.last(item.address) != null);
@@ -219,71 +209,6 @@ class ChatsPageState extends State<ChatsPage> {
           } else {
             entries.addAll(sorted);
           }
-
-          Widget heading(String title) => Heading(
-            title,
-            count: counts[title],
-            padding: const EdgeInsets.fromLTRB(24, 20, 12, 6),
-          );
-
-          /// Someone who wants to message you, with answers right there.
-          Widget plea(Trustee trustee) => ListTile(
-            key: ValueKey('request:${trustee.address}'),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 20.0,
-              vertical: 4.0,
-            ),
-            onTap: () => Navigator.pushNamed(
-              context,
-              '/dashboard/chats/message',
-              arguments: {'id': trustee.address},
-            ),
-            leading: Portrait(
-              address: trustee.address,
-              size: 48,
-              presence: false,
-            ),
-            title: Row(
-              children: [
-                Flexible(
-                  child: Text(
-                    trustee.label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  Trust.stranger.label,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.labelSmall?.copyWith(color: scheme.secondary),
-                ),
-              ],
-            ),
-            subtitle: Text(
-              courier.last(trustee.address)?.preview ?? 'Wants to message you',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  tooltip: 'Block',
-                  icon: Icon(Icons.block, color: scheme.error),
-                  onPressed: () =>
-                      courier.trust(trustee.address, Trust.blocked),
-                ),
-                IconButton(
-                  tooltip: 'Accept as Trustee',
-                  icon: Icon(Icons.check_circle_outline, color: scheme.primary),
-                  onPressed: () =>
-                      courier.trust(trustee.address, Trust.trustee),
-                ),
-              ],
-            ),
-          );
 
           /// A trustee with no messages yet, or a blocked key, and whether
           /// they are around.
@@ -359,7 +284,11 @@ class ChatsPageState extends State<ChatsPage> {
                 horizontal: 20.0,
                 vertical: 4.0,
               ),
-              onTap: () => open(group),
+              onTap: () => (Navigator.pushNamed(
+                context,
+                '/dashboard/communities/channel',
+                arguments: {'community': group.id, 'channel': group.general},
+              )),
               leading: Crest(label: group.name, image: group.icon, size: 48),
               title: Row(
                 children: [
@@ -484,9 +413,80 @@ class ChatsPageState extends State<ChatsPage> {
                       ),
                 itemBuilder: (context, index) {
                   final entry = entries[index];
-                  if (entry is String) return heading(entry);
+                  if (entry is String) {
+                    return (Heading(
+                      entry,
+                      count: counts[entry],
+                      padding: const EdgeInsets.fromLTRB(24, 20, 12, 6),
+                    ));
+                  }
                   if (entry is Community) return room(entry);
-                  if (entry is Plea) return plea(entry.trustee);
+                  if (entry is Plea) {
+                    return (ListTile(
+                      key: ValueKey('request:${entry.trustee.address}'),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 20.0,
+                        vertical: 4.0,
+                      ),
+                      onTap: () => Navigator.pushNamed(
+                        context,
+                        '/dashboard/chats/message',
+                        arguments: {'id': entry.trustee.address},
+                      ),
+                      leading: Portrait(
+                        address: entry.trustee.address,
+                        size: 48,
+                        presence: false,
+                      ),
+                      title: Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              entry.trustee.label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            Trust.stranger.label,
+                            style: Theme.of(context).textTheme.labelSmall
+                                ?.copyWith(color: scheme.secondary),
+                          ),
+                        ],
+                      ),
+                      subtitle: Text(
+                        courier.last(entry.trustee.address)?.preview ??
+                            'Wants to message you',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            tooltip: 'Block',
+                            icon: Icon(Icons.block, color: scheme.error),
+                            onPressed: () => courier.trust(
+                              entry.trustee.address,
+                              Trust.blocked,
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Accept as Trustee',
+                            icon: Icon(
+                              Icons.check_circle_outline,
+                              color: scheme.primary,
+                            ),
+                            onPressed: () => courier.trust(
+                              entry.trustee.address,
+                              Trust.trustee,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ));
+                  }
                   if (entry is Quiet) return person(entry.trustee);
                   final contact = entry as Trustee;
                   final last = courier.last(contact.address);
@@ -706,38 +706,38 @@ class ChatsPageState extends State<ChatsPage> {
                           ),
                         ),
                         items: [
-                          SheetAction(
+                          Command(
                             icon: contact.pinned
                                 ? Icons.push_pin_outlined
                                 : Icons.push_pin,
                             label: contact.pinned ? 'Unpin' : 'Pin to Top',
-                            onTap: () => courier.amend(
+                            run: () => courier.amend(
                               contact..pinned = !contact.pinned,
                             ),
                           ),
-                          SheetAction(
+                          Command(
                             icon: contact.archived
                                 ? Icons.unarchive_outlined
                                 : Icons.archive_outlined,
                             label: contact.archived ? 'Unarchive' : 'Archive',
-                            onTap: () => courier.amend(
+                            run: () => courier.amend(
                               contact..archived = !contact.archived,
                             ),
                           ),
-                          SheetAction(
+                          Command(
                             icon: Icons.info_outline,
                             label: 'View Profile',
-                            onTap: () => Navigator.pushNamed(
+                            run: () => Navigator.pushNamed(
                               context,
                               '/dashboard/peers/node',
                               arguments: {'id': contact.address},
                             ),
                           ),
-                          SheetAction(
+                          Command(
                             icon: Icons.block,
                             label: 'Block',
                             destructive: true,
-                            onTap: () async {
+                            run: () async {
                               final sure = await Sheets.confirm(
                                 context,
                                 title: 'Block ${contact.label}?',
@@ -753,11 +753,11 @@ class ChatsPageState extends State<ChatsPage> {
                               }
                             },
                           ),
-                          SheetAction(
+                          Command(
                             icon: Icons.cleaning_services_outlined,
                             label: 'Clear History',
                             destructive: true,
-                            onTap: () async {
+                            run: () async {
                               final sure = await Sheets.confirm(
                                 context,
                                 title: 'Clear History?',
@@ -768,11 +768,11 @@ class ChatsPageState extends State<ChatsPage> {
                               if (sure) await courier.clear(contact.address);
                             },
                           ),
-                          SheetAction(
+                          Command(
                             icon: Icons.delete_outline,
                             label: 'Delete Chat',
                             destructive: true,
-                            onTap: () async {
+                            run: () async {
                               final sure = await Sheets.confirm(
                                 context,
                                 title: 'Delete Chat?',
@@ -844,13 +844,13 @@ class ChatsPageState extends State<ChatsPage> {
                   child: Row(
                     children: [
                       for (final item in [
-                        ChatFilters.all,
-                        ChatFilters.unread,
-                        ChatFilters.requests,
-                        ChatFilters.groups,
-                        ChatFilters.pinned,
-                        ChatFilters.archived,
-                        ChatFilters.blocked,
+                        Filter.all,
+                        Filter.unread,
+                        Filter.requests,
+                        Filter.groups,
+                        Filter.pinned,
+                        Filter.archived,
+                        Filter.blocked,
                       ])
                         Padding(
                           padding: const EdgeInsets.only(right: 8.0),

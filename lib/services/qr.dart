@@ -394,7 +394,7 @@ class Qr {
     final data = utf8.encode(text);
     for (var version = 1; version <= 40; version++) {
       final count = version < 10 ? 8 : 16;
-      final capacity = capacityOf(version, correction) * 8;
+      final capacity = limit(version, correction) * 8;
       if (4 + count + data.length * 8 <= capacity) {
         return Weave(version, correction).build(data, count, capacity);
       }
@@ -415,7 +415,7 @@ class Qr {
   }
 
   /// Data codewords a version holds at a level.
-  static int capacityOf(int version, Correction correction) =>
+  static int limit(int version, Correction correction) =>
       raw(version) ~/ 8 -
       eccs[correction.row][version] * blocks[correction.row][version];
 

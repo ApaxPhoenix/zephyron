@@ -3,14 +3,14 @@ import 'package:zephyron/services/duress.dart';
 import 'package:zephyron/sql/database.dart';
 import 'package:zephyron/sql/session.dart';
 
-class DuressPage extends StatefulWidget {
-  const DuressPage({super.key});
+class Decoy extends StatefulWidget {
+  const Decoy({super.key});
 
   @override
-  State<DuressPage> createState() => DuressPageState();
+  State<Decoy> createState() => _Decoy();
 }
 
-class DuressPageState extends State<DuressPage> {
+class _Decoy extends State<Decoy> {
   final GlobalKey<FormState> key = GlobalKey<FormState>();
   final TextEditingController current = TextEditingController();
   final TextEditingController duress = TextEditingController();

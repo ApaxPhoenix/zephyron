@@ -73,7 +73,7 @@ void main() {
 
   test('byte capacities match the standard', () {
     int bytes(int version, Correction level) =>
-        (Qr.capacityOf(version, level) * 8 - 4 - (version < 10 ? 8 : 16)) ~/ 8;
+        (Qr.limit(version, level) * 8 - 4 - (version < 10 ? 8 : 16)) ~/ 8;
     expect(bytes(1, Correction.low), 17);
     expect(bytes(1, Correction.medium), 14);
     expect(bytes(1, Correction.quartile), 11);
@@ -130,11 +130,11 @@ void main() {
       const Directionality(
         textDirection: TextDirection.ltr,
         child: Center(
-          child: QrCode(data: 'zephyron', size: 180, eyes: Colors.blue),
+          child: Barcode(data: 'zephyron', size: 180, eyes: Colors.blue),
         ),
       ),
     );
-    expect(tester.getSize(find.byType(QrCode)), const Size(180, 180));
+    expect(tester.getSize(find.byType(Barcode)), const Size(180, 180));
     expect(find.bySemanticsLabel('QR code'), findsOneWidget);
   });
 }

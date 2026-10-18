@@ -11,14 +11,14 @@ import 'package:zephyron/widgets/avatar.dart';
 import 'package:zephyron/widgets/crop.dart';
 import 'package:zephyron/widgets/sheet.dart';
 
-class ProfilePage extends StatefulWidget {
-  const ProfilePage({super.key});
+class Persona extends StatefulWidget {
+  const Persona({super.key});
 
   @override
-  State<ProfilePage> createState() => ProfilePageState();
+  State<Persona> createState() => _Persona();
 }
 
-class ProfilePageState extends State<ProfilePage> {
+class _Persona extends State<Persona> {
   final GlobalKey<FormState> key = GlobalKey<FormState>();
   final Profile draft = Courier.instance.me.copy();
   late final TextEditingController name = TextEditingController(
@@ -97,22 +97,22 @@ class ProfilePageState extends State<ProfilePage> {
     await Sheets.actions(
       context,
       items: [
-        SheetAction(
+        Command(
           icon: Icons.photo_library_outlined,
           label: 'Choose from Gallery',
-          onTap: () => pick(),
+          run: () => pick(),
         ),
-        SheetAction(
+        Command(
           icon: Icons.photo_camera_outlined,
           label: 'Take a Photo',
-          onTap: () => pick(camera: true),
+          run: () => pick(camera: true),
         ),
         if (draft.avatar != null)
-          SheetAction(
+          Command(
             icon: Icons.delete_outline,
             label: 'Remove Photo',
             destructive: true,
-            onTap: () => setState(() => draft.avatar = null),
+            run: () => setState(() => draft.avatar = null),
           ),
       ],
     );
@@ -164,28 +164,28 @@ class ProfilePageState extends State<ProfilePage> {
     await Sheets.actions(
       context,
       items: [
-        SheetAction(
+        Command(
           icon: Icons.photo_library_outlined,
           label: 'Choose a Photo',
-          onTap: photo,
+          run: photo,
         ),
         if (Giphy.ready)
-          SheetAction(
+          Command(
             icon: Icons.gif_box_outlined,
             label: 'Search GIPHY',
-            onTap: giphy,
+            run: giphy,
           ),
-        SheetAction(
+        Command(
           icon: Icons.folder_open_outlined,
           label: 'GIF from Files',
-          onTap: file,
+          run: file,
         ),
         if (draft.banner != null)
-          SheetAction(
+          Command(
             icon: Icons.delete_outline,
             label: 'Remove Banner',
             destructive: true,
-            onTap: () => setState(() => draft.banner = null),
+            run: () => setState(() => draft.banner = null),
           ),
       ],
     );

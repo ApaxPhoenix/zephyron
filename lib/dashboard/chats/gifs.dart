@@ -21,10 +21,10 @@ class Gifs extends StatefulWidget {
   }
 
   @override
-  State<Gifs> createState() => GifsState();
+  State<Gifs> createState() => _Gifs();
 }
 
-class GifsState extends State<Gifs> {
+class _Gifs extends State<Gifs> {
   final TextEditingController search = TextEditingController();
   final ScrollController scroll = ScrollController();
   final List<Gif> results = [];
@@ -163,7 +163,7 @@ class GifsState extends State<Gifs> {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  TorImage(uri: gif.preview),
+                  Photo(uri: gif.preview),
                   if (picking == gif.id)
                     Container(
                       color: Colors.black45,
@@ -218,23 +218,23 @@ class GifsState extends State<Gifs> {
   }
 }
 
-class TorImage extends StatefulWidget {
+class Photo extends StatefulWidget {
   final Uri uri;
   final BoxFit fit;
 
-  const TorImage({super.key, required this.uri, this.fit = BoxFit.cover});
+  const Photo({super.key, required this.uri, this.fit = BoxFit.cover});
 
   @override
-  State<TorImage> createState() => TorImageState();
+  State<Photo> createState() => _Photo();
 }
 
-class TorImageState extends State<TorImage> {
+class _Photo extends State<Photo> {
   late Future<Uint8List> bytes = Web.fetch(widget.uri);
 
   @override
-  void didUpdateWidget(TorImage oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.uri != widget.uri) bytes = Web.fetch(widget.uri);
+  void didUpdateWidget(Photo previous) {
+    super.didUpdateWidget(previous);
+    if (previous.uri != widget.uri) bytes = Web.fetch(widget.uri);
   }
 
   @override

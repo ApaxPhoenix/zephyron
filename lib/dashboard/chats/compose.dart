@@ -27,10 +27,10 @@ class Compose extends StatefulWidget {
   }
 
   @override
-  State<Compose> createState() => ComposeState();
+  State<Compose> createState() => _Compose();
 }
 
-class ComposeState extends State<Compose> {
+class _Compose extends State<Compose> {
   final GlobalKey<FormState> key = GlobalKey<FormState>();
   late final TextEditingController address = TextEditingController(
     text: widget.address ?? '',

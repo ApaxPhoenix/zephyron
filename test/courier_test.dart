@@ -13,8 +13,8 @@ import 'package:zephyron/services/courier.dart';
 import 'package:zephyron/wrappers/tor.dart';
 
 void main() {
-  final alice = Identity.fromInput('alice test seed phrase');
-  final bob = Identity.fromInput('bob test seed phrase');
+  final alice = Identity.parse('alice test seed phrase');
+  final bob = Identity.parse('bob test seed phrase');
 
   void become(Identity identity) {
     Courier.instance.self = identity;
@@ -88,7 +88,7 @@ void main() {
       expect(mine, theirs);
       expect(mine, hasLength(6));
       expect(mine.every((group) => RegExp(r'^\d{5}$').hasMatch(group)), isTrue);
-      final other = Identity.fromInput('carol test seed phrase');
+      final other = Identity.parse('carol test seed phrase');
       expect(Courier.safety(alice.address, other.address), isNot(mine));
     });
 
@@ -117,7 +117,7 @@ void main() {
         avatar: Uint8List.fromList([1, 2, 3]),
         revision: 7,
       );
-      final copy = Trustee.fromRow(trustee.toRow());
+      final copy = Trustee.from(trustee.row());
       expect(copy.label, 'Bobby');
       expect(copy.trust, Trust.stranger);
       expect(copy.availability, Availability.busy);

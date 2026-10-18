@@ -122,10 +122,10 @@ class Screening extends StatefulWidget {
   const Screening({super.key, required this.message});
 
   @override
-  State<Screening> createState() => ScreeningState();
+  State<Screening> createState() => _Screening();
 }
 
-class ScreeningState extends State<Screening> {
+class _Screening extends State<Screening> {
   Playback? player;
   bool failed = false;
 

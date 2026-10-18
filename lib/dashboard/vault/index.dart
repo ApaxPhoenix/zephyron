@@ -14,14 +14,14 @@ import 'package:zephyron/widgets/section.dart';
 import 'package:zephyron/widgets/sheet.dart';
 import 'package:zephyron/wrappers/tor.dart';
 
-class VaultPage extends StatefulWidget {
-  const VaultPage({super.key});
+class Vault extends StatefulWidget {
+  const Vault({super.key});
 
   @override
-  State<VaultPage> createState() => VaultPageState();
+  State<Vault> createState() => _Vault();
 }
 
-class VaultPageState extends State<VaultPage> {
+class _Vault extends State<Vault> {
   late final String version = Tor.version;
   String? decoy;
 
@@ -42,19 +42,19 @@ class VaultPageState extends State<VaultPage> {
       await Sheets.actions(
         context,
         items: [
-          SheetAction(
+          Command(
             icon: Icons.edit_outlined,
             label: 'Change Duress Passphrase',
-            onTap: () async {
+            run: () async {
               await navigator.pushNamed('/dashboard/settings/duress');
               await refresh();
             },
           ),
-          SheetAction(
+          Command(
             icon: Icons.remove_moderator_outlined,
             label: 'Turn Off',
             destructive: true,
-            onTap: () async {
+            run: () async {
               await Duress.disarm();
               await refresh();
             },
@@ -186,7 +186,7 @@ class VaultPageState extends State<VaultPage> {
           Widget choice<T>({
             required T value,
             required List<(T, String)> options,
-            required ValueChanged<T> onChanged,
+            required ValueChanged<T> pick,
           }) {
             return DropdownButtonHideUnderline(
               child: DropdownButton<T>(
@@ -205,7 +205,7 @@ class VaultPageState extends State<VaultPage> {
                     DropdownMenuItem(value: option, child: Text(label)),
                 ],
                 onChanged: (picked) {
-                  if (picked != null) onChanged(picked);
+                  if (picked != null) pick(picked);
                 },
               ),
             );
@@ -517,8 +517,7 @@ class VaultPageState extends State<VaultPage> {
                         for (final rating in Rating.values)
                           (rating, rating.label),
                       ],
-                      onChanged: (picked) =>
-                          tune((next) => next.rating = picked),
+                      pick: (picked) => tune((next) => next.rating = picked),
                     ),
                   ),
                 ],
@@ -536,8 +535,7 @@ class VaultPageState extends State<VaultPage> {
                         (ThemeMode.light, 'Light'),
                         (ThemeMode.dark, 'Dark'),
                       ],
-                      onChanged: (picked) =>
-                          tune((next) => next.theme = picked),
+                      pick: (picked) => tune((next) => next.theme = picked),
                     ),
                   ),
                 ],
@@ -635,7 +633,7 @@ class VaultPageState extends State<VaultPage> {
                     leading: Icon(Icons.crisis_alert_outlined),
                     title: Text('Panic Wipe'),
                     subtitle: Text(
-                      'Long-press the app icon or the unlock screen title to erase everything after a ${PanicPage.grace} second countdown',
+                      'Long-press the app icon or the unlock screen title to erase everything after a ${Panic.grace} second countdown',
                     ),
                   ),
                   ListTile(

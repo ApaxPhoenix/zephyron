@@ -85,7 +85,7 @@ class Discovery extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: Theme.of(context).dividerColor),
             ),
-            child: QrCode(
+            child: Barcode(
               data: Courier.link(address, name),
               size: 220,
               eyes: scheme.primary,

@@ -12,17 +12,17 @@ import 'package:zephyron/services/stage.dart';
 import 'package:zephyron/widgets/avatar.dart';
 import 'package:zephyron/widgets/stamp.dart';
 
-class ChannelPage extends StatefulWidget {
+class Board extends StatefulWidget {
   final String? community;
   final String? channel;
 
-  const ChannelPage({super.key, this.community, this.channel});
+  const Board({super.key, this.community, this.channel});
 
   @override
-  State<ChannelPage> createState() => ChannelPageState();
+  State<Board> createState() => _Board();
 }
 
-class ChannelPageState extends State<ChannelPage> {
+class _Board extends State<Board> {
   final TextEditingController draft = TextEditingController();
   final FocusNode focus = FocusNode();
   bool sending = false;
@@ -76,10 +76,10 @@ class ChannelPageState extends State<ChannelPage> {
         }
         final room = rooms.first;
         if (room.kind == Space.podcast) {
-          return PodcastPage(community: community, room: room);
+          return Podcast(community: community, room: room);
         }
         if (room.kind == Space.voice) {
-          return VoicePage(community: community, room: room);
+          return Voice(community: community, room: room);
         }
         final posts = mesh.messages(community.id, room.id);
 
@@ -93,7 +93,7 @@ class ChannelPageState extends State<ChannelPage> {
               before.author == post.author &&
               day(before.time) == day(post.time) &&
               post.time.difference(before.time).inMinutes < 5;
-          final newDay = before == null || day(before.time) != day(post.time);
+          final dawn = before == null || day(before.time) != day(post.time);
           final yourself = post.author == Courier.instance.self?.address;
           final trustee = Courier.instance.roster[post.author];
           final member = mesh
@@ -104,7 +104,7 @@ class ChannelPageState extends State<ChannelPage> {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (newDay)
+              if (dawn)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(0, 20, 0, 8),
                   child: Row(
@@ -253,7 +253,7 @@ class ChannelPageState extends State<ChannelPage> {
                       Icons.call_outlined,
                       color: scheme.onSurfaceVariant,
                     ),
-                    onPressed: () => VoicePage.show(context, community),
+                    onPressed: () => Voice.show(context, community),
                   ),
                 ),
             ],
@@ -291,7 +291,7 @@ class ChannelPageState extends State<ChannelPage> {
                             ),
                           ),
                           TextButton(
-                            onPressed: () => VoicePage.show(context, community),
+                            onPressed: () => Voice.show(context, community),
                             child: const Text('Join'),
                           ),
                         ],

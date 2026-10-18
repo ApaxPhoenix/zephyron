@@ -45,7 +45,7 @@ class Trustee {
     this.fused = 0,
   }) : created = created ?? DateTime.now();
 
-  factory Trustee.fromRow(Map<String, dynamic> row) {
+  factory Trustee.from(Map<String, dynamic> row) {
     int index(Object? value, int length) =>
         ((value as int?) ?? 0).clamp(0, length - 1);
 
@@ -72,7 +72,7 @@ class Trustee {
     );
   }
 
-  Map<String, dynamic> toRow() {
+  Map<String, dynamic> row() {
     return {
       'address': address,
       'nickname': nickname,

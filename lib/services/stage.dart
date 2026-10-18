@@ -462,7 +462,7 @@ class Stage extends ChangeNotifier {
   }
 
   /// Answers the call ringing here.
-  Future<bool> pickUp() async {
+  Future<bool> accept() async {
     final call = ringing;
     if (call == null) return false;
     silence();
@@ -625,7 +625,22 @@ class Stage extends ChangeNotifier {
         ),
       );
       recorder = made;
-      capture = stream.listen(spoken);
+      capture = stream.listen((Uint8List chunk) {
+        // Cuts captured audio into packets and sends them to the room.
+        pending.add(chunk);
+        while (pending.length >= frame * 2) {
+          final bytes = pending.takeBytes();
+          final packet = Int16List.view(
+            Uint8List.fromList(bytes.sublist(0, frame * 2)).buffer,
+          );
+          if (bytes.length > frame * 2) pending.add(bytes.sublist(frame * 2));
+          level = loudness(packet);
+          final self = courier.self?.address;
+          if (self != null) seated(room ?? '')[self]?.level = muted ? 0 : level;
+          if (!muted) unawaited(broadcast(packet));
+        }
+        notifyListeners();
+      });
     } catch (error) {
       developer.log(
         'Voice capture is unavailable on this device',
@@ -653,23 +668,6 @@ class Stage extends ChangeNotifier {
       sounding = false;
       await Sound.close();
     }
-  }
-
-  /// Cuts captured audio into packets and sends them to the room.
-  void spoken(Uint8List chunk) {
-    pending.add(chunk);
-    while (pending.length >= frame * 2) {
-      final bytes = pending.takeBytes();
-      final packet = Int16List.view(
-        Uint8List.fromList(bytes.sublist(0, frame * 2)).buffer,
-      );
-      if (bytes.length > frame * 2) pending.add(bytes.sublist(frame * 2));
-      level = loudness(packet);
-      final self = courier.self?.address;
-      if (self != null) seated(room ?? '')[self]?.level = muted ? 0 : level;
-      if (!muted) unawaited(broadcast(packet));
-    }
-    notifyListeners();
   }
 
   Future<void> broadcast(Int16List packet) async {

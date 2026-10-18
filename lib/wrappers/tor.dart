@@ -141,28 +141,6 @@ class Tor {
     return 'Unknown';
   }
 
-  /// What a SOCKS reply code means, including the onion service codes Tor
-  /// sends when the port has ExtendedErrors.
-  static String refusal(int code) => switch (code) {
-    0x01 => 'general failure',
-    0x02 => 'not allowed',
-    0x03 => 'network unreachable',
-    0x04 => 'host unreachable',
-    0x05 => 'connection refused',
-    0x06 => 'circuit timed out',
-    0x07 => 'command not supported',
-    0x08 => 'address type not supported',
-    0xF0 => 'onion service descriptor not found',
-    0xF1 => 'onion service descriptor is invalid',
-    0xF2 => 'onion service introduction failed',
-    0xF3 => 'onion service rendezvous failed',
-    0xF4 => 'onion service needs client authorization',
-    0xF5 => 'onion service client authorization was wrong',
-    0xF6 => 'onion address is invalid',
-    0xF7 => 'onion service introduction timed out',
-    _ => 'code $code',
-  };
-
   static Future<Tunnel> connect(String target, [int port = 80]) async {
     Socket? socket;
     try {
@@ -213,7 +191,28 @@ class Tor {
             }
             // Status code 0x00 indicates successful circuit setup
             if (bytes[1] != 0x00) {
-              fail(StateError('Proxy connection failed: ${refusal(bytes[1])}'));
+              // What the code means, with the onion service codes Tor sends
+              // when the port has ExtendedErrors.
+              final reason = switch (bytes[1]) {
+                0x01 => 'general failure',
+                0x02 => 'not allowed',
+                0x03 => 'network unreachable',
+                0x04 => 'host unreachable',
+                0x05 => 'connection refused',
+                0x06 => 'circuit timed out',
+                0x07 => 'command not supported',
+                0x08 => 'address type not supported',
+                0xF0 => 'onion service descriptor not found',
+                0xF1 => 'onion service descriptor is invalid',
+                0xF2 => 'onion service introduction failed',
+                0xF3 => 'onion service rendezvous failed',
+                0xF4 => 'onion service needs client authorization',
+                0xF5 => 'onion service client authorization was wrong',
+                0xF6 => 'onion address is invalid',
+                0xF7 => 'onion service introduction timed out',
+                _ => 'code ${bytes[1]}',
+              };
+              fail(StateError('Proxy connection failed: $reason'));
               return;
             }
             final size = switch (bytes[3]) {

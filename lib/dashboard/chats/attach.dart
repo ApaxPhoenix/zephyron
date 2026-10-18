@@ -288,10 +288,10 @@ class Preview extends StatefulWidget {
   }
 
   @override
-  State<Preview> createState() => PreviewState();
+  State<Preview> createState() => _Preview();
 }
 
-class PreviewState extends State<Preview> {
+class _Preview extends State<Preview> {
   final TextEditingController caption = TextEditingController();
 
   @override

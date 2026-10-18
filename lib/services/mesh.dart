@@ -194,15 +194,16 @@ class Mesh extends ChangeNotifier {
   /// Who is in [community] right now, who was voted out, and the votes
   /// still open, worked out from the posts alone so every phone with the
   /// same posts agrees.
-  Standing standing(String community) =>
-      tallies[community] ??= tally(community);
-
-  Standing tally(String community) {
+  Standing standing(String community) {
+    final cached = tallies[community];
+    if (cached != null) return cached;
     final group = communities[community];
     final found = <String, Member>{};
     final removed = <String, DateTime>{};
     final votes = <String, Set<String>>{};
-    if (group == null) return Standing(found, removed, votes);
+    if (group == null) {
+      return tallies[community] = Standing(found, removed, votes);
+    }
     found[group.founder] = Member(
       address: group.founder,
       name: '',
@@ -284,7 +285,7 @@ class Mesh extends ChangeNotifier {
           break;
       }
     }
-    return Standing(found, removed, votes);
+    return tallies[community] = Standing(found, removed, votes);
   }
 
   /// Members by seniority: the founder, then everyone in the order they
@@ -334,20 +335,18 @@ class Mesh extends ChangeNotifier {
     return address.substring(0, 10);
   }
 
-  /// Whether [post] came from someone after they were voted out.
-  bool silenced(Post post) {
-    final out = removed(post.community)[post.author];
-    return out != null && !post.time.isBefore(out);
+  List<Post> messages(String community, String channel) {
+    // Whoever was voted out is quiet from the moment they were.
+    final out = removed(community);
+    return [
+      for (final post in posts[community] ?? const <Post>[])
+        if (post.note == Note.text &&
+            post.channel == channel &&
+            (out[post.author]?.isAfter(post.time) ?? true) &&
+            courier.roster[post.author]?.blocked != true)
+          post,
+    ];
   }
-
-  List<Post> messages(String community, String channel) => [
-    for (final post in posts[community] ?? const <Post>[])
-      if (post.note == Note.text &&
-          post.channel == channel &&
-          !silenced(post) &&
-          courier.roster[post.author]?.blocked != true)
-        post,
-  ];
 
   Post? latest(String community) {
     final list = posts[community] ?? const <Post>[];
@@ -767,8 +766,8 @@ class Mesh extends ChangeNotifier {
     String? about,
     Uint8List? icon,
     Uint8List? banner,
-    bool clearIcon = false,
-    bool clearBanner = false,
+    bool iconless = false,
+    bool bannerless = false,
   }) async {
     await post(
       community,
@@ -777,19 +776,19 @@ class Mesh extends ChangeNotifier {
       meta: {
         'name': ?name,
         'about': ?about,
-        'icon': ?(clearIcon
+        'icon': ?(iconless
             ? ''
             : icon == null
             ? null
             : base64.encode(icon)),
       },
     );
-    if (banner != null || clearBanner) {
+    if (banner != null || bannerless) {
       await post(
         community,
         channel: community.general,
         note: Note.about,
-        meta: {'banner': clearBanner ? '' : base64.encode(banner!)},
+        meta: {'banner': bannerless ? '' : base64.encode(banner!)},
       );
     }
   }

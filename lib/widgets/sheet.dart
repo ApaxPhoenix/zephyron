@@ -2,16 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:zephyron/enums.dart';
 import 'package:zephyron/widgets/avatar.dart';
 
-class SheetAction {
+class Command {
   final IconData icon;
   final String label;
   final bool destructive;
-  final VoidCallback onTap;
+  final VoidCallback run;
 
-  const SheetAction({
+  const Command({
     required this.icon,
     required this.label,
-    required this.onTap,
+    required this.run,
     this.destructive = false,
   });
 }
@@ -32,7 +32,7 @@ class Sheets {
   static Future<void> actions(
     BuildContext context, {
     Widget? header,
-    required List<SheetAction> items,
+    required List<Command> items,
   }) {
     return showModalBottomSheet<void>(
       context: context,
@@ -68,7 +68,7 @@ class Sheets {
                     ),
                     onTap: () {
                       Navigator.pop(sheet);
-                      item.onTap();
+                      item.run();
                     },
                   ),
               ],

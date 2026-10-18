@@ -26,7 +26,7 @@ void main() {
         text: 'caption',
         meta: {'name': 'a.png', 'width': 10, 'height': 20, 'size': 30},
       );
-      final copy = Message.fromRow(original.toRow());
+      final copy = Message.from(original.row());
       expect(copy.kind, Kind.image);
       expect(copy.text, 'caption');
       expect(copy.width, 10);
@@ -54,7 +54,7 @@ void main() {
     });
 
     test('corrupt rows fall back safely', () {
-      final copy = Message.fromRow({
+      final copy = Message.from({
         'id': 'x',
         'peer': 'y',
         'kind': 99,

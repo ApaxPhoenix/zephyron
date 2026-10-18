@@ -11,7 +11,7 @@ void main() {
     await tester.pumpWidget(
       Builder(
         builder: (context) => MaterialApp(
-          theme: Pallete.lightTheme(context),
+          theme: Pallete.day(context),
           routes: {
             '/': (context) => Scaffold(
               body: Builder(
@@ -21,7 +21,7 @@ void main() {
                 ),
               ),
             ),
-            '/panic': (context) => const PanicPage(),
+            '/panic': (context) => const Panic(),
             '/auth': (context) {
               erased = true;
               return const SizedBox();
@@ -34,17 +34,17 @@ void main() {
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
     expect(find.text('Erasing everything'), findsOneWidget);
-    expect(find.text('${PanicPage.grace}'), findsOneWidget);
+    expect(find.text('${Panic.grace}'), findsOneWidget);
 
     await tester.pump(const Duration(seconds: 1));
     await tester.pump(const Duration(milliseconds: 300));
-    expect(find.text('${PanicPage.grace - 1}'), findsOneWidget);
+    expect(find.text('${Panic.grace - 1}'), findsOneWidget);
 
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
-    expect(find.byType(PanicPage), findsNothing);
+    expect(find.byType(Panic), findsNothing);
 
-    await tester.pump(const Duration(seconds: PanicPage.grace + 2));
+    await tester.pump(const Duration(seconds: Panic.grace + 2));
     expect(erased, isFalse);
   });
 }
