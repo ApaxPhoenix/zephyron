@@ -29,9 +29,6 @@ class _Communities extends State<Communities> {
   void create() =>
       Navigator.pushNamed(context, '/dashboard/communities/create');
 
-  void discover() =>
-      Navigator.pushNamed(context, '/dashboard/communities/discover');
-
   void open(Community community) => Navigator.pushNamed(
     context,
     '/dashboard/communities/community',
@@ -53,7 +50,8 @@ class _Communities extends State<Communities> {
           IconButton(
             icon: const Icon(Icons.travel_explore),
             tooltip: 'Discover',
-            onPressed: discover,
+            onPressed: () =>
+                Navigator.pushNamed(context, '/dashboard/communities/discover'),
           ),
           Padding(
             padding: const EdgeInsets.only(right: 4),
@@ -80,69 +78,6 @@ class _Communities extends State<Communities> {
               .toList();
           final pinned = shown.where((item) => item.pinned).toList();
           final rest = shown.where((item) => !item.pinned).toList();
-
-          Widget tile(Community community) {
-            final latest = mesh.latest(community.id);
-            final count = mesh.members(community.id).length;
-            return ListTile(
-              key: ValueKey(community.id),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 20,
-                vertical: 4,
-              ),
-              onTap: () => open(community),
-              leading: Crest(label: community.name, image: community.icon),
-              title: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      community.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  if (community.muted) ...[
-                    const SizedBox(width: 6),
-                    Icon(
-                      Icons.notifications_off_outlined,
-                      size: 16,
-                      color: scheme.onSurfaceVariant,
-                    ),
-                  ],
-                ],
-              ),
-              subtitle: Text(
-                latest != null
-                    ? '${mesh.called(community.id, latest.author)}: ${latest.text}'
-                    : community.about.isNotEmpty
-                    ? community.about
-                    : '$count ${count == 1 ? 'member' : 'members'}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              trailing: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  if (latest != null)
-                    Text(brief(latest.time), style: theme.textTheme.labelSmall),
-                  const SizedBox(height: 4),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.person_outline,
-                        size: 14,
-                        color: scheme.onSurfaceVariant,
-                      ),
-                      const SizedBox(width: 2),
-                      Text('$count', style: theme.textTheme.labelSmall),
-                    ],
-                  ),
-                ],
-              ),
-            );
-          }
 
           final children = <Widget>[
             Padding(
@@ -208,7 +143,10 @@ class _Communities extends State<Communities> {
                     ),
                     const SizedBox(height: 8),
                     TextButton.icon(
-                      onPressed: discover,
+                      onPressed: () => Navigator.pushNamed(
+                        context,
+                        '/dashboard/communities/discover',
+                      ),
                       icon: const Icon(Icons.travel_explore),
                       label: const Text('Discover Communities'),
                     ),
@@ -234,7 +172,76 @@ class _Communities extends State<Communities> {
             if (pinned.isNotEmpty) {
               children
                 ..add(Heading('Pinned', count: pinned.length, padding: padding))
-                ..addAll(pinned.map(tile));
+                ..addAll(
+                  pinned.map((Community community) {
+                    final latest = mesh.latest(community.id);
+                    final count = mesh.members(community.id).length;
+                    return ListTile(
+                      key: ValueKey(community.id),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 4,
+                      ),
+                      onTap: () => open(community),
+                      leading: Crest(
+                        label: community.name,
+                        image: community.icon,
+                      ),
+                      title: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              community.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (community.muted) ...[
+                            const SizedBox(width: 6),
+                            Icon(
+                              Icons.notifications_off_outlined,
+                              size: 16,
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ],
+                        ],
+                      ),
+                      subtitle: Text(
+                        latest != null
+                            ? '${mesh.called(community.id, latest.author)}: ${latest.text}'
+                            : community.about.isNotEmpty
+                            ? community.about
+                            : '$count ${count == 1 ? 'member' : 'members'}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      trailing: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          if (latest != null)
+                            Text(
+                              brief(latest.time),
+                              style: theme.textTheme.labelSmall,
+                            ),
+                          const SizedBox(height: 4),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.person_outline,
+                                size: 14,
+                                color: scheme.onSurfaceVariant,
+                              ),
+                              const SizedBox(width: 2),
+                              Text('$count', style: theme.textTheme.labelSmall),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                );
             }
             if (rest.isNotEmpty) {
               children
@@ -245,7 +252,76 @@ class _Communities extends State<Communities> {
                     padding: padding,
                   ),
                 )
-                ..addAll(rest.map(tile));
+                ..addAll(
+                  rest.map((Community community) {
+                    final latest = mesh.latest(community.id);
+                    final count = mesh.members(community.id).length;
+                    return ListTile(
+                      key: ValueKey(community.id),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 4,
+                      ),
+                      onTap: () => open(community),
+                      leading: Crest(
+                        label: community.name,
+                        image: community.icon,
+                      ),
+                      title: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              community.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (community.muted) ...[
+                            const SizedBox(width: 6),
+                            Icon(
+                              Icons.notifications_off_outlined,
+                              size: 16,
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ],
+                        ],
+                      ),
+                      subtitle: Text(
+                        latest != null
+                            ? '${mesh.called(community.id, latest.author)}: ${latest.text}'
+                            : community.about.isNotEmpty
+                            ? community.about
+                            : '$count ${count == 1 ? 'member' : 'members'}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      trailing: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          if (latest != null)
+                            Text(
+                              brief(latest.time),
+                              style: theme.textTheme.labelSmall,
+                            ),
+                          const SizedBox(height: 4),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.person_outline,
+                                size: 14,
+                                color: scheme.onSurfaceVariant,
+                              ),
+                              const SizedBox(width: 2),
+                              Text('$count', style: theme.textTheme.labelSmall),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                );
             }
             children.add(const SizedBox(height: 24));
           }

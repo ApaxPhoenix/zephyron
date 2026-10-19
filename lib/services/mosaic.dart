@@ -517,7 +517,24 @@ class Weave {
     }
 
     patterns();
-    place(interleave(codewords));
+    // Fills the free modules in the zigzag order the standard sets.
+    final woven = interleave(codewords);
+    var index = 0;
+    for (var right = size - 1; right >= 1; right -= 2) {
+      if (right == 6) right = 5;
+      for (var step = 0; step < size; step++) {
+        for (var side = 0; side < 2; side++) {
+          final column = right - side;
+          final upward = (right + 1) & 2 == 0;
+          final row = upward ? size - 1 - step : step;
+          if (!fixed[row][column] && index < woven.length * 8) {
+            modules[row][column] = bit(woven[index >> 3], 7 - (index & 7));
+            index += 1;
+          }
+        }
+      }
+    }
+
     var best = 0;
     var lowest = -1;
     for (var mask = 0; mask < 8; mask++) {
@@ -655,25 +672,6 @@ class Weave {
     ];
   }
 
-  /// Fills the free modules in the zigzag order the standard sets.
-  void place(List<int> data) {
-    var index = 0;
-    for (var right = size - 1; right >= 1; right -= 2) {
-      if (right == 6) right = 5;
-      for (var step = 0; step < size; step++) {
-        for (var side = 0; side < 2; side++) {
-          final column = right - side;
-          final upward = (right + 1) & 2 == 0;
-          final row = upward ? size - 1 - step : step;
-          if (!fixed[row][column] && index < data.length * 8) {
-            modules[row][column] = bit(data[index >> 3], 7 - (index & 7));
-            index += 1;
-          }
-        }
-      }
-    }
-  }
-
   void apply(int mask) {
     for (var row = 0; row < size; row++) {
       for (var column = 0; column < size; column++) {
@@ -687,8 +685,9 @@ class Weave {
           6 => (column * row % 2 + column * row % 3) % 2 == 0,
           _ => ((column + row) % 2 + column * row % 3) % 2 == 0,
         };
-        if (flip && !fixed[row][column])
+        if (flip && !fixed[row][column]) {
           modules[row][column] = !modules[row][column];
+        }
       }
     }
   }

@@ -526,49 +526,55 @@ class Courier extends ChangeNotifier {
     }
   }
 
-  Future<Channel> dial(String peer) {
+  Future<Channel> dial(String peer) async {
     final open = channels[peer];
-    if (open != null && open.alive) return Future.value(open);
-
-    return dialing[peer] ??= () async {
-      final epoch = generation;
+    if (open != null && open.alive) return open;
+    // Callers dialing the same peer at once share one attempt.
+    final pending = dialing[peer];
+    if (pending != null) return pending;
+    final attempt = Completer<Channel>();
+    dialing[peer] = attempt.future..ignore();
+    final epoch = generation;
+    try {
+      final Tunnel tunnel;
       try {
-        final Tunnel tunnel;
-        try {
-          tunnel = await Tor.connect(peer, 80);
-        } on StateError catch (error) {
-          // A peer back online with new introduction points leaves a stale
-          // descriptor behind, so Tor is asked to forget the ones it keeps,
-          // at most once a minute.
-          final now = DateTime.now();
-          if ((error.message.contains('introduction') ||
-                  error.message.contains('descriptor not found')) &&
-              (refreshed == null ||
-                  now.difference(refreshed!) >= const Duration(minutes: 1))) {
-            refreshed = now;
-            unawaited(Sentinel.summon().forget());
-          }
-          rethrow;
+        tunnel = await Tor.connect(peer, 80);
+      } on StateError catch (error) {
+        // A peer back online with new introduction points leaves a stale
+        // descriptor behind, so Tor is asked to forget the ones it keeps,
+        // at most once a minute.
+        final now = DateTime.now();
+        if ((error.message.contains('introduction') ||
+                error.message.contains('descriptor not found')) &&
+            (refreshed == null ||
+                now.difference(refreshed!) >= const Duration(minutes: 1))) {
+          refreshed = now;
+          unawaited(Sentinel.summon().forget());
         }
-        final channel = Channel(tunnel.socket, peer: peer);
-        if (epoch != generation) {
-          channel.close();
-          throw StateError('Courier restarted while dialing');
-        }
-        adopt(channel, tunnel.stream);
-        channels[peer] = channel;
-        greet(peer, channel);
-        return channel;
-      } finally {
-        dialing.remove(peer);
+        rethrow;
       }
-    }();
+      final channel = Channel(tunnel.socket, peer: peer);
+      if (epoch != generation) {
+        channel.close();
+        throw StateError('Courier restarted while dialing');
+      }
+      adopt(channel, tunnel.stream);
+      channels[peer] = channel;
+      unawaited(greet(peer, channel));
+      attempt.complete(channel);
+      return channel;
+    } catch (error, stack) {
+      attempt.completeError(error, stack);
+      rethrow;
+    } finally {
+      dialing.remove(peer);
+    }
   }
 
   /// When Tor last forgot its cached onion service descriptors.
   DateTime? refreshed;
 
-  void greet(String peer, Channel channel) {
+  Future<void> greet(String peer, Channel channel) async {
     if (channel.greeted || roster[peer]?.trusted != true || self == null) {
       return;
     }
@@ -577,20 +583,18 @@ class Courier extends ChangeNotifier {
     Catalog.instance.greet(peer, channel);
     final known = roster[peer]!;
     final identity = self!;
-    unawaited(() async {
-      channel.send(
-        seal(
-          Signal.hello,
-          peer,
-          body: jsonEncode({
-            'revision': me.revision,
-            'fuse': known.fuse,
-            'fused': known.fused,
-            'bundle': await Ratchet.bundle(identity),
-          }),
-        ),
-      );
-    }());
+    channel.send(
+      seal(
+        Signal.hello,
+        peer,
+        body: jsonEncode({
+          'revision': me.revision,
+          'fuse': known.fuse,
+          'fused': known.fused,
+          'bundle': await Ratchet.bundle(identity),
+        }),
+      ),
+    );
   }
 
   /// Makes sure an end-to-end session with [peer] exists or can be started.
@@ -813,8 +817,9 @@ class Courier extends ChangeNotifier {
 
         transfers.remove(transfer.id);
         final clear = transfer.buffer.takeBytes();
-        if (hashing.sha256.convert(clear).toString() != transfer.checksum)
+        if (hashing.sha256.convert(clear).toString() != transfer.checksum) {
           return;
+        }
 
         final sealed = await Locker.store(transfer.id, clear);
         if (epoch != generation) return;
@@ -870,7 +875,7 @@ class Courier extends ChangeNotifier {
         final current = channels[from];
         if (current == null || !current.alive) channels[from] = channel;
         channel.used = now;
-        greet(from, channel);
+        unawaited(greet(from, channel));
       }
 
       final state = track(from);
@@ -1753,8 +1758,9 @@ class Courier extends ChangeNotifier {
   }
 
   void typing(String peer) {
-    if (!preferences.typing || invisible || roster[peer]?.trusted != true)
+    if (!preferences.typing || invisible || roster[peer]?.trusted != true) {
       return;
+    }
     final channel = channels[peer];
     if (channel == null || !channel.alive || self == null) return;
     final last = hinted[peer];
@@ -1789,8 +1795,9 @@ class Courier extends ChangeNotifier {
       );
       return;
     }
-    if (!preferences.receipts || invisible || roster[peer]?.trusted != true)
+    if (!preferences.receipts || invisible || roster[peer]?.trusted != true) {
       return;
+    }
     try {
       await hesitate();
       if (self == null) return;
@@ -1866,7 +1873,7 @@ class Courier extends ChangeNotifier {
       presence.remove(peer);
     } else if (level == Trust.trustee) {
       final channel = channels[peer];
-      if (channel != null && channel.alive) greet(peer, channel);
+      if (channel != null && channel.alive) unawaited(greet(peer, channel));
     }
     notifyListeners();
   }

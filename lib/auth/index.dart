@@ -29,15 +29,21 @@ class _Auth extends State<Auth> {
 
   @override
   Widget build(BuildContext context) {
-    void show(int page) => controller.animateToPage(
-      page,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
-    );
-
     final items = <Widget>[
-      Signup(unlock: () => show(1)),
-      Login(register: () => show(0)),
+      Signup(
+        unlock: () => (controller.animateToPage(
+          1,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        )),
+      ),
+      Login(
+        register: () => (controller.animateToPage(
+          0,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        )),
+      ),
     ];
 
     try {

@@ -375,71 +375,6 @@ class _Hub extends State<Hub> {
           );
         }
 
-        Widget person(Member member) {
-          final rank = everyone.indexOf(member) + 1;
-          final trustee = Courier.instance.roster[member.address];
-          final yourself = member.address == Courier.instance.self?.address;
-          final against =
-              mesh.ballots(community.id)[member.address]?.length ?? 0;
-          return ListTile(
-            onTap: trustee == null || yourself
-                ? null
-                : () => Navigator.pushNamed(
-                    context,
-                    '/dashboard/peers/node',
-                    arguments: {'id': member.address},
-                  ),
-            onLongPress: yourself ? null : () => ballot(community, member),
-            leading: trustee != null
-                ? Portrait(address: member.address, size: 40)
-                : Avatar(
-                    label: mesh.called(community.id, member.address),
-                    image: yourself
-                        ? Courier.instance.me.avatar
-                        : member.avatar,
-                    size: 40,
-                  ),
-            title: Text(
-              yourself
-                  ? '${mesh.called(community.id, member.address)} (you)'
-                  : mesh.called(community.id, member.address),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            subtitle: against > 0
-                ? Text(
-                    '$against of ${mesh.needed(community.id, member.address)} votes to remove',
-                    style: TextStyle(color: scheme.error),
-                  )
-                : Text(
-                    member.address == community.founder
-                        ? 'Started this community'
-                        : 'Joined ${brief(member.since)}',
-                  ),
-            trailing: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: rank == 1
-                    ? scheme.primary.withValues(alpha: 0.1)
-                    : Colors.transparent,
-                border: Border.all(
-                  color: rank == 1
-                      ? scheme.primary.withValues(alpha: 0.4)
-                      : scheme.outline,
-                ),
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Text(
-                '#$rank',
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: rank == 1 ? scheme.primary : null,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                ),
-              ),
-            ),
-          );
-        }
-
         return Scaffold(
           backgroundColor: scheme.surface,
           appBar: AppBar(
@@ -603,11 +538,78 @@ class _Hub extends State<Hub> {
               else
                 Group(
                   indent: 76,
-                  children: Pager.slice(
-                    people,
-                    current,
-                    crowd,
-                  ).map(person).toList(),
+                  children: Pager.slice(people, current, crowd).map((
+                    Member member,
+                  ) {
+                    final rank = everyone.indexOf(member) + 1;
+                    final trustee = Courier.instance.roster[member.address];
+                    final yourself =
+                        member.address == Courier.instance.self?.address;
+                    final against =
+                        mesh.ballots(community.id)[member.address]?.length ?? 0;
+                    return ListTile(
+                      onTap: trustee == null || yourself
+                          ? null
+                          : () => Navigator.pushNamed(
+                              context,
+                              '/dashboard/peers/node',
+                              arguments: {'id': member.address},
+                            ),
+                      onLongPress: yourself
+                          ? null
+                          : () => ballot(community, member),
+                      leading: trustee != null
+                          ? Portrait(address: member.address, size: 40)
+                          : Avatar(
+                              label: mesh.called(community.id, member.address),
+                              image: yourself
+                                  ? Courier.instance.me.avatar
+                                  : member.avatar,
+                              size: 40,
+                            ),
+                      title: Text(
+                        yourself
+                            ? '${mesh.called(community.id, member.address)} (you)'
+                            : mesh.called(community.id, member.address),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      subtitle: against > 0
+                          ? Text(
+                              '$against of ${mesh.needed(community.id, member.address)} votes to remove',
+                              style: TextStyle(color: scheme.error),
+                            )
+                          : Text(
+                              member.address == community.founder
+                                  ? 'Started this community'
+                                  : 'Joined ${brief(member.since)}',
+                            ),
+                      trailing: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: rank == 1
+                              ? scheme.primary.withValues(alpha: 0.1)
+                              : Colors.transparent,
+                          border: Border.all(
+                            color: rank == 1
+                                ? scheme.primary.withValues(alpha: 0.4)
+                                : scheme.outline,
+                          ),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          '#$rank',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: rank == 1 ? scheme.primary : null,
+                            fontFeatures: const [FontFeature.tabularFigures()],
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
                 ),
               if (pages > 1)
                 Pager(

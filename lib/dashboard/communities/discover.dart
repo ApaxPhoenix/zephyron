@@ -61,44 +61,6 @@ class _Discover extends State<Discover> with SingleTickerProviderStateMixin {
             final joined = mesh.communities[listing.subject];
             final trustee = courier.roster[listing.author]?.trusted == true;
 
-            Future<void> act() async {
-              if (community) {
-                if (joined == null) {
-                  refresh(() => busy = true);
-                  final made = await catalog.join(listing);
-                  if (!sheet.mounted) return;
-                  Navigator.pop(sheet);
-                  if (made == null) return;
-                  navigator.pushNamed(
-                    '/dashboard/communities/community',
-                    arguments: {'id': made.id},
-                  );
-                } else {
-                  Navigator.pop(sheet);
-                  navigator.pushNamed(
-                    '/dashboard/communities/community',
-                    arguments: {'id': joined.id},
-                  );
-                }
-                return;
-              }
-              if (!trustee) {
-                await courier.add(listing.author, listing.name);
-                messenger.showSnackBar(
-                  SnackBar(
-                    behavior: SnackBarBehavior.floating,
-                    content: Text('${title(listing)} is now a trustee'),
-                  ),
-                );
-              }
-              if (!sheet.mounted) return;
-              Navigator.pop(sheet);
-              navigator.pushNamed(
-                '/dashboard/chats/message',
-                arguments: {'id': listing.author, 'name': title(listing)},
-              );
-            }
-
             final details = community
                 ? '${listing.members} ${listing.members == 1 ? 'member' : 'members'} when listed · Founded by ${courier.roster[listing.author]?.label ?? listing.author.substring(0, 10)}'
                 : listing.author;
@@ -179,7 +141,50 @@ class _Discover extends State<Discover> with SingleTickerProviderStateMixin {
                       style: FilledButton.styleFrom(
                         minimumSize: const Size.fromHeight(48),
                       ),
-                      onPressed: busy ? null : act,
+                      onPressed: busy
+                          ? null
+                          : () async {
+                              if (community) {
+                                if (joined == null) {
+                                  refresh(() => busy = true);
+                                  final made = await catalog.join(listing);
+                                  if (!sheet.mounted) return;
+                                  Navigator.pop(sheet);
+                                  if (made == null) return;
+                                  navigator.pushNamed(
+                                    '/dashboard/communities/community',
+                                    arguments: {'id': made.id},
+                                  );
+                                } else {
+                                  Navigator.pop(sheet);
+                                  navigator.pushNamed(
+                                    '/dashboard/communities/community',
+                                    arguments: {'id': joined.id},
+                                  );
+                                }
+                                return;
+                              }
+                              if (!trustee) {
+                                await courier.add(listing.author, listing.name);
+                                messenger.showSnackBar(
+                                  SnackBar(
+                                    behavior: SnackBarBehavior.floating,
+                                    content: Text(
+                                      '${title(listing)} is now a trustee',
+                                    ),
+                                  ),
+                                );
+                              }
+                              if (!sheet.mounted) return;
+                              Navigator.pop(sheet);
+                              navigator.pushNamed(
+                                '/dashboard/chats/message',
+                                arguments: {
+                                  'id': listing.author,
+                                  'name': title(listing),
+                                },
+                              );
+                            },
                       child: busy
                           ? const SizedBox(
                               width: 20,

@@ -384,39 +384,6 @@ class _Episode extends State<Episode> {
     if (mounted && here != kept) setState(() => kept = here);
   }
 
-  Future<void> toggle() async {
-    final current = player;
-    if (current != null) {
-      playing ? await current.pause() : await current.play();
-      return;
-    }
-    setState(() => opening = true);
-    try {
-      final bytes = await broadcast.audio(blob);
-      final file = await Locker.stage(blob, 'episode.m4a', bytes);
-      final made = await Playback.open(file.path);
-      made.addListener(() {
-        if (!mounted) return;
-        setState(() {
-          position = made.position;
-          playing = made.playing;
-          if (made.duration > Duration.zero) total = made.duration;
-        });
-      });
-      player = made;
-      if (position > Duration.zero) await made.seek(position);
-      await made.play();
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not play this episode.')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => opening = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -488,7 +455,54 @@ class _Episode extends State<Episode> {
                   IconButton.filled(
                     tooltip: playing ? 'Pause' : 'Play',
                     style: Palette.solid(Theme.of(context).colorScheme),
-                    onPressed: opening ? null : toggle,
+                    onPressed: opening
+                        ? null
+                        : () async {
+                            final current = player;
+                            if (current != null) {
+                              playing
+                                  ? await current.pause()
+                                  : await current.play();
+                              return;
+                            }
+                            setState(() => opening = true);
+                            try {
+                              final bytes = await broadcast.audio(blob);
+                              final file = await Locker.stage(
+                                blob,
+                                'episode.m4a',
+                                bytes,
+                              );
+                              final made = await Playback.open(file.path);
+                              made.addListener(() {
+                                if (!mounted) return;
+                                setState(() {
+                                  position = made.position;
+                                  playing = made.playing;
+                                  if (made.duration > Duration.zero) {
+                                    total = made.duration;
+                                  }
+                                });
+                              });
+                              player = made;
+                              if (position > Duration.zero) {
+                                await made.seek(position);
+                              }
+                              await made.play();
+                            } catch (_) {
+                              if (mounted) {
+                                ScaffoldMessenger.of(this.context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Could not play this episode.',
+                                    ),
+                                  ),
+                                );
+                              }
+                            } finally {
+                              if (mounted) setState(() => opening = false);
+                            }
+                          },
                     icon: opening
                         ? const SizedBox(
                             width: 18,

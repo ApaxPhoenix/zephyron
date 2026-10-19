@@ -101,8 +101,9 @@ class Broadcast extends ChangeNotifier {
     final size = post.meta['size'];
     final checksum = post.meta['sha'];
     if (id.isEmpty || size is! int || size <= 0 || size > ceiling) return;
-    if (checksum is! String || progress.containsKey(id) || await held(id))
+    if (checksum is! String || progress.containsKey(id) || await held(id)) {
       return;
+    }
 
     final total = (size + piece - 1) ~/ piece;
     final parts = List<Uint8List?>.filled(total, null);
