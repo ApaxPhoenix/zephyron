@@ -90,19 +90,51 @@ class CommunityPageState extends State<CommunityPage> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              SegmentedButton<Space>(
-                showSelectedIcon: false,
-                segments: [
-                  for (final option in const [Space.text, Space.podcast])
-                    ButtonSegment(
-                      value: option,
-                      label: Text(option.label),
-                      icon: Mark(kind: option),
+              Row(
+                children: [
+                  for (final option in Space.values) ...[
+                    if (option != Space.values.first) const SizedBox(width: 8),
+                    Expanded(
+                      child: Material(
+                        color: option == kind
+                            ? Theme.of(
+                                dialog,
+                              ).colorScheme.primary.withValues(alpha: 0.08)
+                            : Colors.transparent,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(
+                            color: option == kind
+                                ? Theme.of(dialog).colorScheme.primary
+                                : Theme.of(dialog).colorScheme.outline,
+                          ),
+                        ),
+                        clipBehavior: Clip.antiAlias,
+                        child: InkWell(
+                          onTap: () => refresh(() => kind = option),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            child: Column(
+                              children: [
+                                Mark(
+                                  kind: option,
+                                  color: option == kind
+                                      ? Theme.of(dialog).colorScheme.primary
+                                      : null,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  option.label,
+                                  style: Theme.of(dialog).textTheme.labelMedium,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
+                  ],
                 ],
-                selected: {kind},
-                onSelectionChanged: (picked) =>
-                    refresh(() => kind = picked.first),
               ),
               const SizedBox(height: 16),
               TextField(

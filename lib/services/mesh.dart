@@ -13,6 +13,7 @@ import 'package:zephyron/models/profile.dart';
 import 'package:zephyron/services/broadcast.dart';
 import 'package:zephyron/services/courier.dart';
 import 'package:zephyron/services/ratchet.dart';
+import 'package:zephyron/services/stage.dart';
 import 'package:zephyron/sql/ledger.dart';
 
 /// Peer-to-peer communities with no owner and no server.
@@ -65,6 +66,7 @@ class Mesh extends ChangeNotifier {
   }
 
   void stop() {
+    Stage.instance.reset();
     communities.clear();
     posts.clear();
     known.clear();
@@ -710,6 +712,8 @@ class Mesh extends ChangeNotifier {
     switch (data['op']) {
       case 'fetch' || 'piece':
         await Broadcast.instance.receive(from, channel, community, data);
+      case 'room' || 'voice':
+        await Stage.instance.receive(from, channel, community, data);
       case 'have':
         final proof = data['proof'];
         if (proof is Map<String, dynamic>) {
