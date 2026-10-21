@@ -14,6 +14,7 @@ import 'package:zephyron/models/message.dart';
 import 'package:zephyron/models/profile.dart';
 import 'package:zephyron/models/trustee.dart';
 import 'package:zephyron/services/locker.dart';
+import 'package:zephyron/services/shield.dart';
 import 'package:zephyron/sql/ledger.dart';
 import 'package:zephyron/sql/session.dart';
 import 'package:zephyron/wrappers/tor.dart';
@@ -125,6 +126,9 @@ class Courier extends ChangeNotifier {
   final ValueNotifier<ThemeMode> theme = ValueNotifier<ThemeMode>(
     ThemeMode.system,
   );
+
+  /// Whether screen security is on; it stays on while the vault is locked.
+  final ValueNotifier<bool> shielded = ValueNotifier<bool>(true);
   final StreamController<Message> arrivals =
       StreamController<Message>.broadcast();
 
@@ -176,6 +180,8 @@ class Courier extends ChangeNotifier {
       me = profile;
       prefs = chosen == null ? Preferences() : Preferences.fromJson(chosen);
       theme.value = prefs.theme;
+      shielded.value = prefs.shield;
+      unawaited(Shield.apply(prefs.shield));
 
       roster
         ..clear()
@@ -275,6 +281,8 @@ class Courier extends ChangeNotifier {
     presence.clear();
     reach.value = Reach.offline;
     theme.value = ThemeMode.system;
+    shielded.value = true;
+    unawaited(Shield.apply(true));
     await Locker.sweep();
 
     if (address != null) await Sentinel.summon().retract(address);
@@ -1094,6 +1102,10 @@ class Courier extends ChangeNotifier {
   Future<void> configure(Preferences preferences) async {
     prefs = preferences;
     theme.value = preferences.theme;
+    if (shielded.value != preferences.shield) {
+      shielded.value = preferences.shield;
+      unawaited(Shield.apply(preferences.shield));
+    }
     await Ledger.write('preferences', preferences.toJson());
     notifyListeners();
   }

@@ -10,6 +10,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:quick_actions/quick_actions.dart';
 import 'package:zephyron/routes.dart';
 import 'package:zephyron/services/courier.dart';
+import 'package:zephyron/services/shield.dart';
 import 'package:zephyron/theme.dart';
 import 'package:zephyron/wrappers/tor.dart';
 
@@ -246,6 +247,10 @@ class MyAppState extends State<MyApp> with WidgetsBindingObserver {
           theme: Pallete.lightTheme(context),
           darkTheme: Pallete.darkTheme(context),
           themeMode: mode,
+          builder: (context, child) => Curtain(
+            enabled: Courier.instance.shielded,
+            child: child ?? const SizedBox.shrink(),
+          ),
           home:
               page?.call(context) ??
               const Scaffold(body: Center(child: CircularProgressIndicator())),
