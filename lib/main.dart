@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:freerasp/freerasp.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:quick_actions/quick_actions.dart';
 import 'package:zephyron/routes.dart';
 import 'package:zephyron/services/courier.dart';
 import 'package:zephyron/theme.dart';
@@ -166,12 +167,37 @@ class MyApp extends StatefulWidget {
 }
 
 class MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  static final GlobalKey<NavigatorState> navigator = GlobalKey();
   String route = '/';
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    shortcuts();
+  }
+
+  /// Adds "Panic wipe" to the app icon's long-press menu.
+  void shortcuts() {
+    try {
+      const actions = QuickActions();
+      actions.initialize((type) {
+        if (type != 'panic') return;
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => navigator.currentState?.pushNamed('/panic'),
+        );
+      });
+      actions.setShortcutItems(const [
+        ShortcutItem(type: 'panic', localizedTitle: 'Panic wipe'),
+      ]);
+    } catch (error) {
+      developer.log(
+        'Failed to register the panic wipe launcher shortcut',
+        name: 'MyAppState.shortcuts',
+        level: 900,
+        error: error,
+      );
+    }
   }
 
   @override
@@ -208,6 +234,7 @@ class MyAppState extends State<MyApp> with WidgetsBindingObserver {
       valueListenable: Courier.instance.theme,
       builder: (context, mode, _) {
         return MaterialApp(
+          navigatorKey: navigator,
           title: 'Zephyron',
           debugShowMaterialGrid: false,
           debugShowCheckedModeBanner: false,

@@ -65,6 +65,7 @@ dependencies:
   file_picker: ^13.1.0
   share_plus: ^13.3.1
   qr_flutter: ^4.1.0
+  quick_actions: ^1.1.1
 
 hooks:
   user_defines:
