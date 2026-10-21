@@ -60,7 +60,7 @@ dependencies:
   http: ^1.6.0
   geolocator: ^14.0.2
   cloudflare: ^10.1.0
-  sqlite3: ^3.3.3
+  sqlite3: ^3.7.1
   image_picker: ^1.2.4
   file_picker: ^13.1.0
   share_plus: ^13.3.1
