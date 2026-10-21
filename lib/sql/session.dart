@@ -5,9 +5,11 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:sqflite_sqlcipher/sqflite.dart' as cipher;
+import 'package:zephyron/services/duress.dart';
 import 'package:zephyron/services/locker.dart';
 import 'package:zephyron/services/warden.dart';
 import 'package:zephyron/sql/database.dart';
+import 'package:zephyron/sql/ledger.dart';
 import 'package:zephyron/models/identity.dart';
 
 class IdentityQuarantinedException implements Exception {
@@ -242,26 +244,38 @@ class Session {
   }
 
   /// Erases every identity, its messages and attachments, and every secret
-  /// this app keeps in secure storage.
-  static Future<void> purge() async {
+  /// this app keeps in secure storage. With [spare], that one identity and
+  /// its anchor survive and the roster is left listing only it.
+  static Future<void> purge({String? spare}) async {
     try {
       await Database.dispose();
       for (final name in await sessions()) {
-        await Database.wipe(name);
+        if (name != spare) await Database.wipe(name);
       }
+      final kept = spare == null ? null : Database.hash(spare);
       final folder = Directory(await cipher.getDatabasesPath());
       if (await folder.exists()) {
         await for (final entry in folder.list()) {
+          final base = entry.uri.pathSegments.last.split('.').first;
           if (entry is File &&
+              base != kept &&
               (entry.path.endsWith('.db') || entry.path.endsWith('.salt'))) {
             await entry.delete();
           }
         }
       }
-      final vault = await Locker.folder();
-      if (await vault.exists()) await vault.delete(recursive: true);
-      await Locker.sweep();
-      await storage.deleteAll();
+      if (spare == null) {
+        final vault = await Locker.folder();
+        if (await vault.exists()) await vault.delete(recursive: true);
+        await Locker.sweep();
+        await storage.deleteAll();
+      } else {
+        final keep = {Database.slot(spare)};
+        for (final entry in (await storage.readAll()).keys) {
+          if (!keep.contains(entry)) await storage.delete(key: entry);
+        }
+        await storage.write(key: key, value: json.encode([spare]));
+      }
       Warden.forget();
       developer.log(
         'Purged every identity, store and secret from this device',
@@ -280,7 +294,34 @@ class Session {
     }
   }
 
+  /// Erases everything but the decoy, then opens it as a normal unlock.
+  static Future<Identity> spring(String decoy, String pass) async {
+    await purge(spare: decoy);
+    final identity = await open(decoy, pass);
+    try {
+      await Ledger.ensure();
+      final kept = (await Ledger.everything())
+          .where((message) => message.attachment)
+          .map((message) => message.id)
+          .toSet();
+      await Locker.prune(kept);
+    } catch (error) {
+      developer.log(
+        'Failed to prune attachments left by erased identities',
+        name: 'Session.spring',
+        level: 1000,
+        error: error,
+      );
+    }
+    return identity;
+  }
+
   static Future<Identity> open(String name, String pass) async {
+    final coerced = await Duress.match(pass);
+    if (coerced != null) {
+      return spring(coerced.name, coerced.passphrase);
+    }
+
     final device = await Warden.remaining();
     if (device != null) {
       developer.log(

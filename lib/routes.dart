@@ -4,6 +4,7 @@ import 'package:zephyron/auth/index.dart';
 import 'package:zephyron/dashboard/index.dart';
 import 'package:zephyron/dashboard/chats/message.dart';
 import 'package:zephyron/dashboard/peers/node.dart';
+import 'package:zephyron/dashboard/vault/duress.dart';
 import 'package:zephyron/dashboard/vault/profile.dart';
 import 'package:zephyron/network/index.dart';
 import 'package:zephyron/network/middleware.dart';
@@ -29,6 +30,7 @@ final Map<String, WidgetBuilder> routes = {
     );
   },
   '/dashboard/settings/profile': (context) => const ProfilePage(),
+  '/dashboard/settings/duress': (context) => const DuressPage(),
   '/network': (context) => const NetworkScreen(),
   '/network/middleware': (context) => const NetworkMiddlewareScreen(),
 };

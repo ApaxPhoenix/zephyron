@@ -171,6 +171,31 @@ class Database {
     }
   }
 
+  /// Whether [passphrase] opens [name]'s store, checked on a separate
+  /// read-only connection so the open store is left alone.
+  static Future<bool> verify(String name, String passphrase) async {
+    try {
+      final folder = await cipher.getDatabasesPath();
+      final route = join(folder, '${hash(name)}.db');
+      final held = await anchor(name);
+      if (held == null || !await File(route).exists()) return false;
+      final probe = await cipher.openDatabase(
+        route,
+        password: await key(bind(passphrase, held.value), await salt(route)),
+        readOnly: true,
+        singleInstance: false,
+      );
+      try {
+        await probe.rawQuery('SELECT count(*) FROM sqlite_master');
+        return true;
+      } finally {
+        await probe.close();
+      }
+    } catch (_) {
+      return false;
+    }
+  }
+
   static Future<cipher.Database> open(String name, String passphrase) async {
     try {
       if (databaseInstance != null && databaseInstance!.isOpen) {
