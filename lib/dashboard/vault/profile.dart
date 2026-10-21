@@ -90,7 +90,7 @@ class ProfilePageState extends State<ProfilePage> {
       appBar: AppBar(title: const Text('Edit Profile')),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
           child: Form(
             key: key,
             child: Column(

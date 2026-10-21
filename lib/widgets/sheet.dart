@@ -159,50 +159,88 @@ class Sheets {
     return showModalBottomSheet<Availability>(
       context: context,
       useSafeArea: true,
+      isScrollControlled: true,
       builder: (sheet) {
         final theme = Theme.of(sheet);
         final scheme = theme.colorScheme;
 
         Widget option(Availability state) {
           final chosen = state == current;
-          return ListTile(
-            key: ValueKey('status:${state.name}'),
-            selected: chosen,
-            selectedTileColor: scheme.primary.withValues(alpha: 0.08),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            leading: SizedBox(
-              width: 24,
-              child: Center(child: Glyph(availability: state, size: 20)),
-            ),
-            title: Text(
-              state.label,
-              style: TextStyle(
-                color: scheme.onSurface,
-                fontWeight: FontWeight.w600,
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 3),
+            child: Material(
+              color: chosen
+                  ? scheme.primary.withValues(alpha: 0.08)
+                  : Colors.transparent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+                side: BorderSide(
+                  color: chosen
+                      ? scheme.primary.withValues(alpha: 0.35)
+                      : Colors.transparent,
+                ),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                key: ValueKey('status:${state.name}'),
+                onTap: () => Navigator.pop(sheet, state),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 28,
+                        child: Center(
+                          child: Glyph(availability: state, size: 20),
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              state.label,
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(state.hint, style: theme.textTheme.bodySmall),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      AnimatedOpacity(
+                        opacity: chosen ? 1 : 0,
+                        duration: const Duration(milliseconds: 150),
+                        child: Icon(
+                          Icons.check_circle,
+                          size: 22,
+                          color: scheme.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
-            subtitle: Text(state.hint, style: theme.textTheme.bodySmall),
-            trailing: AnimatedOpacity(
-              opacity: chosen ? 1 : 0,
-              duration: const Duration(milliseconds: 150),
-              child: Icon(Icons.check, color: scheme.primary),
-            ),
-            onTap: () => Navigator.pop(sheet, state),
           );
         }
 
         return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Center(child: grabber(sheet)),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                  padding: const EdgeInsets.fromLTRB(4, 8, 4, 4),
                   child: Text(
                     'Set Status',
                     style: theme.textTheme.titleMedium?.copyWith(
@@ -210,13 +248,17 @@ class Sheets {
                     ),
                   ),
                 ),
-                option(Availability.available),
                 Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 6,
+                  padding: const EdgeInsets.fromLTRB(4, 0, 4, 14),
+                  child: Text(
+                    'Choose how you show up to your trustees.',
+                    style: theme.textTheme.bodySmall,
                   ),
-                  child: Divider(color: scheme.outlineVariant),
+                ),
+                option(Availability.available),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Divider(),
                 ),
                 for (final state in Availability.values.skip(1)) option(state),
               ],

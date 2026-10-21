@@ -49,7 +49,7 @@ class DashboardScreenState extends State<DashboardScreen> {
           SnackBar(
             behavior: SnackBarBehavior.floating,
             duration: const Duration(seconds: 4),
-            margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            margin: const EdgeInsets.fromLTRB(20, 0, 20, 12),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),

@@ -17,6 +17,9 @@ class Pallete {
   static const success500 = Color.fromRGBO(56, 161, 105, 1);
   static const warning500 = Color.fromRGBO(214, 158, 46, 1);
 
+  /// Space between screen edges, app bars and content.
+  static const double gutter = 20.0;
+
   static const String sans = 'Geist';
   static const String mono = 'GeistMono';
 
@@ -202,7 +205,8 @@ class Pallete {
         showCheckmark: false,
       ),
       listTileTheme: ListTileThemeData(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16.0),
+        contentPadding: const EdgeInsets.symmetric(horizontal: gutter),
+        minVerticalPadding: 10.0,
         titleTextStyle: type(15, FontWeight.w500),
         subtitleTextStyle: type(13, FontWeight.w400).copyWith(color: muted),
         selectedTileColor: brand100.withValues(alpha: light ? 0.15 : 0.25),

@@ -124,7 +124,7 @@ class VaultPageState extends State<VaultPage> {
           }
 
           return ListView(
-            padding: EdgeInsets.fromLTRB(16, 16, 16, 24 + inset),
+            padding: EdgeInsets.fromLTRB(20, 20, 20, 32 + inset),
             children: [
               Card(
                 clipBehavior: Clip.antiAlias,
@@ -167,7 +167,7 @@ class VaultPageState extends State<VaultPage> {
                             ),
                           ),
                           Positioned(
-                            right: 12,
+                            right: 16,
                             top: 86,
                             child: OutlinedButton(
                               style: OutlinedButton.styleFrom(

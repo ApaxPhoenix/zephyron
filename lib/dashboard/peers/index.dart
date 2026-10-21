@@ -91,7 +91,7 @@ class PeersPageState extends State<PeersPage> {
               text,
               count: count,
               trailing: trailing,
-              padding: const EdgeInsets.fromLTRB(20, 24, 8, 6),
+              padding: const EdgeInsets.fromLTRB(24, 28, 12, 8),
             );
           }
 
@@ -150,7 +150,7 @@ class PeersPageState extends State<PeersPage> {
 
           final children = <Widget>[
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
               child: TextField(
                 controller: search,
                 decoration: InputDecoration(
@@ -170,7 +170,7 @@ class PeersPageState extends State<PeersPage> {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
               child: Identifier(
                 address: courier.self?.address ?? '',
                 name: courier.me.name,

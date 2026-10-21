@@ -164,7 +164,7 @@ class ChatsPageState extends State<ChatsPage> {
               itemCount: list.length,
               separatorBuilder: (context, index) => Divider(
                 height: 1,
-                indent: 80,
+                indent: 84,
                 color: scheme.outlineVariant.withAlpha(50),
               ),
               itemBuilder: (context, index) {
@@ -215,7 +215,7 @@ class ChatsPageState extends State<ChatsPage> {
                   },
                   child: ListTile(
                     contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16.0,
+                      horizontal: 20.0,
                       vertical: 4.0,
                     ),
                     leading: Hero(
@@ -486,7 +486,7 @@ class ChatsPageState extends State<ChatsPage> {
             children: [
               if (courier.roster.isNotEmpty) ...[
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
                   child: TextField(
                     controller: search,
                     decoration: InputDecoration(
@@ -511,7 +511,7 @@ class ChatsPageState extends State<ChatsPage> {
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
                   child: Row(
                     children: [
                       for (final item in [
