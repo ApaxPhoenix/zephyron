@@ -93,19 +93,20 @@ enum Trust {
 /// Availability advertised to trustees. Persisted by index, so only append.
 enum Availability {
   /// Reachable and happy to chat.
-  available('Available'),
+  available('Available', 'Reachable and happy to chat'),
 
   /// Around, but replies may be slow.
-  away('Away'),
+  away('Away', 'Around, but replies may be slow'),
 
   /// Do not disturb: in-app banners are muted on this device.
-  busy('Do not disturb'),
+  busy('Do not disturb', 'Mutes in-app banners on this phone'),
 
   /// Appear offline: no pongs, typing hints or read receipts are sent.
-  invisible('Invisible');
+  invisible('Invisible', 'Appear offline to everyone');
 
-  const Availability(this.label);
+  const Availability(this.label, this.hint);
   final String label;
+  final String hint;
 }
 
 /// Payload carried by a message. Persisted by index, so only append.

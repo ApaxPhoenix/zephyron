@@ -14,6 +14,7 @@ import 'package:zephyron/models/profile.dart';
 import 'package:zephyron/models/trustee.dart';
 import 'package:zephyron/services/courier.dart';
 import 'package:zephyron/theme.dart';
+import 'package:zephyron/widgets/section.dart';
 import 'support.dart';
 
 void main() {
@@ -187,6 +188,18 @@ void main() {
     expect(find.text('Bob Stone'), findsOneWidget);
     expect(find.text('testing'), findsOneWidget);
     expect(find.text('Read Receipts'), findsOneWidget);
+    expect(find.byType(FilterChip), findsNothing);
+    expect(find.byTooltip('Lock Vault'), findsNothing);
+
+    await tester.tap(find.text(Availability.available.label));
+    await tester.pumpAndSettle();
+    expect(find.text('Set Status'), findsOneWidget);
+    for (final state in Availability.values) {
+      expect(find.byKey(ValueKey('status:${state.name}')), findsOneWidget);
+    }
+    await tester.tapAt(const Offset(20, 20));
+    await tester.pumpAndSettle();
+
     await tester.scrollUntilVisible(
       find.widgetWithText(OutlinedButton, 'Lock Vault'),
       300,
@@ -212,22 +225,26 @@ void main() {
     channels.last.peer = null;
     await show(tester, const RelaysPage());
 
-    expect(find.text('On Your Node'), findsOneWidget);
-    expect(find.text('Circuits'), findsNWidgets(2));
-    expect(find.text('Bridges'), findsOneWidget);
+    expect(find.widgetWithText(Tab, 'Overview'), findsOneWidget);
+    expect(find.text('At a Glance'), findsOneWidget);
+    expect(find.text('Alice Moreau'), findsNothing);
+
+    await tester.tap(find.text('On Your Node'));
+    await tester.pumpAndSettle();
     expect(find.text('Alice Moreau'), findsOneWidget);
     expect(find.text('Anonymous'), findsOneWidget);
     expect(find.textContaining('Joined your node'), findsNWidgets(2));
+    expect(find.byType(Pager), findsNothing);
+
+    await tester.tap(find.widgetWithText(Tab, 'Circuits'));
+    await tester.pumpAndSettle();
     expect(
       find.text('Circuits appear once Tor has bootstrapped.'),
       findsOneWidget,
     );
 
-    await tester.scrollUntilVisible(
-      find.text('Use Bridges'),
-      300,
-      scrollable: find.byType(Scrollable).first,
-    );
+    await tester.tap(find.widgetWithText(Tab, 'Bridges'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Use Bridges'));
     await tester.pumpAndSettle();
     expect(find.byType(TextField), findsOneWidget);

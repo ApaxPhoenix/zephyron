@@ -1,8 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
+import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:sqflite_sqlcipher/sqflite.dart' as cipher;
+import 'package:zephyron/services/locker.dart';
+import 'package:zephyron/services/warden.dart';
 import 'package:zephyron/sql/database.dart';
 import 'package:zephyron/models/identity.dart';
 
@@ -24,6 +28,12 @@ class IdentityAnnihilatedException implements Exception {
   @override
   String toString() =>
       'Identity "$name" exceeded the maximum permitted unlock attempts and has been permanently erased from this device.';
+}
+
+class IdentitiesPurgedException implements Exception {
+  @override
+  String toString() =>
+      'Unlock attempts across identities looked like an attack, so every identity has been erased from this device.';
 }
 
 class AttemptLedger {
@@ -192,9 +202,15 @@ class Session {
 
   static Future<Duration?> quarantineRemaining(String name) async {
     final record = await ledger(name);
-    if (record.quarantinedUntil == null) return null;
-    final remaining = record.quarantinedUntil!.difference(DateTime.now());
-    return remaining.isNegative ? null : remaining;
+    final device = await Warden.remaining();
+    Duration? own;
+    if (record.quarantinedUntil != null) {
+      final remaining = record.quarantinedUntil!.difference(DateTime.now());
+      own = remaining.isNegative ? null : remaining;
+    }
+    if (own == null) return device;
+    if (device == null) return own;
+    return own > device ? own : device;
   }
 
   static Future<int> remainingAttempts(String name) async {
@@ -225,7 +241,56 @@ class Session {
     }
   }
 
+  /// Erases every identity, its messages and attachments, and every secret
+  /// this app keeps in secure storage.
+  static Future<void> purge() async {
+    try {
+      await Database.dispose();
+      for (final name in await sessions()) {
+        await Database.wipe(name);
+      }
+      final folder = Directory(await cipher.getDatabasesPath());
+      if (await folder.exists()) {
+        await for (final entry in folder.list()) {
+          if (entry is File &&
+              (entry.path.endsWith('.db') || entry.path.endsWith('.salt'))) {
+            await entry.delete();
+          }
+        }
+      }
+      final vault = await Locker.folder();
+      if (await vault.exists()) await vault.delete(recursive: true);
+      await Locker.sweep();
+      await storage.deleteAll();
+      Warden.forget();
+      developer.log(
+        'Purged every identity, store and secret from this device',
+        name: 'Session.purge',
+        level: 1200,
+      );
+    } catch (error) {
+      developer.log(
+        'Failed to fully purge identities from this device',
+        name: 'Session.purge',
+        level: 1000,
+        error: error,
+        stackTrace: StackTrace.current,
+      );
+      rethrow;
+    }
+  }
+
   static Future<Identity> open(String name, String pass) async {
+    final device = await Warden.remaining();
+    if (device != null) {
+      developer.log(
+        'Refused unlock attempt for profile: $name because every identity on this device is locked for ${device.inSeconds} more seconds',
+        name: 'Session.open',
+        level: 900,
+      );
+      throw IdentityQuarantinedException(device);
+    }
+
     final record = await ledger(name);
     final now = DateTime.now();
 
@@ -260,6 +325,7 @@ class Session {
       user = Identity.fromInput(data['seed'] as String);
       profile = name;
       await forgive(name);
+      await Warden.absolve(name);
       await enroll(name);
       touch();
       developer.log(
@@ -270,11 +336,23 @@ class Session {
       return user!;
     } catch (error) {
       if (error is IdentityQuarantinedException ||
-          error is IdentityAnnihilatedException) {
+          error is IdentityAnnihilatedException ||
+          error is IdentitiesPurgedException) {
         rethrow;
       }
 
       await Database.dispose();
+
+      final verdict = await Warden.record(name, pass);
+      if (verdict == Verdict.purge) {
+        developer.log(
+          'Unlock attempts across identities look like an attack, purging every identity on this device',
+          name: 'Session.open',
+          level: 1200,
+        );
+        await purge();
+        throw IdentitiesPurgedException();
+      }
 
       record.strikes += 1;
       record.recentFailures = [
@@ -326,6 +404,11 @@ class Session {
       }
 
       await persist(name, record);
+      if (verdict == Verdict.lockout) {
+        throw IdentityQuarantinedException(
+          await Warden.remaining() ?? Warden.baseLockout,
+        );
+      }
       rethrow;
     }
   }
