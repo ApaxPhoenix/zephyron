@@ -8,6 +8,8 @@
     <!-- Required for location foreground services on Android 14+ (API 34+) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
+    <!-- Records voice messages and talks in voice rooms -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
 
     <application
         android:label="zephyron"

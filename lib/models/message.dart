@@ -64,7 +64,12 @@ class Message {
 
   bool get media => kind == Kind.image || kind == Kind.gif;
 
-  bool get attachment => media || kind == Kind.file;
+  bool get attachment =>
+      media || kind == Kind.file || kind == Kind.voice || kind == Kind.video;
+
+  /// Length of a voice message or video.
+  Duration get duration =>
+      Duration(milliseconds: meta['duration'] as int? ?? 0);
 
   String get name => meta['name'] as String? ?? 'file';
 
@@ -90,8 +95,16 @@ class Message {
       Kind.file => name,
       Kind.card => 'Trustee · ${meta['name'] ?? 'card'}',
       Kind.invite => 'Invitation · ${meta['name'] ?? 'community'}',
+      Kind.voice => 'Voice message · ${length(duration)}',
+      Kind.video => caption.isEmpty ? 'Video · ${length(duration)}' : caption,
     };
   }
+}
+
+/// A duration as minutes and seconds, like 1:07.
+String length(Duration duration) {
+  final seconds = duration.inSeconds;
+  return '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}';
 }
 
 String measure(int size) {

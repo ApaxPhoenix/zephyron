@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:file_picker/file_picker.dart';
@@ -12,6 +13,7 @@ import 'package:zephyron/services/courier.dart';
 import 'package:zephyron/services/locker.dart';
 import 'package:zephyron/widgets/avatar.dart';
 import 'package:zephyron/widgets/sheet.dart';
+import 'package:zephyron/widgets/video.dart';
 
 Future<({int width, int height})> dimensions(Uint8List bytes) async {
   try {
@@ -71,6 +73,46 @@ class Attach {
         warn(error.message);
       } catch (_) {
         warn('Could not attach that photo.');
+      }
+    }
+
+    Future<void> clip(ImageSource source) async {
+      try {
+        final picked = await ImagePicker().pickVideo(
+          source: source,
+          maxDuration: const Duration(minutes: 5),
+        );
+        if (picked == null) return;
+        if (await picked.length() > Locker.ceiling) {
+          warn('Videos are limited to 25 MB. Try a shorter clip.');
+          return;
+        }
+        final facts = await probe(File(picked.path));
+        final bytes = await picked.readAsBytes();
+        if (!context.mounted) return;
+        final caption = await Preview.show(
+          context,
+          bytes: bytes,
+          name: picked.name,
+          media: false,
+        );
+        if (caption == null) return;
+        final mime = Locker.mime(picked.name);
+        await courier.attach(
+          peer,
+          bytes,
+          kind: Kind.video,
+          name: picked.name,
+          mime: mime.startsWith('video/') ? mime : 'video/mp4',
+          width: facts.width,
+          height: facts.height,
+          duration: facts.duration.inMilliseconds,
+          caption: caption,
+        );
+      } on FormatException catch (error) {
+        warn(error.message);
+      } catch (_) {
+        warn('Could not attach that video.');
       }
     }
 
@@ -137,6 +179,11 @@ class Attach {
                     Icons.photo_camera_outlined,
                     'Camera',
                     () => photo(ImageSource.camera),
+                  ),
+                  option(
+                    Icons.videocam_outlined,
+                    'Video',
+                    () => clip(ImageSource.gallery),
                   ),
                   option(Icons.gif_rounded, 'GIF', () async {
                     final picked = await Gifs.show(context);

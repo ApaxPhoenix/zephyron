@@ -291,4 +291,53 @@ void main() {
       Size(width, 120),
     );
   });
+
+  testWidgets('voice notes and videos show their length', (tester) async {
+    final now = DateTime.now();
+    courier.threads[alice.address] = [
+      Message(
+        id: 'v1',
+        peer: alice.address,
+        mine: false,
+        kind: Kind.voice,
+        text: '',
+        time: now,
+        status: Status.delivered,
+        meta: {'duration': 67000, 'size': 2000, 'name': 'voice.m4a'},
+      ),
+      Message(
+        id: 'v2',
+        peer: alice.address,
+        mine: true,
+        kind: Kind.video,
+        text: 'the view',
+        time: now,
+        status: Status.delivered,
+        meta: {
+          'duration': 9000,
+          'size': 2 * 1024 * 1024,
+          'width': 1280,
+          'height': 720,
+          'name': 'clip.mp4',
+        },
+      ),
+    ];
+    await show(tester, MessagePage(id: alice.address));
+    expect(find.text('1:07'), findsOneWidget);
+    expect(find.text('0:09 · 2.0 MB'), findsOneWidget);
+    expect(find.text('the view'), findsOneWidget);
+    expect(find.byTooltip('Play'), findsOneWidget);
+  });
+
+  testWidgets('the composer offers a microphone until you type', (
+    tester,
+  ) async {
+    await show(tester, MessagePage(id: alice.address));
+    expect(find.byTooltip('Record voice message'), findsOneWidget);
+    expect(find.byTooltip('Send'), findsNothing);
+    await tester.enterText(find.byType(TextField), 'hi');
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Send'), findsOneWidget);
+    expect(find.byTooltip('Record voice message'), findsNothing);
+  });
 }
