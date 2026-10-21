@@ -30,6 +30,7 @@ class Ledger {
           mood TEXT NOT NULL DEFAULT '',
           availability INTEGER NOT NULL DEFAULT 0,
           avatar BLOB,
+          banner BLOB,
           revision INTEGER NOT NULL DEFAULT 0,
           fuse INTEGER NOT NULL DEFAULT 0,
           fused INTEGER NOT NULL DEFAULT 0
@@ -62,6 +63,7 @@ class Ledger {
         ('history', 'meta', 'TEXT'),
         ('trustees', 'fuse', 'INTEGER NOT NULL DEFAULT 0'),
         ('trustees', 'fused', 'INTEGER NOT NULL DEFAULT 0'),
+        ('trustees', 'banner', 'BLOB'),
       ]) {
         final columns = await base.rawQuery('PRAGMA table_info($table)');
         if (!columns.any((row) => row['name'] == name)) {

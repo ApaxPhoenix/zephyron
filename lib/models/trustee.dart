@@ -14,6 +14,7 @@ class Trustee {
   String mood;
   Availability availability;
   Uint8List? avatar;
+  Uint8List? banner;
   int revision;
 
   /// Seconds until messages in this chat disappear, or 0 to keep them.
@@ -34,6 +35,7 @@ class Trustee {
     this.mood = '',
     this.availability = Availability.available,
     this.avatar,
+    this.banner,
     this.revision = 0,
     this.fuse = 0,
     this.fused = 0,
@@ -44,6 +46,7 @@ class Trustee {
         ((value as int?) ?? 0).clamp(0, length - 1);
 
     final picture = row['avatar'];
+    final cover = row['banner'];
     return Trustee(
       address: row['address'] as String,
       nickname: row['nickname'] as String? ?? '',
@@ -57,6 +60,7 @@ class Trustee {
       availability: Availability
           .values[index(row['availability'], Availability.values.length)],
       avatar: picture is Uint8List && picture.isNotEmpty ? picture : null,
+      banner: cover is Uint8List && cover.isNotEmpty ? cover : null,
       revision: row['revision'] as int? ?? 0,
       fuse: row['fuse'] as int? ?? 0,
       fused: row['fused'] as int? ?? 0,
@@ -76,6 +80,7 @@ class Trustee {
       'mood': mood,
       'availability': availability.index,
       'avatar': avatar,
+      'banner': banner,
       'revision': revision,
       'fuse': fuse,
       'fused': fused,

@@ -182,12 +182,34 @@ class NodePageState extends State<NodePage> {
             padding: const EdgeInsets.all(20.0),
             child: Column(
               children: [
-                const SizedBox(height: 12),
-                Hero(
-                  tag: 'avatar:$address',
-                  child: Portrait(address: address, size: 80),
+                SizedBox(
+                  height: 168,
+                  child: Stack(
+                    alignment: Alignment.topCenter,
+                    children: [
+                      Cover(
+                        banner: trustee.banner,
+                        height: 120,
+                        radius: BorderRadius.circular(16),
+                      ),
+                      Positioned(
+                        top: 72,
+                        child: Container(
+                          padding: const EdgeInsets.all(5),
+                          decoration: BoxDecoration(
+                            color: scheme.surface,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Hero(
+                            tag: 'avatar:$address',
+                            child: Portrait(address: address, size: 86),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 Text(
                   trustee.label,
                   textAlign: TextAlign.center,

@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -329,5 +330,43 @@ void main() {
     expect(Courier.clamp(-5), 0);
     expect(Courier.clamp('soon'), 0);
     expect(Fuse.of(4000), Fuse.hour);
+  });
+
+  test('trustee banners are stored and oversized ones are refused', () async {
+    courier.roster[alice.address] = Trustee(address: alice.address);
+    final wire = await Wire.open();
+    final picture = List<int>.generate(2048, (index) => index % 251);
+    wire.send(
+      sealed(
+        alice,
+        Signal.banner,
+        body: jsonEncode({'banner': base64.encode(picture)}),
+      ),
+    );
+    await until(() => courier.roster[alice.address]!.banner != null);
+    expect(courier.roster[alice.address]!.banner, picture);
+
+    wire.send(
+      sealed(
+        alice,
+        Signal.banner,
+        body: jsonEncode({
+          'banner': base64.encode(List<int>.filled(Courier.banner + 1, 1)),
+        }),
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    expect(courier.roster[alice.address]!.banner, picture);
+    await wire.close();
+  });
+
+  test('profile frames leave the banner for its own frame', () {
+    courier.me
+      ..name = 'Bob'
+      ..banner = Uint8List.fromList([1, 2, 3]);
+    expect(courier.me.toJson(banner: false).containsKey('banner'), isFalse);
+    expect(courier.me.toJson()['banner'], base64.encode([1, 2, 3]));
+    expect(jsonDecode(courier.cover())['banner'], base64.encode([1, 2, 3]));
+    courier.me.banner = null;
   });
 }

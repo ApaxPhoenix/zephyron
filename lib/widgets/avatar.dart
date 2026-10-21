@@ -151,3 +151,59 @@ class Glyph extends StatelessWidget {
     );
   }
 }
+
+/// A profile banner: the picture or animated GIF someone chose, or the brand
+/// gradient when they have none.
+class Cover extends StatelessWidget {
+  final Uint8List? banner;
+  final double height;
+  final BorderRadius radius;
+
+  const Cover({
+    super.key,
+    required this.banner,
+    this.height = 120,
+    this.radius = BorderRadius.zero,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return ClipRRect(
+      borderRadius: radius,
+      child: SizedBox(
+        height: height,
+        width: double.infinity,
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 250),
+          // Fill the frame, so the picture covers it and the gradient shows.
+          layoutBuilder: (current, previous) => Stack(
+            fit: StackFit.expand,
+            children: [...previous, ?current],
+          ),
+          child: banner != null
+              ? Image.memory(
+                  banner!,
+                  key: ValueKey(banner!.length),
+                  fit: BoxFit.cover,
+                  gaplessPlayback: true,
+                  errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                )
+              : DecoratedBox(
+                  key: const ValueKey('gradient'),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        scheme.primary,
+                        scheme.secondary.withValues(alpha: 0.75),
+                      ],
+                    ),
+                  ),
+                ),
+        ),
+      ),
+    );
+  }
+}

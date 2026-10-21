@@ -1,10 +1,15 @@
+import 'dart:isolate';
 import 'dart:typed_data';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:zephyron/dashboard/chats/gifs.dart';
 import 'package:zephyron/enums.dart';
 import 'package:zephyron/models/profile.dart';
 import 'package:zephyron/services/courier.dart';
+import 'package:zephyron/services/web.dart';
 import 'package:zephyron/widgets/avatar.dart';
+import 'package:zephyron/widgets/crop.dart';
 import 'package:zephyron/widgets/sheet.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -34,28 +39,61 @@ class ProfilePageState extends State<ProfilePage> {
     super.dispose();
   }
 
+  void warn(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  /// Fits a GIF under [limit] off the UI thread, or warns when it cannot.
+  Future<Uint8List?> squeeze(Uint8List bytes, int limit) async {
+    if (bytes.length <= limit) return bytes;
+    setState(() => busy = true);
+    try {
+      final smaller = await Isolate.run(() => Cropper.shrink(bytes, limit));
+      if (smaller == null) warn('That GIF is too large even when shrunk.');
+      return smaller;
+    } catch (_) {
+      warn('Could not read that GIF.');
+      return null;
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  Future<Uint8List?> gallery(ImageSource source) async {
+    try {
+      final picked = await ImagePicker().pickImage(
+        source: source,
+        maxWidth: 2048,
+        maxHeight: 2048,
+        imageQuality: 92,
+        preferredCameraDevice: CameraDevice.front,
+      );
+      return picked == null ? null : await picked.readAsBytes();
+    } catch (_) {
+      warn('Could not open that picture.');
+      return null;
+    }
+  }
+
   Future<void> picture() async {
     Future<void> pick(ImageSource source) async {
-      try {
-        final picked = await ImagePicker().pickImage(
-          source: source,
-          maxWidth: 512,
-          maxHeight: 512,
-          imageQuality: 82,
-          preferredCameraDevice: CameraDevice.front,
-        );
-        if (picked == null) return;
-        final Uint8List bytes = await picked.readAsBytes();
-        if (bytes.length > Courier.portrait) {
-          throw const FormatException('That picture is too large.');
-        }
-        setState(() => draft.avatar = bytes);
-      } catch (_) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not use that picture.')),
-        );
+      final bytes = await gallery(source);
+      if (bytes == null || !mounted) return;
+      if (Cropper.animated(bytes)) {
+        final fitted = await squeeze(bytes, Courier.portrait);
+        if (fitted != null) setState(() => draft.avatar = fitted);
+        return;
       }
+      final cropped = await Cropper.open(context, bytes);
+      if (cropped == null) return;
+      if (cropped.length > Courier.portrait) {
+        warn('That picture is too large.');
+        return;
+      }
+      setState(() => draft.avatar = cropped);
     }
 
     await Sheets.actions(
@@ -82,6 +120,82 @@ class ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  Future<void> banner() async {
+    Future<void> photo() async {
+      final bytes = await gallery(ImageSource.gallery);
+      if (bytes == null || !mounted) return;
+      if (Cropper.animated(bytes)) {
+        final fitted = await squeeze(bytes, Courier.banner);
+        if (fitted != null) setState(() => draft.banner = fitted);
+        return;
+      }
+      final cropped = await Cropper.open(
+        context,
+        bytes,
+        aspect: 3,
+        round: false,
+        width: 960,
+        title: 'Crop Banner',
+      );
+      if (cropped != null) setState(() => draft.banner = cropped);
+    }
+
+    Future<void> giphy() async {
+      final picked = await Gifs.show(context);
+      if (picked == null) return;
+      final fitted = await squeeze(picked.bytes, Courier.banner);
+      if (fitted != null) setState(() => draft.banner = fitted);
+    }
+
+    Future<void> file() async {
+      try {
+        final picked = await FilePicker.pickFiles(
+          type: FileType.custom,
+          allowedExtensions: const ['gif'],
+        );
+        if (picked.isEmpty) return;
+        final bytes = await picked.first.xFile.readAsBytes();
+        if (!Cropper.animated(bytes)) {
+          warn('Choose a GIF file.');
+          return;
+        }
+        final fitted = await squeeze(bytes, Courier.banner);
+        if (fitted != null) setState(() => draft.banner = fitted);
+      } catch (_) {
+        warn('Could not open that file.');
+      }
+    }
+
+    await Sheets.actions(
+      context,
+      items: [
+        SheetAction(
+          icon: Icons.photo_library_outlined,
+          label: 'Choose a Photo',
+          onTap: photo,
+        ),
+        if (Giphy.ready)
+          SheetAction(
+            icon: Icons.gif_box_outlined,
+            label: 'Search GIPHY',
+            onTap: giphy,
+          ),
+        SheetAction(
+          icon: Icons.folder_open_outlined,
+          label: 'GIF from Files',
+          onTap: file,
+        ),
+        if (draft.banner != null)
+          SheetAction(
+            icon: Icons.delete_outline,
+            label: 'Remove Banner',
+            destructive: true,
+            onTap: () => setState(() => draft.banner = null),
+          ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -96,52 +210,118 @@ class ProfilePageState extends State<ProfilePage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Center(
-                  child: GestureDetector(
-                    onTap: picture,
-                    child: Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        Avatar(
-                          label: name.text.isEmpty ? '?' : name.text,
-                          image: draft.avatar,
-                          size: 100,
+                SizedBox(
+                  height: 196,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Material(
+                        color: Colors.transparent,
+                        borderRadius: BorderRadius.circular(16),
+                        clipBehavior: Clip.antiAlias,
+                        child: InkWell(
+                          onTap: busy ? null : banner,
+                          child: Cover(
+                            banner: draft.banner,
+                            height: 140,
+                            radius: BorderRadius.circular(16),
+                          ),
                         ),
-                        Positioned(
-                          right: 0,
-                          bottom: 0,
+                      ),
+                      Positioned(
+                        top: 12,
+                        right: 12,
+                        child: IgnorePointer(
                           child: Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: scheme.primary,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: scheme.surface,
-                                width: 2,
-                              ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
                             ),
-                            child: Icon(
-                              Icons.photo_camera_outlined,
-                              size: 16,
-                              color: scheme.onPrimary,
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.45),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.edit_outlined,
+                                  size: 14,
+                                  color: Colors.white,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  draft.banner == null
+                                      ? 'Add Banner'
+                                      : 'Edit Banner',
+                                  style: Theme.of(context).textTheme.labelMedium
+                                      ?.copyWith(color: Colors.white),
+                                ),
+                              ],
                             ),
                           ),
                         ),
-                      ],
-                    ),
+                      ),
+                      Positioned(
+                        left: 16,
+                        top: 88,
+                        child: GestureDetector(
+                          onTap: busy ? null : picture,
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(5),
+                                decoration: BoxDecoration(
+                                  color: scheme.surface,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Avatar(
+                                  label: name.text.isEmpty ? '?' : name.text,
+                                  image: draft.avatar,
+                                  size: 96,
+                                ),
+                              ),
+                              Positioned(
+                                right: 2,
+                                bottom: 2,
+                                child: Container(
+                                  padding: const EdgeInsets.all(7),
+                                  decoration: BoxDecoration(
+                                    color: scheme.primary,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: scheme.surface,
+                                      width: 3,
+                                    ),
+                                  ),
+                                  child: Icon(
+                                    Icons.photo_camera_outlined,
+                                    size: 16,
+                                    color: scheme.onPrimary,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      if (busy)
+                        const Positioned(
+                          right: 4,
+                          bottom: 12,
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
-                Center(
-                  child: TextButton(
-                    onPressed: picture,
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 200),
-                      child: Text(
-                        draft.avatar == null ? 'Add a Photo' : 'Change Photo',
-                        key: ValueKey(draft.avatar == null),
-                      ),
-                    ),
-                  ),
+                Text(
+                  'Tap the banner or your photo to change them. Banners can be a cropped photo or an animated GIF.',
+                  style: Theme.of(context).textTheme.bodySmall,
                 ),
                 const SizedBox(height: 12),
                 Text(

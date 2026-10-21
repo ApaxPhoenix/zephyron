@@ -1,3 +1,5 @@
+import 'package:zephyron/widgets/avatar.dart';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zephyron/dashboard/chats/index.dart';
@@ -248,5 +250,45 @@ void main() {
     await tester.tap(find.text('Use Bridges'));
     await tester.pumpAndSettle();
     expect(find.byType(TextField), findsOneWidget);
+  });
+
+  testWidgets('banners fill their frame, with or without a picture', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Column(
+            children: [
+              Cover(
+                key: const ValueKey('picture'),
+                banner: Uint8List.fromList(List.filled(64, 1)),
+                height: 120,
+              ),
+              const Cover(key: ValueKey('plain'), banner: null, height: 120),
+            ],
+          ),
+        ),
+      ),
+    );
+    final width = tester.getSize(find.byType(Scaffold)).width;
+    expect(
+      tester.getSize(
+        find.descendant(
+          of: find.byKey(const ValueKey('picture')),
+          matching: find.byType(Image),
+        ),
+      ),
+      Size(width, 120),
+    );
+    expect(
+      tester.getSize(
+        find.descendant(
+          of: find.byKey(const ValueKey('plain')),
+          matching: find.byType(DecoratedBox),
+        ),
+      ),
+      Size(width, 120),
+    );
   });
 }
