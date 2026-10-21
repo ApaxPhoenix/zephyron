@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:zephyron/theme.dart';
 import 'package:flutter/services.dart';
 import 'package:zephyron/dashboard/communities/index.dart';
+import 'package:zephyron/dashboard/communities/podcast.dart';
+import 'package:zephyron/enums.dart';
 import 'package:zephyron/models/community.dart';
 import 'package:zephyron/services/courier.dart';
 import 'package:zephyron/services/mesh.dart';
@@ -70,6 +73,9 @@ class ChannelPageState extends State<ChannelPage> {
           );
         }
         final room = rooms.first;
+        if (room.kind == Space.podcast) {
+          return PodcastPage(community: community, room: room);
+        }
         final posts = mesh.messages(community.id, room.id);
 
         Widget entry(int index) {
@@ -316,6 +322,7 @@ class ChannelPageState extends State<ChannelPage> {
                         const SizedBox(width: 8),
                         IconButton.filled(
                           tooltip: 'Send',
+                          style: Pallete.solid(Theme.of(context).colorScheme),
                           onPressed: draft.text.trim().isEmpty || sending
                               ? null
                               : () => send(community, room),

@@ -10,6 +10,7 @@ import 'package:zephyron/models/community.dart';
 import 'package:zephyron/models/identity.dart';
 import 'package:zephyron/models/message.dart';
 import 'package:zephyron/models/profile.dart';
+import 'package:zephyron/services/broadcast.dart';
 import 'package:zephyron/services/courier.dart';
 import 'package:zephyron/services/ratchet.dart';
 import 'package:zephyron/sql/ledger.dart';
@@ -707,6 +708,8 @@ class Mesh extends ChangeNotifier {
     if (community == null) return;
 
     switch (data['op']) {
+      case 'fetch' || 'piece':
+        await Broadcast.instance.receive(from, channel, community, data);
       case 'have':
         final proof = data['proof'];
         if (proof is Map<String, dynamic>) {

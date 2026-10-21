@@ -80,35 +80,63 @@ class CommunityPageState extends State<CommunityPage> {
 
   Future<void> add(Community community) async {
     final field = TextEditingController();
+    var kind = Space.text;
     final name = await showDialog<String>(
       context: context,
-      builder: (dialog) => AlertDialog(
-        title: const Text('New Channel'),
-        content: TextField(
-          controller: field,
-          autofocus: true,
-          maxLength: 32,
-          decoration: const InputDecoration(
-            hintText: 'announcements',
-            prefixText: '# ',
+      builder: (dialog) => StatefulBuilder(
+        builder: (dialog, refresh) => AlertDialog(
+          title: const Text('New Channel'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SegmentedButton<Space>(
+                showSelectedIcon: false,
+                segments: [
+                  for (final option in const [Space.text, Space.podcast])
+                    ButtonSegment(
+                      value: option,
+                      label: Text(option.label),
+                      icon: Mark(kind: option),
+                    ),
+                ],
+                selected: {kind},
+                onSelectionChanged: (picked) =>
+                    refresh(() => kind = picked.first),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: field,
+                autofocus: true,
+                maxLength: 32,
+                decoration: InputDecoration(
+                  hintText: switch (kind) {
+                    Space.text => 'announcements',
+                    Space.podcast => 'weekly-show',
+                    Space.voice => 'lounge',
+                  },
+                  prefixText: kind == Space.text ? '# ' : null,
+                ),
+                onSubmitted: (value) => Navigator.pop(dialog, value),
+              ),
+            ],
           ),
-          onSubmitted: (value) => Navigator.pop(dialog, value),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialog),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialog, field.text),
+              child: const Text('Create'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialog),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialog, field.text),
-            child: const Text('Create'),
-          ),
-        ],
       ),
     );
     field.dispose();
     if (name == null || name.trim().isEmpty) return;
-    final room = await mesh.channel(community, name, Space.text);
+    final room = await mesh.channel(community, name, kind);
     if (!mounted) return;
     Navigator.pushNamed(
       context,
