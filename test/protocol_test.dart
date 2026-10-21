@@ -3,10 +3,12 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zephyron/enums.dart';
+import 'package:zephyron/models/identity.dart';
 import 'package:zephyron/models/message.dart';
 import 'package:zephyron/models/trustee.dart';
 import 'package:zephyron/services/courier.dart';
 import 'package:zephyron/services/locker.dart';
+import 'package:zephyron/services/ratchet.dart';
 import 'package:zephyron/sql/ledger.dart';
 import 'support.dart';
 
@@ -26,7 +28,7 @@ void main() {
       final frame = sealed(
         alice,
         Signal.message,
-        body: jsonEncode({'kind': 'text', 'text': 'hello bob'}),
+        body: await confide(alice, {'kind': 'text', 'text': 'hello bob'}),
       );
       wire.send(frame);
 
@@ -48,7 +50,7 @@ void main() {
     final frame = sealed(
       alice,
       Signal.message,
-      body: jsonEncode({'kind': 'text', 'text': 'once'}),
+      body: await confide(alice, {'kind': 'text', 'text': 'once'}),
     );
     wire.send(frame);
     await wire.reply('receipt', frame['id'] as String);
@@ -66,7 +68,7 @@ void main() {
     final frame = sealed(
       carol,
       Signal.message,
-      body: jsonEncode({'kind': 'text', 'text': 'let me in'}),
+      body: await confide(carol, {'kind': 'text', 'text': 'let me in'}),
     );
     wire.send(frame);
     await Future<void>.delayed(const Duration(milliseconds: 300));
@@ -81,9 +83,9 @@ void main() {
     final frame = sealed(
       alice,
       Signal.message,
-      body: jsonEncode({'kind': 'text', 'text': 'genuine'}),
+      body: await confide(alice, {'kind': 'text', 'text': 'genuine'}),
     );
-    frame['body'] = jsonEncode({'kind': 'text', 'text': 'tampered'});
+    frame['body'] = await confide(alice, {'kind': 'text', 'text': 'tampered'});
     wire.send(frame);
     await Future<void>.delayed(const Duration(milliseconds: 300));
 
@@ -102,7 +104,7 @@ void main() {
       sealed(
         alice,
         Signal.message,
-        body: jsonEncode({'kind': 'text', 'text': 'still here?'}),
+        body: await confide(alice, {'kind': 'text', 'text': 'still here?'}),
       ),
     );
     await until(() => wire.closed);
@@ -114,10 +116,12 @@ void main() {
   test('attachments are reassembled, verified and stored encrypted', () async {
     final wire = await Wire.open();
     final payload = pattern(Courier.slice * 2 + 1234);
+    final key = Ratchet.random(32);
     final manifest = sealed(
       alice,
       Signal.file,
-      body: jsonEncode({
+      body: await confide(alice, {
+        'key': base64.encode(key),
         'kind': 'image',
         'text': 'sunset',
         'name': 'sunset.png',
@@ -132,13 +136,7 @@ void main() {
     wire.send(manifest);
     for (var seq = 0, offset = 0; offset < payload.length; seq++) {
       final end = (offset + Courier.slice).clamp(0, payload.length);
-      wire.send({
-        'v': Courier.protocol,
-        'kind': 'chunk',
-        'id': id,
-        'seq': seq,
-        'data': base64.encode(payload.sublist(offset, end)),
-      });
+      wire.send(await piece(id, key, seq, payload.sublist(offset, end)));
       offset = end;
     }
 
@@ -158,10 +156,12 @@ void main() {
   test('attachments with a wrong hash are discarded', () async {
     final wire = await Wire.open();
     final payload = pattern(1000);
+    final key = Ratchet.random(32);
     final manifest = sealed(
       alice,
       Signal.file,
-      body: jsonEncode({
+      body: await confide(alice, {
+        'key': base64.encode(key),
         'kind': 'file',
         'name': 'notes.txt',
         'size': payload.length,
@@ -169,13 +169,7 @@ void main() {
       }),
     );
     wire.send(manifest);
-    wire.send({
-      'v': Courier.protocol,
-      'kind': 'chunk',
-      'id': manifest['id'],
-      'seq': 0,
-      'data': base64.encode(payload),
-    });
+    wire.send(await piece(manifest['id'] as String, key, 0, payload));
     await Future<void>.delayed(const Duration(milliseconds: 300));
 
     expect(courier.threads[alice.address], isNull);
@@ -248,7 +242,7 @@ void main() {
     final first = sealed(
       alice,
       Signal.message,
-      body: jsonEncode({'kind': 'text', 'text': 'from alice'}),
+      body: await confide(alice, {'kind': 'text', 'text': 'from alice'}),
     );
     wire.send(first);
     await wire.reply('receipt', first['id'] as String);
@@ -256,7 +250,7 @@ void main() {
       sealed(
         carol,
         Signal.message,
-        body: jsonEncode({'kind': 'text', 'text': 'from carol'}),
+        body: await confide(carol, {'kind': 'text', 'text': 'from carol'}),
       ),
     );
     await Future<void>.delayed(const Duration(milliseconds: 300));
@@ -271,7 +265,7 @@ void main() {
     final frame = sealed(
       alice,
       Signal.message,
-      body: jsonEncode({
+      body: await confide(alice, {
         'kind': 'text',
         'text': 'burn after reading',
         'fuse': 1,
@@ -368,5 +362,105 @@ void main() {
     expect(courier.me.toJson()['banner'], base64.encode([1, 2, 3]));
     expect(jsonDecode(courier.cover())['banner'], base64.encode([1, 2, 3]));
     courier.me.banner = null;
+  });
+
+  test('unencrypted messages are refused', () async {
+    final wire = await Wire.open();
+    wire.send(
+      sealed(
+        alice,
+        Signal.message,
+        body: jsonEncode({'kind': 'text', 'text': 'in the clear'}),
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    expect(courier.threads[alice.address], isNull);
+    expect(wire.replies.where((item) => item['kind'] == 'receipt'), isEmpty);
+    await wire.close();
+  });
+
+  test('a frame that cannot be opened asks for a fresh session', () async {
+    final stranger = Identity.fromInput('mend test ${DateTime.now()}');
+    final wire = await Wire.open();
+    wire.send(
+      sealed(
+        stranger,
+        Signal.message,
+        body: jsonEncode({
+          'h': {'dh': base64.encode(List.filled(32, 7)), 'n': 0, 'pn': 0},
+          'c': base64.encode(List.filled(40, 1)),
+        }),
+      ),
+    );
+    final repair = await wire.incoming.stream
+        .firstWhere((frame) => frame['kind'] == 'session')
+        .timeout(const Duration(seconds: 5));
+    expect(courier.threads[stranger.address], isNull);
+    final exchange = jsonDecode(repair['body'] as String) as Map;
+    expect(exchange['bundle'], isNotNull);
+    await wire.close();
+  });
+
+  test('a session can be agreed over the wire from either side', () async {
+    for (var attempt = 0; attempt < 6; attempt++) {
+      final peer = Identity.fromInput('handshake $attempt ${DateTime.now()}');
+      final leads = Ratchet.lead(peer, bob.address);
+      final wire = await Wire.open();
+      final ask = sealed(
+        peer,
+        Signal.session,
+        body: jsonEncode({'bundle': await Ratchet.bundle(peer), 'want': true}),
+      );
+      wire.send(ask);
+      final answer = await wire.incoming.stream
+          .firstWhere((frame) => frame['kind'] == 'session')
+          .timeout(const Duration(seconds: 5));
+      final exchange = jsonDecode(answer['body'] as String) as Map;
+      await Ratchet.learn(bob.address, exchange['bundle']);
+      if (leads) {
+        expect(exchange['init'], isNull);
+      } else {
+        expect(exchange['init'], isNotNull);
+        await Ratchet.open(
+          peer,
+          bob.address,
+          Map<String, dynamic>.from(exchange['init'] as Map),
+        );
+      }
+      final frame = sealed(
+        peer,
+        Signal.message,
+        body: jsonEncode(
+          await Ratchet.seal(
+            peer,
+            bob.address,
+            utf8.encode(jsonEncode({'kind': 'text', 'text': 'over the wire'})),
+          ),
+        ),
+      );
+      wire.send(frame);
+      await wire.reply('receipt', frame['id'] as String);
+      expect(courier.threads[peer.address]?.single.text, 'over the wire');
+      await wire.close();
+    }
+  });
+
+  test('outgoing messages open only for the trustee', () async {
+    await pairUp(bob, carol);
+    final wire = await Wire.open();
+    final channel = courier.live.last;
+    final body = await courier.whisper(
+      carol.address,
+      channel,
+      utf8.encode('for carol only'),
+    );
+    expect(body, isNot(contains('for carol only')));
+    final clear = await Ratchet.open(
+      carol,
+      bob.address,
+      Map<String, dynamic>.from(jsonDecode(body) as Map),
+    );
+    expect(utf8.decode(clear), 'for carol only');
+    await wire.close();
   });
 }

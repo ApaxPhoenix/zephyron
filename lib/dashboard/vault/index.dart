@@ -488,6 +488,13 @@ class VaultPageState extends State<VaultPage> {
                     subtitle: Text('Ed25519, bound to your discovery key'),
                   ),
                   ListTile(
+                    leading: Icon(Icons.enhanced_encryption_outlined),
+                    title: Text('End-to-End Encryption'),
+                    subtitle: Text(
+                      'X3DH and the Double Ratchet with AES-256-GCM, inside Tor. Every message and file has its own key',
+                    ),
+                  ),
+                  ListTile(
                     leading: Icon(Icons.gpp_maybe_outlined),
                     title: Text('Unlock Protection'),
                     subtitle: Text(

@@ -177,10 +177,8 @@ class Cover extends StatelessWidget {
         child: AnimatedSwitcher(
           duration: const Duration(milliseconds: 250),
           // Fill the frame, so the picture covers it and the gradient shows.
-          layoutBuilder: (current, previous) => Stack(
-            fit: StackFit.expand,
-            children: [...previous, ?current],
-          ),
+          layoutBuilder: (current, previous) =>
+              Stack(fit: StackFit.expand, children: [...previous, ?current]),
           child: banner != null
               ? Image.memory(
                   banner!,
