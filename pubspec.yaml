@@ -42,7 +42,7 @@ dependencies:
   crypto: ^3.0.7
   cryptography: ^2.9.0
   base32: ^2.2.0
-  freerasp: ^8.2.2
+  freerasp: ^8.2.4
   sqflite_sqlcipher: ^3.4.1
   flutter_secure_storage: ^11.0.0
 
