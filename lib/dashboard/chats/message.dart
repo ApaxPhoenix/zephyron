@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:zephyron/dashboard/communities/invite.dart';
 import 'package:flutter/services.dart';
 import 'package:zephyron/dashboard/chats/attach.dart';
 import 'package:zephyron/dashboard/chats/index.dart';
@@ -637,6 +638,13 @@ class MessagePageState extends State<MessagePage> {
                                   ],
                                 ),
                               ),
+                            );
+                          } else if (message.kind == Kind.invite) {
+                            body = Invitation(
+                              message: message,
+                              foreground: foreground,
+                              decoration: decoration,
+                              footer: footer,
                             );
                           } else {
                             final address =

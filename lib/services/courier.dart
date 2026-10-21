@@ -14,6 +14,7 @@ import 'package:zephyron/models/message.dart';
 import 'package:zephyron/models/profile.dart';
 import 'package:zephyron/models/trustee.dart';
 import 'package:zephyron/services/locker.dart';
+import 'package:zephyron/services/mesh.dart';
 import 'package:zephyron/services/ratchet.dart';
 import 'package:zephyron/services/shield.dart';
 import 'package:zephyron/sql/ledger.dart';
@@ -204,6 +205,7 @@ class Courier extends ChangeNotifier {
       for (final message in history) {
         threads.putIfAbsent(message.peer, () => []).add(message);
       }
+      await Mesh.instance.start();
       notifyListeners();
     } catch (error) {
       developer.log(
@@ -295,6 +297,7 @@ class Courier extends ChangeNotifier {
     roster.clear();
     threads.clear();
     presence.clear();
+    Mesh.instance.stop();
     reach.value = Reach.offline;
     theme.value = ThemeMode.system;
     shielded.value = true;
@@ -330,6 +333,7 @@ class Courier extends ChangeNotifier {
 
   void heartbeat() {
     if (reach.value != Reach.online || self == null) return;
+    Mesh.instance.heartbeat();
     final now = DateTime.now();
     for (final trustee in roster.values.toList()) {
       if (trustee.blocked) continue;
@@ -423,6 +427,7 @@ class Courier extends ChangeNotifier {
       return;
     }
     channel.greeted = true;
+    Mesh.instance.greet(peer);
     final known = roster[peer]!;
     final identity = self!;
     unawaited(() async {
@@ -761,7 +766,12 @@ class Courier extends ChangeNotifier {
             }
           } catch (_) {}
 
-          if (kind == Kind.card) {
+          if (kind == Kind.invite) {
+            final invitation = Mesh.valid(meta, from);
+            if (invitation == null) break;
+            meta = invitation;
+            words = '';
+          } else if (kind == Kind.card) {
             final address = '${meta['address'] ?? ''}'.toLowerCase();
             if (!Identity.valid(address)) break;
             meta = {'address': address, 'name': Profile.clip(meta['name'], 64)};
@@ -859,6 +869,8 @@ class Courier extends ChangeNotifier {
           }
         case Signal.pong:
           waiting.remove(id)?.complete();
+        case Signal.mesh:
+          await Mesh.instance.receive(from, channel, body);
         case Signal.timer:
           final choice = jsonDecode(body) as Map;
           await adjust(from, choice['fuse'], choice['fused']);
@@ -1185,12 +1197,24 @@ class Courier extends ChangeNotifier {
               jsonEncode({
                 'kind': message.kind.name,
                 'text': message.text,
-                'meta': message.kind == Kind.card
-                    ? {
-                        'address': message.meta['address'],
-                        'name': message.meta['name'],
-                      }
-                    : const {},
+                'meta': switch (message.kind) {
+                  Kind.card => {
+                    'address': message.meta['address'],
+                    'name': message.meta['name'],
+                  },
+                  Kind.invite => {
+                    for (final key in [
+                      'community',
+                      'name',
+                      'about',
+                      'key',
+                      'founder',
+                      'created',
+                    ])
+                      key: message.meta[key],
+                  },
+                  _ => const <String, dynamic>{},
+                },
                 'fuse': message.fuse,
               }),
             ),

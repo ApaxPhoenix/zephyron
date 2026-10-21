@@ -205,3 +205,57 @@ class Cover extends StatelessWidget {
     );
   }
 }
+
+/// A community's icon: a rounded square, so communities never look like
+/// people in a list.
+class Crest extends StatelessWidget {
+  final String label;
+  final Uint8List? image;
+  final double size;
+
+  const Crest({super.key, required this.label, this.image, this.size = 48});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final words = label
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((word) => word.isNotEmpty)
+        .toList();
+    final initials = words.isEmpty
+        ? '?'
+        : words
+              .take(2)
+              .map((word) => word.characters.first.toUpperCase())
+              .join();
+    return Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: scheme.primary.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(size * 0.3),
+        border: Border.all(color: scheme.outlineVariant),
+      ),
+      child: image != null
+          ? Image.memory(
+              image!,
+              width: size,
+              height: size,
+              fit: BoxFit.cover,
+              gaplessPlayback: true,
+              errorBuilder: (_, _, _) => const SizedBox.shrink(),
+            )
+          : Text(
+              initials,
+              style: TextStyle(
+                color: scheme.primary,
+                fontWeight: FontWeight.w700,
+                fontSize: size * 0.34,
+              ),
+            ),
+    );
+  }
+}

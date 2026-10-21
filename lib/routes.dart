@@ -4,6 +4,9 @@ import 'package:zephyron/auth/index.dart';
 import 'package:zephyron/auth/panic.dart';
 import 'package:zephyron/dashboard/index.dart';
 import 'package:zephyron/dashboard/chats/message.dart';
+import 'package:zephyron/dashboard/communities/channel.dart';
+import 'package:zephyron/dashboard/communities/community.dart';
+import 'package:zephyron/dashboard/communities/create.dart';
 import 'package:zephyron/dashboard/peers/node.dart';
 import 'package:zephyron/dashboard/vault/duress.dart';
 import 'package:zephyron/dashboard/vault/profile.dart';
@@ -29,6 +32,24 @@ final Map<String, WidgetBuilder> routes = {
     return NodePage(
       id: arguments?['id'] as String?,
       name: arguments?['name'] as String? ?? arguments?['title'] as String?,
+    );
+  },
+  '/dashboard/communities/create': (context) {
+    final arguments =
+        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    return CreatePage(id: arguments?['id'] as String?);
+  },
+  '/dashboard/communities/community': (context) {
+    final arguments =
+        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    return CommunityPage(id: arguments?['id'] as String?);
+  },
+  '/dashboard/communities/channel': (context) {
+    final arguments =
+        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    return ChannelPage(
+      community: arguments?['community'] as String?,
+      channel: arguments?['channel'] as String?,
     );
   },
   '/dashboard/settings/profile': (context) => const ProfilePage(),

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:zephyron/dashboard/chats/index.dart';
+import 'package:zephyron/dashboard/communities/index.dart';
 import 'package:zephyron/dashboard/peers/index.dart';
 import 'package:zephyron/dashboard/relays/index.dart';
 import 'package:zephyron/dashboard/vault/index.dart';
@@ -108,7 +109,13 @@ class DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    const pages = [ChatsPage(), PeersPage(), RelaysPage(), VaultPage()];
+    const pages = [
+      ChatsPage(),
+      CommunitiesPage(),
+      PeersPage(),
+      RelaysPage(),
+      VaultPage(),
+    ];
     final calm = MediaQuery.disableAnimationsOf(context);
 
     return Listener(
@@ -184,6 +191,11 @@ class DashboardScreenState extends State<DashboardScreen> {
                           child: const Icon(Icons.chat_bubble),
                         ),
                         label: 'Chats',
+                      ),
+                      const NavigationDestination(
+                        icon: Icon(Icons.diversity_3_outlined),
+                        selectedIcon: Icon(Icons.diversity_3),
+                        label: 'Communities',
                       ),
                       NavigationDestination(
                         icon: Badge(

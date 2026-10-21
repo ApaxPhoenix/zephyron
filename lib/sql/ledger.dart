@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:sqflite_sqlcipher/sqflite.dart' as cipher;
 import 'package:zephyron/enums.dart';
+import 'package:zephyron/models/community.dart';
 import 'package:zephyron/models/message.dart';
 import 'package:zephyron/models/trustee.dart';
 import 'package:zephyron/sql/database.dart';
@@ -50,6 +51,39 @@ class Ledger {
       ''');
       await base.execute(
         'CREATE INDEX IF NOT EXISTS history_peer ON history (peer, time)',
+      );
+      await base.execute('''
+        CREATE TABLE IF NOT EXISTS communities (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          about TEXT NOT NULL DEFAULT '',
+          icon BLOB,
+          banner BLOB,
+          key TEXT NOT NULL,
+          founder TEXT NOT NULL,
+          created INTEGER NOT NULL,
+          joined INTEGER NOT NULL,
+          pinned INTEGER NOT NULL DEFAULT 0,
+          muted INTEGER NOT NULL DEFAULT 0,
+          revised INTEGER NOT NULL DEFAULT 0
+        )
+      ''');
+      await base.execute('''
+        CREATE TABLE IF NOT EXISTS posts (
+          id TEXT PRIMARY KEY,
+          community TEXT NOT NULL,
+          channel TEXT NOT NULL,
+          author TEXT NOT NULL,
+          seq INTEGER NOT NULL,
+          time INTEGER NOT NULL,
+          note INTEGER NOT NULL,
+          text TEXT NOT NULL,
+          meta TEXT,
+          frame TEXT NOT NULL
+        )
+      ''');
+      await base.execute(
+        'CREATE INDEX IF NOT EXISTS posts_community ON posts (community, time)',
       );
       await base.execute('''
         CREATE TABLE IF NOT EXISTS preferences (
@@ -123,6 +157,40 @@ class Ledger {
 
   static Future<void> remove(String key) async {
     await base.delete('preferences', where: 'key = ?', whereArgs: [key]);
+  }
+
+  static Future<List<Community>> communities() async {
+    final rows = await base.query('communities');
+    return rows.map(Community.fromRow).toList();
+  }
+
+  static Future<void> gather(Community community) async {
+    await base.insert(
+      'communities',
+      community.toRow(),
+      conflictAlgorithm: cipher.ConflictAlgorithm.replace,
+    );
+  }
+
+  static Future<void> disband(String id) async {
+    await base.transaction((batch) async {
+      await batch.delete('posts', where: 'community = ?', whereArgs: [id]);
+      await batch.delete('communities', where: 'id = ?', whereArgs: [id]);
+    });
+  }
+
+  static Future<List<Post>> posts() async {
+    final rows = await base.query('posts', orderBy: 'time ASC');
+    return rows.map(Post.fromRow).toList();
+  }
+
+  static Future<bool> publish(Post post) async {
+    final row = await base.insert(
+      'posts',
+      post.toRow(),
+      conflictAlgorithm: cipher.ConflictAlgorithm.ignore,
+    );
+    return row != 0;
   }
 
   static Future<List<Trustee>> trustees() async {

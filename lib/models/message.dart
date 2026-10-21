@@ -38,7 +38,10 @@ class Message {
       id: row['id'] as String,
       peer: row['peer'] as String,
       mine: (row['mine'] as int? ?? 0) == 1,
-      kind: Kind.values[index(row['kind'], Kind.values.length)],
+      // An unknown kind is shown as text rather than as some other card.
+      kind: (row['kind'] as int? ?? 0) < Kind.values.length
+          ? Kind.values[index(row['kind'], Kind.values.length)]
+          : Kind.text,
       text: row['text'] as String? ?? '',
       time: DateTime.fromMillisecondsSinceEpoch(row['time'] as int? ?? 0),
       meta: extra,
@@ -86,6 +89,7 @@ class Message {
       Kind.gif => 'GIF',
       Kind.file => name,
       Kind.card => 'Trustee · ${meta['name'] ?? 'card'}',
+      Kind.invite => 'Invitation · ${meta['name'] ?? 'community'}',
     };
   }
 }
