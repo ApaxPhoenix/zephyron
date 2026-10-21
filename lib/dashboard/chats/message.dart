@@ -167,6 +167,21 @@ class MessagePageState extends State<MessagePage> {
               ),
             ),
             actions: [
+              if (trustee != null && trustee.fuse > 0)
+                IconButton(
+                  tooltip:
+                      'Messages disappear after ${Fuse.of(trustee.fuse).label}',
+                  icon: Icon(Icons.timer_outlined, color: scheme.primary),
+                  onPressed: () async {
+                    final picked = await Sheets.fuse(
+                      context,
+                      current: Fuse.of(trustee.fuse),
+                    );
+                    if (picked != null) {
+                      await Courier.instance.fuse(peer, picked.seconds);
+                    }
+                  },
+                ),
               if (trustee != null)
                 IconButton(
                   tooltip: 'Profile',

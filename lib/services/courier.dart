@@ -85,6 +85,7 @@ class Transfer {
   final int width;
   final int height;
   final int time;
+  final int fuse;
   final BytesBuilder buffer = BytesBuilder(copy: false);
   int next = 0;
 
@@ -101,6 +102,7 @@ class Transfer {
     required this.width,
     required this.height,
     required this.time,
+    this.fuse = 0,
   });
 
   double get progress => size == 0 ? 0 : buffer.length / size;
@@ -130,6 +132,7 @@ class Courier extends ChangeNotifier {
   ed25519.PrivateKey? secret;
   ServerSocket? server;
   Timer? pulse;
+  Timer? sweeper;
   String? focus;
   int generation = 0;
   Profile me = Profile();
@@ -230,12 +233,16 @@ class Courier extends ChangeNotifier {
 
     unawaited(connect(epoch));
     pulse = Timer.periodic(const Duration(seconds: 20), (_) => heartbeat());
+    unawaited(expire());
+    sweeper = Timer.periodic(const Duration(seconds: 10), (_) => expire());
   }
 
   Future<void> stop() async {
     generation += 1;
     pulse?.cancel();
     pulse = null;
+    sweeper?.cancel();
+    sweeper = null;
 
     final address = self?.address;
     self = null;
@@ -392,8 +399,17 @@ class Courier extends ChangeNotifier {
       return;
     }
     channel.greeted = true;
+    final known = roster[peer]!;
     channel.send(
-      seal(Signal.hello, peer, body: jsonEncode({'revision': me.revision})),
+      seal(
+        Signal.hello,
+        peer,
+        body: jsonEncode({
+          'revision': me.revision,
+          'fuse': known.fuse,
+          'fused': known.fused,
+        }),
+      ),
     );
   }
 
@@ -502,6 +518,7 @@ class Courier extends ChangeNotifier {
           status: Status.delivered,
           meta: {
             ...sealed,
+            if (transfer.fuse > 0) 'fuse': transfer.fuse,
             'name': transfer.name,
             'mime': transfer.mime,
             'size': transfer.size,
@@ -543,11 +560,12 @@ class Courier extends ChangeNotifier {
 
       switch (signal.first) {
         case Signal.hello:
-          final revision = (jsonDecode(body) as Map)['revision'];
+          final greeting = jsonDecode(body) as Map;
           final known = roster[from];
-          if (known != null && known.revision != revision) {
+          if (known != null && known.revision != greeting['revision']) {
             channel.send(seal(Signal.whois, from));
           }
+          await adjust(from, greeting['fuse'], greeting['fused']);
         case Signal.whois:
           if (roster[from]?.trusted == true) {
             channel.send(
@@ -574,6 +592,7 @@ class Courier extends ChangeNotifier {
           var kind = Kind.text;
           var words = body;
           var meta = <String, dynamic>{};
+          var fuse = 0;
           try {
             final envelope = jsonDecode(body);
             if (envelope is Map<String, dynamic>) {
@@ -584,6 +603,7 @@ class Courier extends ChangeNotifier {
               words = envelope['text'] as String? ?? '';
               final extra = envelope['meta'];
               if (extra is Map<String, dynamic>) meta = extra;
+              fuse = clamp(envelope['fuse']);
             }
           } catch (_) {}
 
@@ -598,6 +618,7 @@ class Courier extends ChangeNotifier {
             meta = {};
           }
           if (words.length > limit || !await admit(from)) break;
+          if (fuse > 0) meta['fuse'] = fuse;
 
           if (!await Ledger.exists(id)) {
             final message = Message(
@@ -657,6 +678,7 @@ class Courier extends ChangeNotifier {
             width: dimension(data['width']),
             height: dimension(data['height']),
             time: stamp.millisecondsSinceEpoch,
+            fuse: clamp(data['fuse']),
           );
         case Signal.chunk:
           break;
@@ -676,6 +698,9 @@ class Courier extends ChangeNotifier {
           }
         case Signal.pong:
           waiting.remove(id)?.complete();
+        case Signal.timer:
+          final choice = jsonDecode(body) as Map;
+          await adjust(from, choice['fuse'], choice['fused']);
       }
 
       if (epoch != generation) return;
@@ -689,6 +714,72 @@ class Courier extends ChangeNotifier {
         error: error,
       );
     }
+  }
+
+  /// Timer seconds from a peer, kept within what this app allows.
+  static int clamp(Object? value) =>
+      value is int && value > 0 ? min(value, Fuse.ceiling) : 0;
+
+  /// Adopts a trustee's disappearing message timer when theirs is newer.
+  Future<void> adjust(String from, Object? fuse, Object? fused) async {
+    final known = roster[from];
+    if (known == null || !known.trusted || fused is! int) return;
+    if (fused <= known.fused) return;
+    known
+      ..fuse = clamp(fuse)
+      ..fused = fused;
+    await Ledger.keep(known);
+  }
+
+  /// Sets the disappearing message timer for [peer] and tells them.
+  Future<void> fuse(String peer, int seconds) async {
+    final known = roster[peer];
+    if (known == null) return;
+    known
+      ..fuse = clamp(seconds)
+      ..fused = DateTime.now().millisecondsSinceEpoch;
+    await Ledger.keep(known);
+    notifyListeners();
+    try {
+      final channel = await dial(peer);
+      channel.send(
+        seal(
+          Signal.timer,
+          peer,
+          body: jsonEncode({'fuse': known.fuse, 'fused': known.fused}),
+        ),
+      );
+    } catch (_) {
+      // They learn the timer from the next hello instead.
+    }
+  }
+
+  /// Deletes every message whose timer has run out, on this phone.
+  Future<void> expire() async {
+    final now = DateTime.now();
+    final spent = [
+      for (final list in threads.values)
+        for (final message in list)
+          if (message.expiry?.isBefore(now) ?? false) message,
+    ];
+    for (final message in spent) {
+      try {
+        await erase(message);
+      } catch (error) {
+        developer.log(
+          'Failed to delete an expired message',
+          name: 'Courier.expire',
+          level: 900,
+          error: error,
+        );
+      }
+    }
+  }
+
+  /// Meta that makes a new outgoing message disappear on schedule.
+  Map<String, dynamic> timed(String peer) {
+    final seconds = roster[peer]?.fuse ?? 0;
+    return seconds > 0 ? {'fuse': seconds} : {};
   }
 
   Future<bool> admit(String from) async {
@@ -745,6 +836,7 @@ class Courier extends ChangeNotifier {
           mine: true,
           text: body.substring(index, min(index + limit, body.length)),
           time: DateTime.now(),
+          meta: timed(peer),
         ),
       );
     }
@@ -779,6 +871,7 @@ class Courier extends ChangeNotifier {
         time: DateTime.now(),
         meta: {
           ...sealed,
+          ...timed(peer),
           'name': name,
           'mime': mime ?? Locker.mime(name),
           'size': bytes.length,
@@ -801,7 +894,7 @@ class Courier extends ChangeNotifier {
         kind: Kind.card,
         text: '',
         time: DateTime.now(),
-        meta: {'address': card.address, 'name': card.label},
+        meta: {'address': card.address, 'name': card.label, ...timed(peer)},
       ),
     );
     unawaited(flush(peer));
@@ -853,6 +946,7 @@ class Courier extends ChangeNotifier {
                 'width': message.width,
                 'height': message.height,
                 'sha': hashing.sha256.convert(clear).toString(),
+                'fuse': message.fuse,
               }),
             ),
           );
@@ -884,7 +978,13 @@ class Courier extends ChangeNotifier {
               body: jsonEncode({
                 'kind': message.kind.name,
                 'text': message.text,
-                'meta': message.meta,
+                'meta': message.kind == Kind.card
+                    ? {
+                        'address': message.meta['address'],
+                        'name': message.meta['name'],
+                      }
+                    : message.meta,
+                'fuse': message.fuse,
               }),
               time: message.time,
             ),

@@ -151,12 +151,18 @@ class Sheets {
     return result ?? false;
   }
 
-  /// Lets the person pick how they show up to trustees.
-  static Future<Availability?> availability(
+  /// A titled list of choices, each in its own padded, rounded row.
+  ///
+  /// [split] draws a hairline after that many options.
+  static Future<T?> pick<T>(
     BuildContext context, {
-    required Availability current,
+    required String title,
+    required String subtitle,
+    required T current,
+    required List<Choice<T>> options,
+    int? split,
   }) {
-    return showModalBottomSheet<Availability>(
+    return showModalBottomSheet<T>(
       context: context,
       useSafeArea: true,
       isScrollControlled: true,
@@ -164,8 +170,8 @@ class Sheets {
         final theme = Theme.of(sheet);
         final scheme = theme.colorScheme;
 
-        Widget option(Availability state) {
-          final chosen = state == current;
+        Widget option(Choice<T> choice) {
+          final chosen = choice.value == current;
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: 3),
             child: Material(
@@ -182,8 +188,8 @@ class Sheets {
               ),
               clipBehavior: Clip.antiAlias,
               child: InkWell(
-                key: ValueKey('status:${state.name}'),
-                onTap: () => Navigator.pop(sheet, state),
+                key: choice.key,
+                onTap: () => Navigator.pop(sheet, choice.value),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
@@ -191,25 +197,25 @@ class Sheets {
                   ),
                   child: Row(
                     children: [
-                      SizedBox(
-                        width: 28,
-                        child: Center(
-                          child: Glyph(availability: state, size: 20),
-                        ),
-                      ),
+                      SizedBox(width: 28, child: Center(child: choice.leading)),
                       const SizedBox(width: 14),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              state.label,
+                              choice.label,
                               style: theme.textTheme.titleSmall?.copyWith(
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
-                            const SizedBox(height: 2),
-                            Text(state.hint, style: theme.textTheme.bodySmall),
+                            if (choice.hint != null) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                choice.hint!,
+                                style: theme.textTheme.bodySmall,
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -242,7 +248,7 @@ class Sheets {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(4, 8, 4, 4),
                   child: Text(
-                    'Set Status',
+                    title,
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w700,
                     ),
@@ -250,17 +256,19 @@ class Sheets {
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(4, 0, 4, 14),
-                  child: Text(
-                    'Choose how you show up to your trustees.',
-                    style: theme.textTheme.bodySmall,
-                  ),
+                  child: Text(subtitle, style: theme.textTheme.bodySmall),
                 ),
-                option(Availability.available),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Divider(),
-                ),
-                for (final state in Availability.values.skip(1)) option(state),
+                for (var index = 0; index < options.length; index++) ...[
+                  if (index > 0 && index == split)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      child: Divider(),
+                    ),
+                  option(options[index]),
+                ],
               ],
             ),
           ),
@@ -268,4 +276,76 @@ class Sheets {
       },
     );
   }
+
+  /// Lets the person pick how they show up to trustees.
+  static Future<Availability?> availability(
+    BuildContext context, {
+    required Availability current,
+  }) {
+    return pick(
+      context,
+      title: 'Set Status',
+      subtitle: 'Choose how you show up to your trustees.',
+      current: current,
+      split: 1,
+      options: [
+        for (final state in Availability.values)
+          Choice(
+            value: state,
+            label: state.label,
+            hint: state.hint,
+            leading: Glyph(availability: state, size: 20),
+            key: ValueKey('status:${state.name}'),
+          ),
+      ],
+    );
+  }
+
+  /// Lets the person pick how long messages in a chat last.
+  static Future<Fuse?> fuse(BuildContext context, {required Fuse current}) {
+    final scheme = Theme.of(context).colorScheme;
+    return pick(
+      context,
+      title: 'Disappearing Messages',
+      subtitle:
+          'New messages in this chat are deleted from both phones once the timer runs out. Your trustee sees the change.',
+      current: current,
+      split: 1,
+      options: [
+        for (final choice in Fuse.values)
+          Choice(
+            value: choice,
+            label: choice.label,
+            hint: choice == Fuse.off
+                ? 'Keep messages until you delete them'
+                : null,
+            leading: Icon(
+              choice == Fuse.off ? Icons.all_inclusive : Icons.timer_outlined,
+              size: 20,
+              color: choice == Fuse.off
+                  ? scheme.onSurfaceVariant
+                  : scheme.primary,
+            ),
+            key: ValueKey('fuse:${choice.name}'),
+          ),
+      ],
+    );
+  }
+}
+
+/// One row in [Sheets.pick].
+class Choice<T> {
+  final T value;
+  final String label;
+  final String? hint;
+  final Widget leading;
+  final Key? key;
+
+  const Choice({
+    required this.value,
+    required this.label,
+    required this.leading,
+    this.hint,
+    this.key,
+  });
 }

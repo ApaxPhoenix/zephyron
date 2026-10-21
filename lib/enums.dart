@@ -161,6 +161,31 @@ enum Signal {
 
   /// Answer to a latency probe.
   pong,
+
+  /// Sets the disappearing message timer for both sides of a chat.
+  timer,
+}
+
+/// How long messages last before both phones delete them.
+enum Fuse {
+  off(0, 'Off'),
+  minutes(300, '5 minutes'),
+  hour(3600, '1 hour'),
+  day(86400, '1 day'),
+  week(604800, '1 week');
+
+  const Fuse(this.seconds, this.label);
+  final int seconds;
+  final String label;
+
+  /// Longest timer a peer may ask for.
+  static const int ceiling = 4 * 604800;
+
+  /// The closest choice to a timer set on the other phone.
+  static Fuse of(int seconds) => values.lastWhere(
+    (item) => item.seconds <= seconds,
+    orElse: () => Fuse.off,
+  );
 }
 
 /// Highest GIPHY content rating allowed in the GIF picker.

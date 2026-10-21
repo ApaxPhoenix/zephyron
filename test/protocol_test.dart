@@ -263,4 +263,71 @@ void main() {
     expect(courier.threads[carol.address], isNull);
     await wire.close();
   });
+
+  test('timed messages are deleted once their timer runs out', () async {
+    courier.roster[alice.address] = Trustee(address: alice.address);
+    final wire = await Wire.open();
+    final frame = sealed(
+      alice,
+      Signal.message,
+      body: jsonEncode({
+        'kind': 'text',
+        'text': 'burn after reading',
+        'fuse': 1,
+      }),
+    );
+    wire.send(frame);
+    await wire.reply('receipt', frame['id'] as String);
+
+    final message = courier.threads[alice.address]!.single;
+    expect(message.fuse, 1);
+    await courier.expire();
+    expect(courier.threads[alice.address], hasLength(1));
+
+    await Future<void>.delayed(const Duration(milliseconds: 1100));
+    await courier.expire();
+    expect(courier.threads[alice.address], isEmpty);
+    expect(await Ledger.exists(frame['id'] as String), isFalse);
+    await wire.close();
+  });
+
+  test('a trustee can set the chat timer, a stranger cannot', () async {
+    courier.roster[alice.address] = Trustee(address: alice.address, fused: 10);
+    courier.roster[carol.address] = Trustee(
+      address: carol.address,
+      trust: Trust.stranger,
+    );
+    final wire = await Wire.open();
+    wire.send(
+      sealed(
+        alice,
+        Signal.timer,
+        body: jsonEncode({'fuse': 3600, 'fused': 20}),
+      ),
+    );
+    await until(() => courier.roster[alice.address]!.fuse == 3600);
+    expect(courier.timed(alice.address), {'fuse': 3600});
+
+    wire.send(
+      sealed(alice, Signal.timer, body: jsonEncode({'fuse': 60, 'fused': 15})),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    expect(courier.roster[alice.address]!.fuse, 3600);
+    await wire.close();
+
+    final other = await Wire.open();
+    other.send(
+      sealed(carol, Signal.timer, body: jsonEncode({'fuse': 60, 'fused': 99})),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    expect(courier.roster[carol.address]!.fuse, 0);
+    await other.close();
+  });
+
+  test('a timer longer than four weeks is capped', () {
+    expect(Courier.clamp(Fuse.ceiling * 10), Fuse.ceiling);
+    expect(Courier.clamp(-5), 0);
+    expect(Courier.clamp('soon'), 0);
+    expect(Fuse.of(4000), Fuse.hour);
+  });
 }
