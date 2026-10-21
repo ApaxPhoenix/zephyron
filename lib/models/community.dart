@@ -94,8 +94,6 @@ class Community {
       .substring(0, 32);
 
   factory Community.from(Map<String, dynamic> row) {
-    Uint8List? blob(Object? value) =>
-        value is Uint8List && value.isNotEmpty ? value : null;
     final ring = <String, Uint8List>{};
     final raw = row['keys'] as String?;
     if (raw != null && raw.isNotEmpty) {
@@ -110,8 +108,14 @@ class Community {
       rotated: row['rotated'] as int? ?? 0,
       name: row['name'] as String? ?? '',
       about: row['about'] as String? ?? '',
-      icon: blob(row['icon']),
-      banner: blob(row['banner']),
+      icon: switch (row['icon']) {
+        final Uint8List value when value.isNotEmpty => value,
+        _ => null,
+      },
+      banner: switch (row['banner']) {
+        final Uint8List value when value.isNotEmpty => value,
+        _ => null,
+      },
       key: base64.decode(row['key'] as String),
       founder: row['founder'] as String? ?? '',
       created: DateTime.fromMillisecondsSinceEpoch(row['created'] as int? ?? 0),

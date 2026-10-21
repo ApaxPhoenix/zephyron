@@ -582,7 +582,36 @@ class Mesh extends ChangeNotifier {
       return false;
     }
     index(post);
-    if (post.note == Note.about) await revise(post);
+    // A description post applies when it is the newest one.
+    if (post.note == Note.about) {
+      revising:
+      {
+        final group = communities[post.community];
+        if (group == null) break revising;
+        final stamp = post.time.millisecondsSinceEpoch;
+        if (stamp < group.revised) break revising;
+        final name = post.meta['name'];
+        final about = post.meta['about'];
+        final icon = post.meta['icon'];
+        final banner = post.meta['banner'];
+        if (name is String && name.trim().isNotEmpty) {
+          group.name = Profile.clip(name, Community.names);
+        }
+        if (about is String) {
+          group.about = Profile.clip(about, Community.descriptions);
+        }
+        if (icon is String) {
+          final bytes = icon.isEmpty ? null : base64.decode(icon);
+          if ((bytes?.length ?? 0) <= icons) group.icon = bytes;
+        }
+        if (banner is String) {
+          final bytes = banner.isEmpty ? null : base64.decode(banner);
+          if ((bytes?.length ?? 0) <= banners) group.banner = bytes;
+        }
+        group.revised = stamp;
+        await Ledger.gather(group);
+      }
+    }
     if (post.note == Note.vote) {
       final fresh = removed(post.community).keys.toSet().difference(before);
       if (fresh.isNotEmpty) settle(post);
@@ -670,34 +699,6 @@ class Mesh extends ChangeNotifier {
     note: Note.vote,
     meta: {'target': target, if (withdraw) 'withdraw': true},
   );
-
-  /// Applies a description post when it is the newest one.
-  Future<void> revise(Post post) async {
-    final group = communities[post.community];
-    if (group == null) return;
-    final stamp = post.time.millisecondsSinceEpoch;
-    if (stamp < group.revised) return;
-    final name = post.meta['name'];
-    final about = post.meta['about'];
-    final icon = post.meta['icon'];
-    final banner = post.meta['banner'];
-    if (name is String && name.trim().isNotEmpty) {
-      group.name = Profile.clip(name, Community.names);
-    }
-    if (about is String) {
-      group.about = Profile.clip(about, Community.descriptions);
-    }
-    if (icon is String) {
-      final bytes = icon.isEmpty ? null : base64.decode(icon);
-      if ((bytes?.length ?? 0) <= icons) group.icon = bytes;
-    }
-    if (banner is String) {
-      final bytes = banner.isEmpty ? null : base64.decode(banner);
-      if ((bytes?.length ?? 0) <= banners) group.banner = bytes;
-    }
-    group.revised = stamp;
-    await Ledger.gather(group);
-  }
 
   // Actions.
 

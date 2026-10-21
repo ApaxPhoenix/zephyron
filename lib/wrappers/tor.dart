@@ -801,13 +801,9 @@ class Sentinel {
     }
 
     final phase = await order('GETINFO status/bootstrap-phase');
-    gauge(phase);
+    final reached = RegExp(r'PROGRESS=(\d+)').firstMatch(phase);
+    if (reached != null) progress.value = int.parse(reached.group(1)!);
     if (!phase.contains('PROGRESS=100')) await listen();
-  }
-
-  void gauge(String line) {
-    final match = RegExp(r'PROGRESS=(\d+)').firstMatch(line);
-    if (match != null) progress.value = int.parse(match.group(1)!);
   }
 
   /// Forgets cached onion service descriptors and introduction points that
@@ -1013,7 +1009,10 @@ class Sentinel {
   Future<void> listen() async {
     while (await flow!.moveNext()) {
       final line = flow!.current;
-      if (line.contains('BOOTSTRAP')) gauge(line);
+      if (line.contains('BOOTSTRAP')) {
+        final reached = RegExp(r'PROGRESS=(\d+)').firstMatch(line);
+        if (reached != null) progress.value = int.parse(reached.group(1)!);
+      }
       if (line.contains('BOOTSTRAP') && line.contains('PROGRESS=100')) return;
     }
     final issue = StateError(
