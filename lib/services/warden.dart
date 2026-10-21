@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:zephyron/sql/database.dart';
 
 /// What the warden decided after a failed unlock.
 enum Verdict {
@@ -57,7 +58,7 @@ class Strike {
 /// of its characters with the previous one looks like a typo being fixed; a
 /// completely different guess looks like a dictionary.
 class Warden {
-  static FlutterSecureStorage storage = const FlutterSecureStorage();
+  static FlutterSecureStorage storage = Database.keychain;
   static const key = 'warden';
 
   /// Failures across all identities inside [burst] that lock the device.

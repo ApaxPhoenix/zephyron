@@ -5,7 +5,8 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
-import 'package:cryptography/cryptography.dart';
+import 'package:cryptography/cryptography.dart' hide Hmac;
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path/path.dart';
 import 'package:sqflite_sqlcipher/sqflite.dart' as cipher;
 import 'package:zephyron/models/identity.dart';
@@ -13,9 +14,52 @@ import 'package:zephyron/models/identity.dart';
 class Database {
   static cipher.Database? databaseInstance;
 
+  /// Secure storage that never leaves this phone: the Android Keystore, or
+  /// the iOS Keychain with no iCloud sync and no backups.
+  static const FlutterSecureStorage keychain = FlutterSecureStorage(
+    iOptions: IOSOptions(
+      accessibility: KeychainAccessibility.first_unlock_this_device,
+    ),
+  );
+
   static String hash(String text) {
     return sha256.convert(utf8.encode(text)).toString();
   }
+
+  static String slot(String name) => 'anchor:${hash(name)}';
+
+  /// Mixes this phone's anchor into the passphrase. A store copied to another
+  /// machine cannot be brute forced there, because the anchor never leaves
+  /// the hardware-backed keychain.
+  static String bind(String passphrase, List<int> anchor) =>
+      Hmac(sha256, anchor).convert(utf8.encode(passphrase)).toString();
+
+  static Future<({Uint8List value, bool bound})?> anchor(String name) async {
+    final raw = await keychain.read(key: slot(name));
+    if (raw == null || raw.isEmpty) return null;
+    final data = Map<String, dynamic>.from(json.decode(raw) as Map);
+    return (
+      value: base64.decode(data['value'] as String),
+      bound: data['bound'] as bool? ?? false,
+    );
+  }
+
+  static Future<Uint8List> forge(String name, {required bool bound}) async {
+    final random = Random.secure();
+    final value = Uint8List.fromList(
+      List<int>.generate(32, (_) => random.nextInt(256)),
+    );
+    await keychain.write(
+      key: slot(name),
+      value: json.encode({'value': base64.encode(value), 'bound': bound}),
+    );
+    return value;
+  }
+
+  static Future<void> settle(String name, Uint8List value) => keychain.write(
+    key: slot(name),
+    value: json.encode({'value': base64.encode(value), 'bound': true}),
+  );
 
   static Future<Uint8List> salt(String path) async {
     try {
@@ -108,6 +152,8 @@ class Database {
       final digest = hash(name);
       final route = join(folder, '$digest.db');
       await discard(route);
+      // Without its anchor the store is unreadable even if a copy survives.
+      await keychain.delete(key: slot(name));
       developer.log(
         'Deleted local encrypted database for profile: $name',
         name: 'Database.wipe',
@@ -158,47 +204,63 @@ class Database {
         ''');
       }
 
-      try {
+      Future<cipher.Database> unseal(String secret) async {
         final bytes = await salt(route);
-        final derivedKey = await key(passphrase, bytes);
-
-        databaseInstance = await cipher.openDatabase(
+        return cipher.openDatabase(
           route,
-          password: derivedKey,
+          password: await key(secret, bytes),
           version: 1,
           onCreate: onCreate,
         );
-      } catch (error) {
-        if (established) {
+      }
+
+      final held = await anchor(name);
+
+      if (!established) {
+        try {
+          final fresh = await forge(name, bound: true);
+          databaseInstance = await unseal(bind(passphrase, fresh));
+        } catch (error) {
           developer.log(
-            'Refusing to discard an already-established identity store after a single failed open attempt for profile: $name',
+            'Initial provisioning attempt failed for brand-new identity store, discarding partial artifacts and retrying once for profile: $name',
             name: 'Database.open',
             level: 900,
             error: error,
             stackTrace: StackTrace.current,
           );
-          rethrow;
+          await discard(route);
+          final fresh = await forge(name, bound: true);
+          databaseInstance = await unseal(bind(passphrase, fresh));
         }
-
-        developer.log(
-          'Initial provisioning attempt failed for brand-new identity store, discarding partial artifacts and retrying once for profile: $name',
-          name: 'Database.open',
-          level: 900,
-          error: error,
-          stackTrace: StackTrace.current,
-        );
-
-        await discard(route);
-
-        final bytes = await salt(route);
-        final derivedKey = await key(passphrase, bytes);
-
-        databaseInstance = await cipher.openDatabase(
-          route,
-          password: derivedKey,
-          version: 1,
-          onCreate: onCreate,
-        );
+      } else if (held != null && held.bound) {
+        databaseInstance = await unseal(bind(passphrase, held.value));
+      } else {
+        // A store from before device binding, or one whose migration was
+        // interrupted. A pending anchor may already be in use, so it is
+        // tried first; otherwise the legacy key opens it and the store is
+        // rekeyed to one that needs this phone's anchor.
+        if (held != null) {
+          try {
+            databaseInstance = await unseal(bind(passphrase, held.value));
+            await settle(name, held.value);
+          } catch (_) {
+            databaseInstance = null;
+          }
+        }
+        if (databaseInstance == null) {
+          final legacy = await unseal(passphrase);
+          final value = held?.value ?? (await forge(name, bound: false));
+          final bytes = await salt(route);
+          final bound = await key(bind(passphrase, value), bytes);
+          await legacy.execute('PRAGMA rekey = "$bound"');
+          await settle(name, value);
+          databaseInstance = legacy;
+          developer.log(
+            'Rekeyed legacy identity store to a device-bound key for profile: $name',
+            name: 'Database.open',
+            level: 800,
+          );
+        }
       }
 
       developer.log(

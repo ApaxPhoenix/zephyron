@@ -421,7 +421,7 @@ class VaultPageState extends State<VaultPage> {
                     leading: Icon(Icons.storage_outlined),
                     title: Text('Local Storage'),
                     subtitle: Text(
-                      'SQLCipher with an Argon2id key; attachments sealed with AES-256-GCM',
+                      "SQLCipher with an Argon2id key bound to this phone's secure hardware; attachments sealed with AES-256-GCM",
                     ),
                   ),
                   ListTile(
