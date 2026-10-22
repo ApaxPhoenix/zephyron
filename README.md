@@ -38,12 +38,19 @@ where they are. Everyone deserves the right to privacy.
 2. **Your phone is the server.** Zephyron runs Tor inside the app and publishes
    your address as an onion service. Friends connect straight to it, and Tor
    hides both of your IP addresses from each other and from everyone in between.
-3. **Every message is signed.** Messages are sent with the `zephyron/1` wire
-   protocol. Each frame is signed with your key, so peers can tell it really
-   came from you, and it travels inside Tor's onion-service encryption.
-4. **Everything at rest is encrypted.** Your identity, contacts and messages
+3. **Every message is signed and end-to-end encrypted.** Messages are sent
+   with the `zephyron/1` wire protocol. Each frame is signed with your key, so
+   peers can tell it really came from you. Messages and files are encrypted
+   with the Double Ratchet, and sessions open with X3DH plus ML-KEM-768, so
+   recorded traffic stays safe even from a future quantum computer. All of it
+   travels inside Tor's onion-service encryption too.
+4. **Size and timing give little away.** Encrypted traffic is padded to fixed
+   size classes and sent after a short random delay.
+5. **Everything at rest is encrypted.** Your identity, contacts and messages
    are stored in a SQLCipher database whose key is derived from your passphrase
-   with Argon2id. Photos and files are stored encrypted on the device too.
+   with Argon2id, mixed with a secret kept in your phone's secure hardware. A
+   copy of the database taken off the phone can't be brute forced elsewhere.
+   Photos and files are stored encrypted on the device too.
 
 ## Features
 
@@ -54,23 +61,54 @@ where they are. Everyone deserves the right to privacy.
 - Wrong passphrases are rate limited: 5 within 15 minutes locks the identity
   for a while, and the lockout doubles each time up to an hour. After 10 wrong
   passphrases in a row the identity is erased from the device.
-- Release builds can check for root, hooking frameworks, emulators and
-  tampering with [freeRASP](https://github.com/talsec/Free-RASP-Flutter).
+- Failed unlocks are also watched across every identity together. 6 failures
+  within 15 minutes lock all of them, and patterns that look like an attack
+  (rotating identities, trying one passphrase on many, scripted speed, a
+  wound-back clock) erase every identity on the phone.
+- A duress passphrase opens a harmless decoy identity and quietly erases the
+  rest.
+- A panic wipe erases everything after a five-second countdown. Start it from
+  Settings, by long-pressing the unlock screen's title, or from the app icon's
+  shortcut.
+- Screenshots and screen recording are blocked, and chats are hidden in the
+  app switcher.
+- Release builds check for root, hooking frameworks, emulators and tampering
+  with [freeRASP](https://github.com/talsec/Free-RASP-Flutter). Serious
+  tampering erases every identity, and lighter warnings lock the vault.
 
 **Chats**
 - Text, photos, files up to 25 MB, GIFs and shared contact cards.
+- Voice messages up to 10 minutes, and video messages with a thumbnail.
+- Disappearing messages: 5 minutes, 1 hour, 1 day or 1 week per chat.
+- Voice calls with a trustee, and group calls.
+- Private groups: small invite-only chats that sit next to your direct chats.
+- Messages still arrive when someone is offline. A trustee, or a mailbox phone
+  you choose, holds them sealed until the recipient is back.
 - Delivery states: sending, sent, delivered and read.
 - Typing indicators, read receipts and in-app banners, each of which can be
   turned off.
 - Pin, archive and search conversations.
 - GIF search goes through Tor too, so GIPHY never sees your IP address.
 
+**Communities**
+- Peer-to-peer communities with no server and no owner, with text, podcast
+  and live voice channels.
+- Podcast episodes up to an hour or 50 MB, shared between members.
+- Voice rooms for up to six people.
+- Members can vote someone out. Once more than half agree, the community key
+  changes so the removed person can't read anything new.
+- Proof of work on joining and per-member rate limits keep bots out.
+
 **People**
 - Requests from strangers stay separate until you accept them.
 - Trustees see your profile; blocked addresses are silently dropped.
 - Safety codes let you confirm, in person or over another channel, that you
   are talking to the right key.
-- Set your availability: available, away, do not disturb or invisible.
+- Profile photos with a cropper, and a banner image or GIF.
+- An opt-in Discover directory where people and communities can choose to be
+  listed, shared between phones with no server.
+- Set your availability: available, away, do not disturb or invisible. Do not
+  disturb also turns calls away.
 
 **Network**
 - See who is connected to your node and the Tor circuits and relays carrying
@@ -81,10 +119,11 @@ where they are. Everyone deserves the right to privacy.
 
 ## Roadmap
 
-- Group chats and disappearing messages
 - Mesh messaging over USB and serial radios, for when there's no internet
 - Tor on iOS, macOS, Windows and Linux (the apps build there today, but Tor
   currently only runs on Android)
+- Post-quantum sessions on iOS (they fall back to classical encryption there
+  until liboqs is built for it)
 - An independent security audit
 
 ## Platforms
@@ -144,6 +183,9 @@ flutter build apk --release --dart-define-from-file=.env
 If `APP_CERT_HASH` is set, freeRASP closes the app when the signing certificate
 doesn't match it, so make sure it is the hash of the key in `key.properties`.
 Without `APP_CERT_HASH`, runtime threat detection is turned off for that build.
+
+`scripts/oqs.sh` rebuilds the bundled liboqs libraries from source if you want
+to check or update them.
 
 ### Tests
 
