@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
+import 'dart:isolate';
 import 'dart:math';
+import 'package:crypto/crypto.dart' as hashing;
 import 'package:cryptography/cryptography.dart';
 import 'package:ed25519_edwards/ed25519_edwards.dart' as ed25519;
 import 'package:flutter/foundation.dart';
@@ -44,6 +46,65 @@ class Mesh extends ChangeNotifier {
 
   /// Sync with a couple of members every this many courier heartbeats.
   static const int cadence = 6;
+
+  /// Leading zero bits a join's proof of work needs: a few seconds of work
+  /// on a phone, which makes joining by the thousand expensive.
+  static int difficulty = 20;
+
+  /// How long someone must have been a member before their vote counts, so
+  /// a flood of new accounts cannot swing a removal.
+  static Duration seasoning = const Duration(hours: 1);
+
+  /// Most posts one member may make within a minute; the rest are dropped.
+  static const int burst = 30;
+
+  static List<int> puzzle(String community, String author, String nonce) =>
+      utf8.encode('zephyron/join\n$community\n$author\n$nonce');
+
+  static int zeros(List<int> digest) {
+    var count = 0;
+    for (final byte in digest) {
+      if (byte == 0) {
+        count += 8;
+        continue;
+      }
+      var mask = 0x80;
+      while (mask > 0 && byte & mask == 0) {
+        count += 1;
+        mask >>= 1;
+      }
+      break;
+    }
+    return count;
+  }
+
+  /// Finds a nonce whose hash, with the community and the joiner, starts
+  /// with [bits] zero bits.
+  static String labor(String community, String author, int bits) {
+    for (var nonce = 0; ; nonce++) {
+      final text = nonce.toRadixString(36);
+      if (zeros(
+            hashing.sha256.convert(puzzle(community, author, text)).bytes,
+          ) >=
+          bits) {
+        return text;
+      }
+    }
+  }
+
+  /// Whether a join carries enough proof of work.
+  static bool proven(
+    String community,
+    String author,
+    Object? work,
+    Object? bits,
+  ) {
+    if (work is! String || bits is! int || bits < difficulty) return false;
+    return zeros(
+          hashing.sha256.convert(puzzle(community, author, work)).bytes,
+        ) >=
+        bits;
+  }
 
   final Map<String, Community> communities = {};
   final Map<String, List<Post>> posts = {};
@@ -152,7 +213,15 @@ class Mesh extends ChangeNotifier {
       while (changed) {
         changed = false;
         for (final target in votes.keys.toList()) {
-          final electorate = found.keys.where((item) => item != target).toSet();
+          // Only people who have been here a while decide; the founder
+          // counts from the start so a young community can still act.
+          final electorate = {
+            for (final entry in found.entries)
+              if (entry.key != target &&
+                  (entry.key == group.founder ||
+                      !entry.value.since.isAfter(when.subtract(seasoning))))
+                entry.key,
+          };
           final yes = votes[target]!.intersection(electorate).length;
           if (electorate.isNotEmpty && yes * 2 > electorate.length) {
             removed[target] = when;
@@ -171,6 +240,15 @@ class Mesh extends ChangeNotifier {
       switch (post.note) {
         case Note.join:
           if (removed.containsKey(post.author)) continue;
+          if (post.author != group.founder &&
+              !proven(
+                community,
+                post.author,
+                post.meta['work'],
+                post.meta['bits'],
+              )) {
+            continue;
+          }
           final avatar = post.meta['avatar'];
           final picture = avatar is String && avatar.isNotEmpty
               ? base64.decode(avatar)
@@ -345,6 +423,15 @@ class Mesh extends ChangeNotifier {
     Map<String, dynamic> meta = const {},
   }) async {
     final self = courier.self!;
+    if (note == Note.join &&
+        meta['work'] == null &&
+        community.founder != self.address) {
+      meta = {
+        ...meta,
+        'work': labor(community.id, self.address, difficulty),
+        'bits': difficulty,
+      };
+    }
     final mine = (posts[community.id] ?? const <Post>[])
         .where((post) => post.author == self.address)
         .fold<int>(0, (top, post) => max(top, post.seq));
@@ -456,6 +543,18 @@ class Mesh extends ChangeNotifier {
   /// Stores a verified post and applies what it changes.
   Future<bool> accept(Post post) async {
     if (known.contains(post.id)) return false;
+    final crowded = (posts[post.community] ?? const <Post>[])
+        .where(
+          (other) =>
+              other.author == post.author &&
+              other.time.difference(post.time).abs() <
+                  const Duration(minutes: 1),
+        )
+        .length;
+    if (crowded >= burst) {
+      known.add(post.id);
+      return false;
+    }
     final before = removed(post.community).keys.toSet();
     if (!await Ledger.publish(post)) {
       known.add(post.id);
@@ -804,12 +903,15 @@ class Mesh extends ChangeNotifier {
     communities[id] = community;
     await Ledger.gather(community);
     final by = invitation['by'] as String?;
+    final self = courier.self!.address;
+    final bits = difficulty;
+    final work = await Isolate.run(() => labor(id, self, bits));
     await post(
       community,
       channel: community.general,
       note: Note.join,
       text: courier.me.name,
-      meta: introduction(by),
+      meta: {...introduction(by), 'work': work, 'bits': bits},
     );
     if (by != null) unawaited(sync(community, by));
     notifyListeners();
