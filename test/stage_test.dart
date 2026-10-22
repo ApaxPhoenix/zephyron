@@ -161,4 +161,56 @@ void main() {
     expect(stage.joined, isFalse);
     stage.rooms.clear();
   });
+
+  test('the first person in a group call rings everyone else', () async {
+    final group = await mesh.create(name: 'Family', group: true);
+    await admit(alice, group);
+    await admit(carol, group);
+    final wire = await Wire.open();
+    final channel = courier.live.last;
+
+    Map<String, dynamic> enter(String state) => {
+      'op': 'room',
+      'c': group.id,
+      'r': group.general,
+      'state': state,
+    };
+
+    await stage.receive(alice.address, channel, group, enter('join'));
+    expect(stage.ringing?.community, group.id);
+    expect(stage.ringing?.from, alice.address);
+
+    stage.silence();
+    await stage.receive(carol.address, channel, group, enter('join'));
+    expect(stage.ringing, isNull, reason: 'the call had already started');
+
+    await stage.receive(carol.address, channel, group, enter('leave'));
+    await stage.receive(alice.address, channel, group, enter('leave'));
+    await stage.receive(alice.address, channel, group, enter('join'));
+    expect(stage.ringing, isNotNull);
+    await stage.receive(alice.address, channel, group, enter('leave'));
+    expect(stage.ringing, isNull, reason: 'nobody is left on the call');
+
+    group.muted = true;
+    await stage.receive(alice.address, channel, group, enter('join'));
+    expect(stage.ringing, isNull, reason: 'a muted group does not ring');
+    stage.rooms.clear();
+    await wire.close();
+  });
+
+  test('voice channels in communities never ring', () async {
+    final (community, room) = await lounge();
+    await admit(alice, community);
+    final wire = await Wire.open();
+    await stage.receive(alice.address, courier.live.last, community, {
+      'op': 'room',
+      'c': community.id,
+      'r': room.id,
+      'state': 'join',
+    });
+    expect(stage.ringing, isNull);
+    expect(stage.seated(room.id).keys, contains(alice.address));
+    stage.rooms.clear();
+    await wire.close();
+  });
 }

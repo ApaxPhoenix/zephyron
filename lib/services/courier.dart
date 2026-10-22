@@ -18,6 +18,7 @@ import 'package:zephyron/services/catalog.dart';
 import 'package:zephyron/services/mesh.dart';
 import 'package:zephyron/services/ratchet.dart';
 import 'package:zephyron/services/shield.dart';
+import 'package:zephyron/services/stage.dart';
 import 'package:zephyron/services/still.dart';
 import 'package:zephyron/sql/ledger.dart';
 import 'package:zephyron/sql/session.dart';
@@ -895,6 +896,8 @@ class Courier extends ChangeNotifier {
           await Mesh.instance.receive(from, channel, body);
         case Signal.listing:
           await Catalog.instance.receive(from, channel, body);
+        case Signal.call:
+          await Stage.instance.call(from, channel, body);
         case Signal.parcel:
           final data = jsonDecode(body) as Map;
           final to = data['to'];

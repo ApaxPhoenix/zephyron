@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Zephyron records voice messages and lets you talk in voice rooms. Audio is encrypted before it leaves your phone.</string>
+	<string>Zephyron records voice messages and lets you talk on calls and in voice rooms. Audio is encrypted before it leaves your phone.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Zephyron uses the camera for photos and videos you choose to send, end-to-end encrypted.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

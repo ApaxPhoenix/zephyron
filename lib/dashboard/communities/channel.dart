@@ -8,6 +8,7 @@ import 'package:zephyron/enums.dart';
 import 'package:zephyron/models/community.dart';
 import 'package:zephyron/services/courier.dart';
 import 'package:zephyron/services/mesh.dart';
+import 'package:zephyron/services/stage.dart';
 import 'package:zephyron/widgets/avatar.dart';
 import 'package:zephyron/widgets/stamp.dart';
 
@@ -54,7 +55,7 @@ class ChannelPageState extends State<ChannelPage> {
     final scheme = theme.colorScheme;
 
     return ListenableBuilder(
-      listenable: Listenable.merge([mesh, Courier.instance]),
+      listenable: Listenable.merge([mesh, Courier.instance, Stage.instance]),
       builder: (context, _) {
         final community = mesh.communities[widget.community];
         final rooms = community == null
@@ -242,9 +243,62 @@ class ChannelPageState extends State<ChannelPage> {
                 ),
               ),
             ),
+            actions: [
+              if (community.group)
+                Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: IconButton(
+                    tooltip: 'Group Call',
+                    icon: Icon(
+                      Icons.call_outlined,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                    onPressed: () => VoicePage.show(context, community),
+                  ),
+                ),
+            ],
           ),
           body: Column(
             children: [
+              if (community.group)
+                ...() {
+                  final stage = Stage.instance;
+                  final self = Courier.instance.self?.address;
+                  final count = stage
+                      .seated(community.general)
+                      .keys
+                      .where((address) => address != self)
+                      .length;
+                  if (count == 0 || stage.room == community.general) {
+                    return const <Widget>[];
+                  }
+                  return [
+                    Container(
+                      margin: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+                      padding: const EdgeInsets.fromLTRB(16, 6, 8, 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2E9E57).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.call, color: Color(0xFF2E9E57)),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Call in progress · $count ${count == 1 ? 'person' : 'people'}',
+                              style: theme.textTheme.bodyMedium,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () => VoicePage.show(context, community),
+                            child: const Text('Join'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ];
+                }(),
               Expanded(
                 child: posts.isEmpty
                     ? Center(

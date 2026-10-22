@@ -3,6 +3,7 @@ import 'package:zephyron/splash.dart';
 import 'package:zephyron/auth/index.dart';
 import 'package:zephyron/auth/panic.dart';
 import 'package:zephyron/dashboard/index.dart';
+import 'package:zephyron/dashboard/chats/call.dart';
 import 'package:zephyron/dashboard/chats/group.dart';
 import 'package:zephyron/dashboard/chats/message.dart';
 import 'package:zephyron/dashboard/communities/channel.dart';
@@ -38,6 +39,11 @@ final Map<String, WidgetBuilder> routes = {
     );
   },
   '/dashboard/chats/group': (context) => const GroupPage(),
+  '/dashboard/chats/call': (context) {
+    final arguments =
+        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    return CallPage(peer: arguments?['peer'] as String?);
+  },
   '/dashboard/communities/create': (context) {
     final arguments =
         ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;

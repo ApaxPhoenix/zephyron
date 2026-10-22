@@ -97,6 +97,12 @@ class Message {
       Kind.invite => 'Invitation · ${meta['name'] ?? 'community'}',
       Kind.voice => 'Voice message · ${length(duration)}',
       Kind.video => caption.isEmpty ? 'Video · ${length(duration)}' : caption,
+      Kind.call =>
+        meta['missed'] == true
+            ? mine
+                  ? 'No answer'
+                  : 'Missed call'
+            : 'Voice call · ${length(duration)}',
     };
   }
 }

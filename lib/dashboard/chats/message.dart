@@ -207,6 +207,19 @@ class MessagePageState extends State<MessagePage> {
                     }
                   },
                 ),
+              if (trustee != null && trustee.trusted)
+                IconButton(
+                  tooltip: 'Voice Call',
+                  icon: Icon(
+                    Icons.call_outlined,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                  onPressed: () => Navigator.pushNamed(
+                    context,
+                    '/dashboard/chats/call',
+                    arguments: {'peer': peer},
+                  ),
+                ),
               if (trustee != null)
                 IconButton(
                   tooltip: 'Profile',
@@ -723,6 +736,62 @@ class MessagePageState extends State<MessagePage> {
                                     const SizedBox(height: 4),
                                     footer,
                                   ],
+                                ),
+                              ),
+                            );
+                          } else if (message.kind == Kind.call) {
+                            final missed = message.meta['missed'] == true;
+                            body = GestureDetector(
+                              onTap: trustee?.trusted == true
+                                  ? () => Navigator.pushNamed(
+                                      context,
+                                      '/dashboard/chats/call',
+                                      arguments: {'peer': message.peer},
+                                    )
+                                  : null,
+                              child: DecoratedBox(
+                                decoration: decoration,
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    12,
+                                    10,
+                                    12,
+                                    10,
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        mine
+                                            ? Icons.call_made
+                                            : missed
+                                            ? Icons.call_missed
+                                            : Icons.call_received,
+                                        size: 20,
+                                        color: !mine && missed
+                                            ? scheme.error
+                                            : foreground,
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Flexible(
+                                        child: Text(
+                                          message.preview,
+                                          style: TextStyle(
+                                            color: foreground,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Text(
+                                        clock(message.time),
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: faded,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             );

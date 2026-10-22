@@ -25,6 +25,9 @@ import 'package:zephyron/dashboard/communities/discover.dart';
 import 'package:zephyron/services/catalog.dart';
 import 'package:zephyron/services/ratchet.dart';
 import 'package:zephyron/sql/ledger.dart';
+import 'package:zephyron/dashboard/chats/call.dart';
+import 'package:zephyron/dashboard/communities/channel.dart';
+import 'package:zephyron/services/stage.dart';
 import 'support.dart';
 
 void main() {
@@ -452,5 +455,54 @@ void main() {
     );
     expect(find.text('Off. Only people you invite can join'), findsOneWidget);
     await tester.runAsync(() => Mesh.instance.leave(community.id));
+  });
+
+  testWidgets('an incoming call offers to accept or decline', (tester) async {
+    Stage.instance.ringing = Ring(
+      from: alice.address,
+      id: 'call',
+      secret: Uint8List(32),
+    );
+    await show(tester, const CallPage());
+    expect(find.text('Alice Moreau'), findsOneWidget);
+    expect(find.text('Incoming voice call'), findsOneWidget);
+    expect(find.byTooltip('Accept'), findsOneWidget);
+    expect(find.byTooltip('Decline'), findsOneWidget);
+    Stage.instance.reset();
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('calls show in the chat, and trustees can be called', (
+    tester,
+  ) async {
+    courier.threads[alice.address]!.add(
+      Message(
+        id: 'call1',
+        peer: alice.address,
+        mine: false,
+        kind: Kind.call,
+        text: '',
+        time: DateTime.now(),
+        status: Status.read,
+        meta: {'duration': 65000},
+      ),
+    );
+    await show(tester, MessagePage(id: alice.address));
+    expect(find.text('Voice call · 1:05'), findsOneWidget);
+    expect(find.byTooltip('Voice Call'), findsOneWidget);
+  });
+
+  testWidgets('a group chat can start a call', (tester) async {
+    late Community group;
+    await tester.runAsync(() async {
+      await Mesh.instance.start();
+      group = await Mesh.instance.create(name: 'Family', group: true);
+    });
+    await show(
+      tester,
+      ChannelPage(community: group.id, channel: group.general),
+    );
+    expect(find.byTooltip('Group Call'), findsOneWidget);
+    await tester.runAsync(() => Mesh.instance.leave(group.id));
   });
 }

@@ -102,7 +102,7 @@ enum Availability {
   away('Away', 'Around, but replies may be slow'),
 
   /// Do not disturb: in-app banners are muted on this device.
-  busy('Do not disturb', 'Mutes in-app banners on this phone'),
+  busy('Do not disturb', 'Mutes in-app banners and turns calls away'),
 
   /// Appear offline: no pongs, typing hints or read receipts are sent.
   invisible('Invisible', 'Appear offline to everyone');
@@ -137,6 +137,10 @@ enum Kind {
 
   /// A video clip, stored encrypted on this device.
   video,
+
+  /// A note that a voice call happened or was missed. It never leaves this
+  /// phone.
+  call,
 }
 
 /// What a community post is. Persisted by index, so only append.
@@ -227,6 +231,9 @@ enum Signal {
 
   /// Directory listings, compared and passed along between trustees.
   listing,
+
+  /// Rings, answers and carries the voice of a direct call.
+  call,
 }
 
 /// What a directory listing offers. Sent by name.
