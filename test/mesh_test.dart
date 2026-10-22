@@ -193,4 +193,27 @@ void main() {
     expect(card.meta['community'], community.id);
     await wire.close();
   });
+
+  test('posts of different lengths look the same size', () async {
+    final community = await founded();
+    final short = await as(alice, community, text: 'hi');
+    final longer = await as(
+      alice,
+      community,
+      text: 'see everyone at the handoff tonight',
+    );
+    expect((short['x'] as String).length, (longer['x'] as String).length);
+    expect(
+      (await mesh.verify(longer))?.text,
+      'see everyone at the handoff tonight',
+    );
+  });
+
+  test('sends wait a short random moment by default', () {
+    final pauses = {for (var round = 0; round < 50; round++) Courier.natural()};
+    expect(pauses.length, greaterThan(1));
+    for (final pause in pauses) {
+      expect(pause.inMilliseconds, inInclusiveRange(150, 1200));
+    }
+  });
 }

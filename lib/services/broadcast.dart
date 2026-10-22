@@ -217,7 +217,12 @@ class Broadcast extends ChangeNotifier {
           if (start >= bytes.length) throw RangeError('past the end');
           final slice = bytes.sublist(start, min(start + piece, bytes.length));
           reply['d'] = base64.encode(
-            await Ratchet.chunk(await key(community, id), seq, slice),
+            await Ratchet.chunk(
+              await key(community, id),
+              seq,
+              slice,
+              width: piece,
+            ),
           );
         } catch (_) {
           reply['missing'] = true;

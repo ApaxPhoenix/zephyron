@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zephyron/models/identity.dart';
@@ -117,5 +118,48 @@ void main() {
     final rotated = await Ratchet.prekeys(lead);
     expect(rotated, hasLength(2));
     expect(rotated.last['id'], (stale['id'] as int) + 1);
+  });
+
+  test('sizes are hidden inside a size class', () async {
+    final short = await send(lead, follower, 'ok');
+    final long = await send(
+      lead,
+      follower,
+      'see you at the usual place at nine',
+    );
+    expect(
+      base64.decode(short['c'] as String).length,
+      base64.decode(long['c'] as String).length,
+    );
+    expect(await read(follower, lead, short), 'ok');
+    expect(
+      await read(follower, lead, long),
+      'see you at the usual place at nine',
+    );
+
+    final huge = await send(lead, follower, 'x' * 600);
+    expect(
+      base64.decode(huge['c'] as String).length,
+      greaterThan(base64.decode(short['c'] as String).length),
+    );
+  });
+
+  test('padding round trips and refuses nonsense', () {
+    expect(Ratchet.bucket(1), 256);
+    expect(Ratchet.bucket(257), 512);
+    expect(Ratchet.bucket(5000), 8192);
+    final padded = Ratchet.pad(utf8.encode('hello'));
+    expect(padded, hasLength(256));
+    expect(utf8.decode(Ratchet.unpad(padded)), 'hello');
+    final broken = Uint8List.fromList(padded)..[0] = 0xFF;
+    expect(() => Ratchet.unpad(broken), throwsA(isA<Unreadable>()));
+  });
+
+  test('every chunk of a file is the same size on the wire', () async {
+    final key = Ratchet.random(32);
+    final full = await Ratchet.chunk(key, 0, List.filled(1000, 1), width: 1000);
+    final tail = await Ratchet.chunk(key, 1, List.filled(17, 2), width: 1000);
+    expect(tail.length, full.length);
+    expect(await Ratchet.unchunk(key, 1, tail), List.filled(17, 2));
   });
 }

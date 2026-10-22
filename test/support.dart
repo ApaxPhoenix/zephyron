@@ -28,6 +28,7 @@ class Paths extends PathProviderPlatform with MockPlatformInterfaceMixin {
 }
 
 Future<void> unlock() async {
+  Courier.jitter = () => Duration.zero;
   sqfliteFfiInit();
   PathProviderPlatform.instance = Paths();
   await store.Database.databaseInstance?.close();

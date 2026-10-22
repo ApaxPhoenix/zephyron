@@ -265,8 +265,10 @@ class Mesh extends ChangeNotifier {
     };
     final keys = await material(community.key, frame['i'] as String);
     final box = await AesGcm.with256bits().encrypt(
-      utf8.encode(
-        jsonEncode({'ch': channel, 'n': note.name, 'tx': text, 'm': meta}),
+      Ratchet.pad(
+        utf8.encode(
+          jsonEncode({'ch': channel, 'n': note.name, 'tx': text, 'm': meta}),
+        ),
       ),
       secretKey: SecretKey(keys.sublist(0, 32)),
       nonce: keys.sublist(32),
@@ -316,7 +318,9 @@ class Mesh extends ChangeNotifier {
         secretKey: SecretKey(keys.sublist(0, 32)),
         aad: associated(frame),
       );
-      final body = jsonDecode(utf8.decode(clear)) as Map<String, dynamic>;
+      final body =
+          jsonDecode(utf8.decode(Ratchet.unpad(Uint8List.fromList(clear))))
+              as Map<String, dynamic>;
       final note = Note.values.where((item) => item.name == body['n']);
       if (note.isEmpty) return null;
       final text = Profile.clip(body['tx'], limit);
@@ -667,6 +671,7 @@ class Mesh extends ChangeNotifier {
     };
     for (final peer in targets) {
       try {
+        await Courier.hesitate();
         final channel = await courier.dial(peer);
         send(channel, peer, {
           'op': 'posts',

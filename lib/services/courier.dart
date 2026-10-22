@@ -133,6 +133,19 @@ class Courier extends ChangeNotifier {
   static const String protocol = 'zephyron/1';
   static const Duration horizon = Duration(seconds: 90);
 
+  /// A random pause before messages, files and receipts go out, so their
+  /// timing says less about when someone typed or read. Tests set it to
+  /// nothing.
+  static Duration Function() jitter = natural;
+
+  static Duration natural() =>
+      Duration(milliseconds: 150 + Random.secure().nextInt(1050));
+
+  static Future<void> hesitate() async {
+    final pause = jitter();
+    if (pause > Duration.zero) await Future<void>.delayed(pause);
+  }
+
   final ValueNotifier<Reach> reach = ValueNotifier<Reach>(Reach.offline);
   final ValueNotifier<ThemeMode> theme = ValueNotifier<ThemeMode>(
     ThemeMode.system,
@@ -677,7 +690,7 @@ class Courier extends ChangeNotifier {
         );
         if (!await Ledger.record(message)) return;
         deliver(message);
-        channel.send(seal(Signal.receipt, transfer.peer, id: transfer.id));
+        acknowledge(channel, transfer.peer, transfer.id);
         notifyListeners();
         return;
       }
@@ -746,7 +759,7 @@ class Courier extends ChangeNotifier {
           await Ledger.keep(known);
         case Signal.message:
           if (await Ledger.exists(id)) {
-            channel.send(seal(Signal.receipt, from, id: id));
+            acknowledge(channel, from, id);
             break;
           }
           final inner = await reveal(from, channel, body);
@@ -801,10 +814,10 @@ class Courier extends ChangeNotifier {
             if (!await Ledger.record(message) || epoch != generation) break;
             deliver(message);
           }
-          channel.send(seal(Signal.receipt, from, id: id));
+          acknowledge(channel, from, id);
         case Signal.file:
           if (await Ledger.exists(id)) {
-            channel.send(seal(Signal.receipt, from, id: id));
+            acknowledge(channel, from, id);
             break;
           }
           final inner = await reveal(from, channel, body);
@@ -1005,6 +1018,16 @@ class Courier extends ChangeNotifier {
     return seconds > 0 ? {'fuse': seconds} : {};
   }
 
+  /// Acknowledges [id] after a short random pause.
+  void acknowledge(Channel channel, String peer, String id) {
+    unawaited(
+      hesitate().then((_) {
+        if (self == null) return;
+        channel.send(seal(Signal.receipt, peer, id: id));
+      }),
+    );
+  }
+
   Future<bool> admit(String from) async {
     final known = roster[from];
     if (known != null) return !known.blocked;
@@ -1150,6 +1173,8 @@ class Courier extends ChangeNotifier {
     try {
       for (final message in undelivered(peer)) {
         if (epoch != generation) return;
+        await hesitate();
+        if (epoch != generation) return;
         final channel = await dial(peer);
         final ack = Completer<void>();
         waiting[message.id] = ack;
@@ -1196,7 +1221,12 @@ class Courier extends ChangeNotifier {
               'id': message.id,
               'seq': seq,
               'data': base64.encode(
-                await Ratchet.chunk(key, seq, clear.sublist(offset, end)),
+                await Ratchet.chunk(
+                  key,
+                  seq,
+                  clear.sublist(offset, end),
+                  width: slice,
+                ),
               ),
             });
             if (!written) {
@@ -1328,6 +1358,8 @@ class Courier extends ChangeNotifier {
     }
     if (!prefs.receipts || invisible || roster[peer]?.trusted != true) return;
     try {
+      await hesitate();
+      if (self == null) return;
       final channel = await dial(peer);
       channel.send(
         seal(Signal.read, peer, body: fresh.map((item) => item.id).join(',')),
