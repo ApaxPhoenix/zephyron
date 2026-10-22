@@ -183,6 +183,15 @@ class Courier extends ChangeNotifier {
 
   /// When each peer was last asked to repair a broken session.
   final Map<String, DateTime> mended = {};
+
+  /// Messages handed to trustees to pass on, by id.
+  final Set<String> entrusted = {};
+
+  /// When parcels were last offered to each recipient.
+  final Map<String, DateTime> forwarded = {};
+
+  /// How long a trustee holds a parcel before giving up.
+  static const Duration keep = Duration(days: 7);
   final Map<String, Transfer> transfers = {};
   final Map<String, double> progress = {};
   final Map<String, DateTime> hinted = {};
@@ -354,6 +363,7 @@ class Courier extends ChangeNotifier {
   void heartbeat() {
     if (reach.value != Reach.online || self == null) return;
     Mesh.instance.heartbeat();
+    unawaited(dispatch());
     final now = DateTime.now();
     for (final trustee in roster.values.toList()) {
       if (trustee.blocked) continue;
@@ -511,7 +521,12 @@ class Courier extends ChangeNotifier {
 
   /// Decrypts a frame body from [peer], or asks for the session to be
   /// repaired and returns null when it cannot be read.
-  Future<String?> reveal(String peer, Channel channel, String body) async {
+  Future<String?> reveal(
+    String peer,
+    Channel channel,
+    String body, {
+    bool repair = true,
+  }) async {
     try {
       final envelope = jsonDecode(body);
       if (envelope is! Map<String, dynamic>) return null;
@@ -524,7 +539,9 @@ class Courier extends ChangeNotifier {
         level: 900,
         error: error,
       );
-      await mend(peer, channel);
+      // A relayed frame came through someone else, so asking them would not
+      // reach the sender.
+      if (repair) await mend(peer, channel);
       return null;
     }
   }
@@ -717,6 +734,12 @@ class Courier extends ChangeNotifier {
       final state = track(from);
       final wasOnline = state.online;
       state.seen = now;
+      final offered = forwarded[from];
+      if (offered == null ||
+          now.difference(offered) > const Duration(seconds: 30)) {
+        forwarded[from] = now;
+        unawaited(release(from, channel));
+      }
 
       final id = decoded['id'] as String;
       final body = decoded['body'] as String;
@@ -753,6 +776,9 @@ class Courier extends ChangeNotifier {
           final profile = Profile.fromJson(
             Map<String, dynamic>.from(jsonDecode(body) as Map),
           );
+          known.mailbox = Identity.valid(profile.mailbox)
+              ? profile.mailbox
+              : '';
           known
             ..alias = profile.name
             ..bio = profile.bio
@@ -764,63 +790,14 @@ class Courier extends ChangeNotifier {
             ..revision = profile.revision;
           await Ledger.keep(known);
         case Signal.message:
-          if (await Ledger.exists(id)) {
-            acknowledge(channel, from, id);
-            break;
-          }
-          final inner = await reveal(from, channel, body);
-          if (inner == null) break;
-          var kind = Kind.text;
-          var words = inner;
-          var meta = <String, dynamic>{};
-          var fuse = 0;
-          try {
-            final envelope = jsonDecode(inner);
-            if (envelope is Map<String, dynamic>) {
-              kind = Kind.values.firstWhere(
-                (item) => item.name == envelope['kind'],
-                orElse: () => Kind.text,
-              );
-              words = envelope['text'] as String? ?? '';
-              final extra = envelope['meta'];
-              if (extra is Map<String, dynamic>) meta = extra;
-              fuse = clamp(envelope['fuse']);
-            }
-          } catch (_) {}
-
-          if (kind == Kind.invite) {
-            final invitation = Mesh.valid(meta, from);
-            if (invitation == null) break;
-            meta = invitation;
-            words = '';
-          } else if (kind == Kind.card) {
-            final address = '${meta['address'] ?? ''}'.toLowerCase();
-            if (!Identity.valid(address)) break;
-            meta = {'address': address, 'name': Profile.clip(meta['name'], 64)};
-            words = '';
-          } else if (kind != Kind.text || words.trim().isEmpty) {
-            break;
-          } else {
-            meta = {};
-          }
-          if (words.length > limit || !await admit(from)) break;
-          if (fuse > 0) meta['fuse'] = fuse;
-
-          if (!await Ledger.exists(id)) {
-            final message = Message(
-              id: id,
-              peer: from,
-              mine: false,
-              kind: kind,
-              text: words,
-              meta: meta,
-              time: stamp.isAfter(now) ? now : stamp,
-              status: Status.delivered,
-            );
-            if (!await Ledger.record(message) || epoch != generation) break;
-            deliver(message);
-          }
-          acknowledge(channel, from, id);
+          await incoming(
+            from,
+            id,
+            stamp,
+            body,
+            channel: channel,
+            answer: () => acknowledge(channel, from, id),
+          );
         case Signal.file:
           if (await Ledger.exists(id)) {
             acknowledge(channel, from, id);
@@ -911,6 +888,22 @@ class Courier extends ChangeNotifier {
           waiting.remove(id)?.complete();
         case Signal.mesh:
           await Mesh.instance.receive(from, channel, body);
+        case Signal.parcel:
+          final data = jsonDecode(body) as Map;
+          final to = data['to'];
+          final inner = data['frame'];
+          if (to is! String || inner is! Map<String, dynamic>) break;
+          if (to == self!.address) {
+            await unwrap(from, channel, inner);
+          } else if (inner['to'] == to && Identity.valid(to)) {
+            await carry(from, channel, to, inner);
+          }
+        case Signal.held:
+          for (final entry in threads.entries) {
+            if (entry.value.any((item) => item.id == id && item.mine)) {
+              await upgrade(entry.key, id, Status.sent);
+            }
+          }
         case Signal.timer:
           final choice = jsonDecode(body) as Map;
           await adjust(from, choice['fuse'], choice['fused']);
@@ -1030,6 +1023,302 @@ class Courier extends ChangeNotifier {
     final seconds = roster[peer]?.fuse ?? 0;
     return seconds > 0 ? {'fuse': seconds} : {};
   }
+
+  /// Takes a text, card or invitation that reached this phone directly or
+  /// through a trustee, and calls [answer] to acknowledge it.
+  Future<void> incoming(
+    String from,
+    String id,
+    DateTime stamp,
+    String body, {
+    required Channel channel,
+    required void Function() answer,
+    bool relayed = false,
+  }) async {
+    final epoch = generation;
+    final now = DateTime.now();
+    if (await Ledger.exists(id)) {
+      answer();
+      return;
+    }
+    final inner = await reveal(from, channel, body, repair: !relayed);
+    if (inner == null) return;
+    var kind = Kind.text;
+    var words = inner;
+    var meta = <String, dynamic>{};
+    var fuse = 0;
+    try {
+      final envelope = jsonDecode(inner);
+      if (envelope is Map<String, dynamic>) {
+        kind = Kind.values.firstWhere(
+          (item) => item.name == envelope['kind'],
+          orElse: () => Kind.text,
+        );
+        words = envelope['text'] as String? ?? '';
+        final extra = envelope['meta'];
+        if (extra is Map<String, dynamic>) meta = extra;
+        fuse = clamp(envelope['fuse']);
+      }
+    } catch (_) {}
+
+    if (kind == Kind.invite) {
+      final invitation = Mesh.valid(meta, from);
+      if (invitation == null) return;
+      meta = invitation;
+      words = '';
+    } else if (kind == Kind.card) {
+      final address = '${meta['address'] ?? ''}'.toLowerCase();
+      if (!Identity.valid(address)) return;
+      meta = {'address': address, 'name': Profile.clip(meta['name'], 64)};
+      words = '';
+    } else if (kind != Kind.text || words.trim().isEmpty) {
+      return;
+    } else {
+      meta = {};
+    }
+    if (words.length > limit || !await admit(from)) return;
+    if (fuse > 0) meta['fuse'] = fuse;
+
+    if (!await Ledger.exists(id)) {
+      final message = Message(
+        id: id,
+        peer: from,
+        mine: false,
+        kind: kind,
+        text: words,
+        meta: meta,
+        time: stamp.isAfter(now) ? now : stamp,
+        status: Status.delivered,
+      );
+      if (!await Ledger.record(message) || epoch != generation) return;
+      deliver(message);
+    }
+    answer();
+  }
+
+  /// A trustee handing over something that waited for this phone.
+  Future<void> unwrap(
+    String relay,
+    Channel channel,
+    Map<String, dynamic> frame,
+  ) async {
+    if (!authentic(frame)) return;
+    final sender = frame['from'] as String;
+    if (sender == relay || roster[sender]?.blocked == true) return;
+    final id = frame['id'] as String;
+    switch (frame['kind']) {
+      case 'message':
+        await incoming(
+          sender,
+          id,
+          DateTime.fromMillisecondsSinceEpoch(frame['time'] as int),
+          frame['body'] as String,
+          channel: channel,
+          relayed: true,
+          answer: () => respond(
+            sender,
+            seal(Signal.receipt, sender, id: id),
+            relay,
+            channel,
+          ),
+        );
+      case 'receipt':
+        waiting.remove(id)?.complete();
+        entrusted.remove(id);
+        await upgrade(sender, id, Status.delivered);
+    }
+    notifyListeners();
+  }
+
+  /// Sends [frame] to [peer] directly when connected, otherwise back through
+  /// the trustee that brought the message.
+  void respond(
+    String peer,
+    Map<String, dynamic> frame,
+    String relay,
+    Channel via,
+  ) {
+    final direct = channels[peer];
+    if (direct != null && direct.alive) {
+      direct.send(frame);
+      return;
+    }
+    via.send(
+      seal(
+        Signal.parcel,
+        relay,
+        body: jsonEncode({'to': peer, 'frame': frame}),
+      ),
+    );
+  }
+
+  /// Holds a sealed frame for [to] on behalf of [from]: for trustees when
+  /// carrying is on, for anyone writing to the person this phone is a
+  /// mailbox for, and replies heading back to a trustee.
+  Future<void> carry(
+    String from,
+    Channel channel,
+    String to,
+    Map<String, dynamic> frame,
+  ) async {
+    final friend = roster[from]?.trusted == true;
+    final allowed =
+        (prefs.carry && (friend || roster[to]?.trusted == true)) ||
+        (prefs.serve.isNotEmpty && prefs.serve == to);
+    if (!allowed || roster[from]?.blocked == true) return;
+    final id = frame['id'];
+    if (id is! String) return;
+    final kept = await Ledger.hold(
+      id: id,
+      sender: from,
+      recipient: to,
+      frame: jsonEncode(frame),
+    );
+    if (!kept) return;
+    channel.send(seal(Signal.held, from, id: id));
+    final open = channels[to];
+    if (open != null && open.alive) unawaited(release(to, open));
+  }
+
+  /// Hands [to] everything this phone has been holding for them.
+  Future<void> release(String to, Channel channel) async {
+    final held = await Ledger.parcels(recipient: to);
+    for (final parcel in held) {
+      final frame =
+          jsonDecode(parcel['frame'] as String) as Map<String, dynamic>;
+      final sent = await channel.send(
+        seal(Signal.parcel, to, body: jsonEncode({'to': to, 'frame': frame})),
+      );
+      if (sent) await Ledger.handed(parcel['id'] as String);
+    }
+  }
+
+  /// Every couple of minutes per recipient, tries to reach people this phone
+  /// is holding parcels for, and drops parcels older than [keep].
+  Future<void> dispatch() async {
+    if (self == null) return;
+    try {
+      await Ledger.discardParcels(DateTime.now().subtract(keep));
+      final now = DateTime.now();
+      final recipients = {
+        for (final parcel in await Ledger.parcels())
+          parcel['recipient'] as String,
+      };
+      for (final to in recipients) {
+        final last = forwarded[to];
+        if (last != null && now.difference(last) < const Duration(minutes: 2)) {
+          continue;
+        }
+        forwarded[to] = now;
+        unawaited(
+          dial(to).then((channel) => release(to, channel)).catchError((_) {}),
+        );
+      }
+    } catch (error) {
+      developer.log(
+        'Could not pass on held parcels yet',
+        name: 'Courier.dispatch',
+        level: 800,
+        error: error,
+      );
+    }
+  }
+
+  /// Who should hold messages for [peer]: their mailbox first, then
+  /// trustees who are online right now.
+  List<String> relays(String peer) {
+    final mailbox = roster[peer]?.mailbox ?? '';
+    final mine = self?.address;
+    return <String>[
+      if (mailbox.isNotEmpty &&
+          mailbox != mine &&
+          roster[mailbox]?.blocked != true)
+        mailbox,
+      for (final trustee in roster.values)
+        if (trustee.trusted &&
+            trustee.address != peer &&
+            trustee.address != mailbox &&
+            online(trustee.address))
+          trustee.address,
+    ].take(2).toList();
+  }
+
+  /// Hands sealed copies of messages for [peer], who could not be reached,
+  /// to trustees who will pass them on. Needs an end-to-end session already,
+  /// since agreeing one takes both phones online.
+  Future<void> entrust(String peer) async {
+    final identity = self;
+    if (identity == null) return;
+    final pending = undelivered(peer)
+        .where(
+          (item) =>
+              !item.attachment &&
+              item.status == Status.sending &&
+              !entrusted.contains(item.id),
+        )
+        .toList();
+    if (pending.isEmpty) return;
+    final carriers = relays(peer);
+    if (carriers.isEmpty) return;
+    for (final message in pending) {
+      final Map<String, dynamic> sealed;
+      try {
+        sealed = await Ratchet.seal(
+          identity,
+          peer,
+          utf8.encode(jsonEncode(envelope(message))),
+        );
+      } on Unpaired {
+        return;
+      }
+      final frame = seal(
+        Signal.message,
+        peer,
+        id: message.id,
+        body: jsonEncode(sealed),
+        time: message.time,
+      );
+      for (final relay in carriers) {
+        try {
+          final channel = await dial(relay);
+          channel.send(
+            seal(
+              Signal.parcel,
+              relay,
+              body: jsonEncode({'to': peer, 'frame': frame}),
+            ),
+          );
+        } catch (_) {}
+      }
+      entrusted.add(message.id);
+    }
+  }
+
+  /// The inner, end-to-end encrypted part of a text, card or invitation.
+  Map<String, dynamic> envelope(Message message) => {
+    'kind': message.kind.name,
+    'text': message.text,
+    'meta': switch (message.kind) {
+      Kind.card => {
+        'address': message.meta['address'],
+        'name': message.meta['name'],
+      },
+      Kind.invite => {
+        for (final key in [
+          'community',
+          'name',
+          'about',
+          'key',
+          'keys',
+          'founder',
+          'created',
+        ])
+          key: message.meta[key],
+      },
+      _ => const <String, dynamic>{},
+    },
+    'fuse': message.fuse,
+  };
 
   /// Acknowledges [id] after a short random pause.
   void acknowledge(Channel channel, String peer, String id) {
@@ -1191,7 +1480,14 @@ class Courier extends ChangeNotifier {
         if (epoch != generation) return;
         await hesitate();
         if (epoch != generation) return;
-        final channel = await dial(peer);
+        final Channel channel;
+        try {
+          channel = await dial(peer);
+        } catch (_) {
+          // They are offline: trustees can carry it until they are back.
+          await entrust(peer);
+          rethrow;
+        }
         final ack = Completer<void>();
         waiting[message.id] = ack;
 
@@ -1257,31 +1553,7 @@ class Courier extends ChangeNotifier {
           final body = await whisper(
             peer,
             channel,
-            utf8.encode(
-              jsonEncode({
-                'kind': message.kind.name,
-                'text': message.text,
-                'meta': switch (message.kind) {
-                  Kind.card => {
-                    'address': message.meta['address'],
-                    'name': message.meta['name'],
-                  },
-                  Kind.invite => {
-                    for (final key in [
-                      'community',
-                      'name',
-                      'about',
-                      'key',
-                      'founder',
-                      'created',
-                    ])
-                      key: message.meta[key],
-                  },
-                  _ => const <String, dynamic>{},
-                },
-                'fuse': message.fuse,
-              }),
-            ),
+            utf8.encode(jsonEncode(envelope(message))),
           );
           final written = await channel.send(
             seal(

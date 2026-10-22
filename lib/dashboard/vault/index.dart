@@ -86,6 +86,49 @@ class VaultPageState extends State<VaultPage> {
     if (sure) await Session.dispose();
   }
 
+  /// Picks which trustee is this identity's mailbox, or which trustee this
+  /// phone is a mailbox for.
+  Future<void> mailbox({required bool own}) async {
+    final trustees =
+        courier.roster.values.where((item) => item.trusted).toList()
+          ..sort((alpha, beta) => alpha.label.compareTo(beta.label));
+    final current = own ? courier.me.mailbox : courier.prefs.serve;
+    final picked = await Sheets.pick<String>(
+      context,
+      title: own ? 'Your Mailbox' : 'Be a Mailbox',
+      subtitle: own
+          ? 'Pick a trustee that is nearly always online, ideally another phone of yours. It holds sealed messages for you and cannot read them.'
+          : 'This phone will hold sealed messages for the trustee you pick while they are offline, from anyone writing to them.',
+      current: current,
+      options: [
+        Choice(
+          value: '',
+          label: 'None',
+          leading: Icon(
+            Icons.block,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+        for (final trustee in trustees)
+          Choice(
+            value: trustee.address,
+            label: trustee.label,
+            leading: Portrait(
+              address: trustee.address,
+              size: 28,
+              presence: false,
+            ),
+          ),
+      ],
+    );
+    if (picked == null || picked == current) return;
+    if (own) {
+      await courier.publish(courier.me.copy()..mailbox = picked);
+    } else {
+      tune((next) => next.serve = picked);
+    }
+  }
+
   Future<void> status() async {
     final picked = await Sheets.availability(
       context,
@@ -323,6 +366,15 @@ class VaultPageState extends State<VaultPage> {
                         tune((next) => next.strangers = value),
                   ),
                   SwitchListTile(
+                    secondary: const Icon(Icons.move_to_inbox_outlined),
+                    title: const Text('Carry Messages'),
+                    subtitle: const Text(
+                      'Hold sealed messages for trustees while the person they are for is offline. You cannot read them',
+                    ),
+                    value: prefs.carry,
+                    onChanged: (value) => tune((next) => next.carry = value),
+                  ),
+                  SwitchListTile(
                     secondary: const Icon(Icons.screenshot_monitor_outlined),
                     title: const Text('Screen Security'),
                     subtitle: const Text(
@@ -336,6 +388,43 @@ class VaultPageState extends State<VaultPage> {
                     title: const Text('Blocked'),
                     subtitle: const Text('Manage blocked keys in Trustees'),
                     trailing: Pill(count: blocked),
+                  ),
+                ],
+              ),
+              const Heading(
+                'Delivery',
+                description:
+                    'Messages go straight to the other phone. When it is offline, trustees hold them sealed until it is back.',
+              ),
+              Group(
+                children: [
+                  ListTile(
+                    leading: const Icon(Icons.markunread_mailbox_outlined),
+                    title: const Text('Your Mailbox'),
+                    subtitle: Text(
+                      me.mailbox.isEmpty
+                          ? 'None. A spare always-on phone of yours can hold messages for you'
+                          : 'Trustees leave messages with ${courier.roster[me.mailbox]?.label ?? me.mailbox.substring(0, 10)} while you are offline',
+                    ),
+                    trailing: Icon(
+                      Icons.chevron_right,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                    onTap: () => mailbox(own: true),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.inventory_2_outlined),
+                    title: const Text('Be a Mailbox'),
+                    subtitle: Text(
+                      prefs.serve.isEmpty
+                          ? 'Off. Turn this phone into the mailbox of a trustee'
+                          : 'Holding messages for ${courier.roster[prefs.serve]?.label ?? prefs.serve.substring(0, 10)}. Keep this phone unlocked and charging',
+                    ),
+                    trailing: Icon(
+                      Icons.chevron_right,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                    onTap: () => mailbox(own: false),
                   ),
                 ],
               ),
