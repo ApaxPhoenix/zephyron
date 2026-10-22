@@ -1,5 +1,7 @@
 package com.aveloux.zephyron
 
+import android.content.ClipData
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.media.AudioAttributes
@@ -13,6 +15,7 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.security.MessageDigest
 import java.util.concurrent.Executors
 
@@ -20,6 +23,8 @@ class MainActivity : FlutterActivity() {
     private val channel = "zephyron/security"
     private var speaker: AudioTrack? = null
     private val writer = Executors.newSingleThreadExecutor()
+    private val picker by lazy { Picker(this) }
+    private var players: Players? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -31,8 +36,60 @@ class MainActivity : FlutterActivity() {
         )
     }
 
+    @Deprecated("Flutter's activity still delivers results this way")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (!picker.finished(requestCode, resultCode, data)) {
+            super.onActivityResult(requestCode, resultCode, data)
+        }
+    }
+
+    override fun onDestroy() {
+        players?.dispose()
+        players = null
+        super.onDestroy()
+    }
+
     override fun configureFlutterEngine(engine: FlutterEngine) {
         super.configureFlutterEngine(engine)
+
+        MethodChannel(engine.dartExecutor.binaryMessenger, "zephyron/picker").setMethodCallHandler { call, result ->
+            picker.handle(call, result)
+        }
+
+        val playback = MethodChannel(engine.dartExecutor.binaryMessenger, "zephyron/player")
+        players?.dispose()
+        val made = Players(engine.renderer, playback)
+        players = made
+        playback.setMethodCallHandler { call, result -> made.handle(call, result) }
+
+        MethodChannel(engine.dartExecutor.binaryMessenger, "zephyron/share").setMethodCallHandler { call, result ->
+            try {
+                val intent = Intent(Intent.ACTION_SEND)
+                when (call.method) {
+                    "text" -> {
+                        intent.type = "text/plain"
+                        intent.putExtra(Intent.EXTRA_TEXT, call.argument<String>("text"))
+                        call.argument<String>("subject")?.let { intent.putExtra(Intent.EXTRA_SUBJECT, it) }
+                    }
+                    "file" -> {
+                        val file = File(requireNotNull(call.argument<String>("path")))
+                        val uri = Vault.uri(this, file)
+                        intent.type = call.argument<String>("mime") ?: Vault.mime(file.name)
+                        intent.putExtra(Intent.EXTRA_STREAM, uri)
+                        intent.clipData = ClipData.newRawUri("", uri)
+                        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    else -> {
+                        result.notImplemented()
+                        return@setMethodCallHandler
+                    }
+                }
+                startActivity(Intent.createChooser(intent, call.argument<String>("title")))
+                result.success(null)
+            } catch (error: Exception) {
+                result.error("share", error.message, null)
+            }
+        }
 
         MethodChannel(engine.dartExecutor.binaryMessenger, channel).setMethodCallHandler { call, result ->
             when (call.method) {
@@ -106,6 +163,21 @@ class MainActivity : FlutterActivity() {
 
         MethodChannel(engine.dartExecutor.binaryMessenger, "zephyron/media").setMethodCallHandler { call, result ->
             when (call.method) {
+                "probe" -> {
+                    val path = call.argument<String>("path")
+                    if (path == null) {
+                        result.success(null)
+                    } else {
+                        Thread {
+                            val facts = try {
+                                probe(path)
+                            } catch (error: Exception) {
+                                null
+                            }
+                            runOnUiThread { result.success(facts) }
+                        }.start()
+                    }
+                }
                 "thumbnail" -> {
                     val path = call.argument<String>("path")
                     val width = call.argument<Int>("width") ?: 480
@@ -124,6 +196,25 @@ class MainActivity : FlutterActivity() {
                 }
                 else -> result.notImplemented()
             }
+        }
+    }
+
+    /** A video's or a recording's length, and a video's upright size. */
+    private fun probe(path: String): Map<String, Int> {
+        val retriever = MediaMetadataRetriever()
+        try {
+            retriever.setDataSource(path)
+            fun read(key: Int) = retriever.extractMetadata(key)?.toIntOrNull() ?: 0
+            val width = read(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)
+            val height = read(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)
+            val sideways = read(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION) % 180 != 0
+            return mapOf(
+                "duration" to read(MediaMetadataRetriever.METADATA_KEY_DURATION),
+                "width" to if (sideways) height else width,
+                "height" to if (sideways) width else height,
+            )
+        } finally {
+            retriever.release()
         }
     }
 

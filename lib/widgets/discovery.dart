@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:zephyron/theme.dart';
 import 'package:flutter/services.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:zephyron/services/courier.dart';
+import 'package:zephyron/services/share.dart';
 import 'package:zephyron/widgets/qr.dart';
 import 'package:zephyron/widgets/sheet.dart';
 
@@ -49,12 +49,9 @@ class Discovery extends StatelessWidget {
     final intro = own
         ? 'Add me as a trustee on Zephyron'
         : 'Add $who as a trustee on Zephyron';
-    return SharePlus.instance.share(
-      ShareParams(
-        subject: intro,
-        text:
-            '$intro\n\n${Courier.link(address, name)}\n\nDiscovery key: $address',
-      ),
+    return Share.text(
+      '$intro\n\n${Courier.link(address, name)}\n\nDiscovery key: $address',
+      subject: intro,
     );
   }
 

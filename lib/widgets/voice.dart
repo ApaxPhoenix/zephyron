@@ -2,12 +2,12 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
-import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:zephyron/theme.dart';
 import 'package:record/record.dart';
 import 'package:zephyron/models/message.dart';
 import 'package:zephyron/services/locker.dart';
+import 'package:zephyron/services/player.dart';
 
 /// What a finished recording hands back.
 typedef Recording = ({Uint8List bytes, Duration duration});
@@ -263,47 +263,31 @@ class VoiceNote extends StatefulWidget {
 }
 
 class VoiceNoteState extends State<VoiceNote> {
-  final List<StreamSubscription<dynamic>> watching = [];
   late final List<double> bars = Wave.shape(widget.message.id, 40);
-  AudioPlayer? player;
+  Player? player;
   Duration position = Duration.zero;
   Duration? total;
   bool playing = false;
   bool loading = false;
 
   /// Made on first play, so a long chat does not open a player per note.
-  AudioPlayer open() {
-    final made = AudioPlayer();
-    watching
-      ..add(
-        made.onPositionChanged.listen((value) {
-          if (mounted) setState(() => position = value);
-        }),
-      )
-      ..add(
-        made.onDurationChanged.listen((value) {
-          if (mounted) setState(() => total = value);
-        }),
-      )
-      ..add(
-        made.onPlayerStateChanged.listen((state) {
-          if (mounted) setState(() => playing = state == PlayerState.playing);
-        }),
-      )
-      ..add(
-        made.onPlayerComplete.listen((_) {
-          if (mounted) setState(() => position = Duration.zero);
-        }),
-      );
+  Future<Player> open(String path) async {
+    final made = await Player.open(path);
+    made.addListener(() {
+      if (!mounted) return;
+      setState(() {
+        position = made.position;
+        playing = made.playing;
+        if (made.duration > Duration.zero) total = made.duration;
+      });
+    });
+    if (made.duration > Duration.zero) total = made.duration;
     return made;
   }
 
   @override
   void dispose() {
-    for (final subscription in watching) {
-      subscription.cancel();
-    }
-    player?.dispose();
+    player?.close();
     super.dispose();
   }
 
@@ -317,9 +301,7 @@ class VoiceNoteState extends State<VoiceNote> {
       setState(() => loading = true);
       try {
         final file = await Locker.export(widget.message);
-        final made = open();
-        await made.setSource(DeviceFileSource(file.path));
-        player = made;
+        player = await open(file.path);
       } catch (_) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -331,7 +313,7 @@ class VoiceNoteState extends State<VoiceNote> {
         if (mounted) setState(() => loading = false);
       }
     }
-    await player!.resume();
+    await player!.play();
   }
 
   @override
