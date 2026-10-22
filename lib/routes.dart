@@ -3,6 +3,7 @@ import 'package:zephyron/splash.dart';
 import 'package:zephyron/auth/index.dart';
 import 'package:zephyron/auth/panic.dart';
 import 'package:zephyron/dashboard/index.dart';
+import 'package:zephyron/dashboard/chats/group.dart';
 import 'package:zephyron/dashboard/chats/message.dart';
 import 'package:zephyron/dashboard/communities/channel.dart';
 import 'package:zephyron/dashboard/communities/community.dart';
@@ -34,6 +35,7 @@ final Map<String, WidgetBuilder> routes = {
       name: arguments?['name'] as String? ?? arguments?['title'] as String?,
     );
   },
+  '/dashboard/chats/group': (context) => const GroupPage(),
   '/dashboard/communities/create': (context) {
     final arguments =
         ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;

@@ -514,18 +514,20 @@ class CommunityPageState extends State<CommunityPage> {
                       label: const Text('Invite'),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        side: BorderSide(color: scheme.outline),
-                        foregroundColor: scheme.onSurface,
+                  if (!community.group) ...[
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: scheme.outline),
+                          foregroundColor: scheme.onSurface,
+                        ),
+                        onPressed: () => add(community),
+                        icon: const Icon(Icons.add, size: 18),
+                        label: const Text('Channel'),
                       ),
-                      onPressed: () => add(community),
-                      icon: const Icon(Icons.add, size: 18),
-                      label: const Text('Channel'),
                     ),
-                  ),
+                  ],
                 ],
               ),
               const SizedBox(height: 16),
@@ -546,11 +548,13 @@ class CommunityPageState extends State<CommunityPage> {
                 ),
                 onChanged: (_) => setState(() => page = 0),
               ),
-              Heading('Channels', count: rooms.length),
-              if (rooms.isEmpty)
-                const Vacant(icon: Icons.tag, text: 'No channels match.')
-              else
-                Group(indent: 64, children: rooms.map(room).toList()),
+              if (!community.group) ...[
+                Heading('Channels', count: rooms.length),
+                if (rooms.isEmpty)
+                  const Vacant(icon: Icons.tag, text: 'No channels match.')
+                else
+                  Group(indent: 64, children: rooms.map(room).toList()),
+              ],
               Heading(
                 'Members',
                 count: people.length,

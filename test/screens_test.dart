@@ -11,6 +11,8 @@ import 'package:zephyron/dashboard/vault/index.dart';
 import 'package:zephyron/dashboard/vault/profile.dart';
 import 'package:zephyron/enums.dart';
 import 'package:zephyron/models/identity.dart';
+import 'package:zephyron/services/mesh.dart';
+import 'package:zephyron/models/community.dart';
 import 'package:zephyron/models/message.dart';
 import 'package:zephyron/models/profile.dart';
 import 'package:zephyron/models/trustee.dart';
@@ -339,5 +341,26 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byTooltip('Send'), findsOneWidget);
     expect(find.byTooltip('Record voice message'), findsNothing);
+  });
+
+  testWidgets('groups sit with chats and have their own filter', (
+    tester,
+  ) async {
+    late Community group;
+    await tester.runAsync(() async {
+      await Mesh.instance.start();
+      group = await Mesh.instance.create(name: 'Weekend Hikers', group: true);
+      await Mesh.instance.say(group, group.general, 'Trail at 8?');
+    });
+    await show(tester, const ChatsPage());
+    expect(find.text('Weekend Hikers'), findsOneWidget);
+    expect(find.textContaining('Trail at 8?'), findsOneWidget);
+    expect(find.text('Alice Moreau'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(FilterChip, 'Groups'));
+    await tester.pumpAndSettle();
+    expect(find.text('Weekend Hikers'), findsOneWidget);
+    expect(find.text('Alice Moreau'), findsNothing);
+    await tester.runAsync(() => Mesh.instance.leave(group.id));
   });
 }
