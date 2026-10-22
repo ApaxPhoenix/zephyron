@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
@@ -52,7 +53,25 @@ class Reel extends StatelessWidget {
           ),
         ),
         child: Stack(
+          fit: StackFit.expand,
           children: [
+            if (message.meta['thumb'] is String)
+              Image.memory(
+                base64.decode(message.meta['thumb'] as String),
+                fit: BoxFit.cover,
+                gaplessPlayback: true,
+                errorBuilder: (_, _, _) => const SizedBox.shrink(),
+              ),
+            if (message.meta['thumb'] is String)
+              const DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Colors.transparent, Color(0x99000000)],
+                  ),
+                ),
+              ),
             Center(
               child: Container(
                 width: 56,
