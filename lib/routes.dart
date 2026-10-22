@@ -8,9 +8,11 @@ import 'package:zephyron/dashboard/chats/message.dart';
 import 'package:zephyron/dashboard/communities/channel.dart';
 import 'package:zephyron/dashboard/communities/community.dart';
 import 'package:zephyron/dashboard/communities/create.dart';
+import 'package:zephyron/dashboard/communities/discover.dart';
 import 'package:zephyron/dashboard/peers/node.dart';
 import 'package:zephyron/dashboard/vault/duress.dart';
 import 'package:zephyron/dashboard/vault/profile.dart';
+import 'package:zephyron/enums.dart';
 import 'package:zephyron/network/index.dart';
 import 'package:zephyron/network/middleware.dart';
 
@@ -52,6 +54,15 @@ final Map<String, WidgetBuilder> routes = {
     return ChannelPage(
       community: arguments?['community'] as String?,
       channel: arguments?['channel'] as String?,
+    );
+  },
+  '/dashboard/communities/discover': (context) {
+    final arguments =
+        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    return DiscoverPage(
+      shelf: arguments?['shelf'] == Shelf.person.name
+          ? Shelf.person
+          : Shelf.community,
     );
   },
   '/dashboard/settings/profile': (context) => const ProfilePage(),

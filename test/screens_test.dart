@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:zephyron/widgets/avatar.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -19,6 +20,11 @@ import 'package:zephyron/models/trustee.dart';
 import 'package:zephyron/services/courier.dart';
 import 'package:zephyron/theme.dart';
 import 'package:zephyron/widgets/section.dart';
+import 'package:zephyron/dashboard/communities/community.dart';
+import 'package:zephyron/dashboard/communities/discover.dart';
+import 'package:zephyron/services/catalog.dart';
+import 'package:zephyron/services/ratchet.dart';
+import 'package:zephyron/sql/ledger.dart';
 import 'support.dart';
 
 void main() {
@@ -362,5 +368,89 @@ void main() {
     expect(find.text('Weekend Hikers'), findsOneWidget);
     expect(find.text('Alice Moreau'), findsNothing);
     await tester.runAsync(() => Mesh.instance.leave(group.id));
+  });
+
+  testWidgets('discover lists people and communities, and hides on request', (
+    tester,
+  ) async {
+    final catalog = Catalog.instance;
+    await tester.runAsync(() async {
+      await Mesh.instance.start();
+      await catalog.start();
+      await catalog.renewing;
+      Future<void> list(
+        Identity who,
+        Shelf shelf,
+        String subject,
+        String name, {
+        Map<String, dynamic> invitation = const {},
+      }) async {
+        become(who);
+        final frame = await catalog.compose(
+          shelf,
+          subject,
+          name: name,
+          about: 'About $name',
+          invitation: invitation,
+        );
+        become(bob);
+        await catalog.accept(Catalog.check(frame)!);
+      }
+
+      await list(carol, Shelf.person, carol.address, 'Carol Reyes');
+      await list(
+        alice,
+        Shelf.community,
+        Courier.token(),
+        'Open Mic',
+        invitation: {
+          'key': base64.encode(Ratchet.random(32)),
+          'keys': <String, String>{},
+          'created': DateTime.now().millisecondsSinceEpoch,
+        },
+      );
+    });
+    await show(tester, const DiscoverPage());
+    expect(find.text('Open Mic'), findsOneWidget);
+    expect(find.text('About Open Mic'), findsOneWidget);
+
+    await tester.tap(find.text('People'));
+    await tester.pumpAndSettle();
+    expect(find.text('Carol Reyes'), findsOneWidget);
+    expect(find.text('List Me Here'), findsOneWidget);
+
+    await tester.tap(find.text('Carol Reyes'));
+    await tester.pumpAndSettle();
+    expect(find.text('Add as Trustee'), findsOneWidget);
+    await tester.tap(find.text('Hide and Stop Passing Along'));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 200)),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Carol Reyes'), findsNothing);
+
+    await tester.runAsync(() async {
+      for (final id in catalog.listings.keys.toList()) {
+        await Ledger.unlist(id);
+      }
+      await Ledger.remove('catalog');
+      await catalog.start();
+    });
+  });
+
+  testWidgets('a founder can list their community in discover', (tester) async {
+    late Community community;
+    await tester.runAsync(() async {
+      await Mesh.instance.start();
+      community = await Mesh.instance.create(name: 'Night Shift');
+    });
+    await show(tester, CommunityPage(id: community.id));
+    await tester.scrollUntilVisible(
+      find.text('List in Discover'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('Off. Only people you invite can join'), findsOneWidget);
+    await tester.runAsync(() => Mesh.instance.leave(community.id));
   });
 }

@@ -373,12 +373,23 @@ void main() {
 
     test('a join without real work does not make anyone a member', () async {
       final community = await founded();
+      // At test difficulty a made-up nonce sometimes works by luck, so pick
+      // one that does not.
+      var guess = 0;
+      while (Mesh.proven(
+        community.id,
+        alice.address,
+        'nope$guess',
+        Mesh.difficulty,
+      )) {
+        guess += 1;
+      }
       final lazy = await as(
         alice,
         community,
         note: Note.join,
         text: 'Bot',
-        meta: {'work': 'nope', 'bits': Mesh.difficulty},
+        meta: {'work': 'nope$guess', 'bits': Mesh.difficulty},
       );
       await mesh.accept((await mesh.verify(lazy))!);
       expect(mesh.member(community.id, alice.address), isFalse);

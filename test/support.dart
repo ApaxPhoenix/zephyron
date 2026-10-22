@@ -8,6 +8,7 @@ import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:zephyron/enums.dart';
 import 'package:zephyron/models/identity.dart';
+import 'package:zephyron/services/catalog.dart';
 import 'package:zephyron/services/courier.dart';
 import 'package:zephyron/services/mesh.dart';
 import 'package:zephyron/services/ratchet.dart';
@@ -31,6 +32,7 @@ class Paths extends PathProviderPlatform with MockPlatformInterfaceMixin {
 Future<void> unlock() async {
   Courier.jitter = () => Duration.zero;
   Mesh.difficulty = 4;
+  Catalog.difficulty = 4;
   Mesh.seasoning = Duration.zero;
   sqfliteFfiInit();
   PathProviderPlatform.instance = Paths();
