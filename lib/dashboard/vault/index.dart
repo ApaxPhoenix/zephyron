@@ -491,7 +491,7 @@ class VaultPageState extends State<VaultPage> {
                     leading: Icon(Icons.enhanced_encryption_outlined),
                     title: Text('End-to-End Encryption'),
                     subtitle: Text(
-                      'X3DH and the Double Ratchet with AES-256-GCM, inside Tor. Every message and file has its own key',
+                      'ML-KEM-768 with X25519, then the Double Ratchet and AES-256-GCM, inside Tor. Every message and file has its own key',
                     ),
                   ),
                   ListTile(

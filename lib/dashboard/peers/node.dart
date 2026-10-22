@@ -4,6 +4,7 @@ import 'package:zephyron/dashboard/chats/attach.dart';
 import 'package:zephyron/enums.dart';
 import 'package:zephyron/models/trustee.dart';
 import 'package:zephyron/services/courier.dart';
+import 'package:zephyron/services/ratchet.dart';
 import 'package:zephyron/widgets/avatar.dart';
 import 'package:zephyron/widgets/discovery.dart';
 import 'package:zephyron/widgets/sheet.dart';
@@ -307,6 +308,29 @@ class NodePageState extends State<NodePage> {
                       ],
                     ),
                   ),
+                  if (mine != null)
+                    FutureBuilder<Bond?>(
+                      future: Ratchet.session(courier.self!, address),
+                      builder: (context, snapshot) {
+                        final bond = snapshot.data;
+                        return ListTile(
+                          leading: Icon(
+                            bond?.quantum == true
+                                ? Icons.enhanced_encryption
+                                : Icons.lock_outline,
+                            color: scheme.primary,
+                          ),
+                          title: const Text('Encryption'),
+                          subtitle: Text(
+                            bond == null
+                                ? 'A session starts with your first message'
+                                : bond.quantum
+                                ? 'Post-quantum: ML-KEM-768 together with X25519, then the Double Ratchet'
+                                : 'X25519 and the Double Ratchet. Post-quantum starts once both phones support it',
+                          ),
+                        );
+                      },
+                    ),
                   if (code != null)
                     ListTile(
                       leading: Icon(

@@ -6,6 +6,7 @@ import 'package:crypto/crypto.dart' as hashing;
 import 'package:cryptography/cryptography.dart';
 import 'package:zephyron/models/identity.dart';
 import 'package:zephyron/sql/ledger.dart';
+import 'package:zephyron/wrappers/oqs.dart';
 
 /// Thrown when a message cannot be opened with the session held for a peer.
 class Unreadable implements Exception {
@@ -82,6 +83,10 @@ class Bond {
   /// X3DH details repeated on every message until the peer answers.
   Map<String, dynamic>? opening;
 
+  /// Whether the session's root also came from ML-KEM-768, so recording
+  /// today's traffic for a future quantum computer gains nothing.
+  bool quantum;
+
   Bond({
     required this.root,
     required this.mine,
@@ -93,6 +98,7 @@ class Bond {
     this.previous = 0,
     Map<String, String>? skipped,
     this.opening,
+    this.quantum = false,
   }) : skipped = skipped ?? {};
 
   Map<String, dynamic> toJson() => {
@@ -106,6 +112,7 @@ class Bond {
     'previous': previous,
     'skipped': skipped,
     'opening': opening,
+    'quantum': quantum,
   };
 
   factory Bond.fromJson(Map<String, dynamic> json) {
@@ -124,6 +131,7 @@ class Bond {
       opening: json['opening'] == null
           ? null
           : Map<String, dynamic>.from(json['opening'] as Map),
+      quantum: json['quantum'] as bool? ?? false,
     );
   }
 }
@@ -233,13 +241,21 @@ class Ratchet {
     final fresh =
         list.isNotEmpty &&
         now - (list.last['created'] as int) < rotation.inMilliseconds;
-    if (fresh) return list;
+    if (fresh) {
+      // A prekey made before liboqs was bundled gains its post-quantum half.
+      if (Kem.available && list.last['kem'] == null) {
+        list.last['kem'] = kem();
+        await Ledger.write('prekeys:${self.address}', {'keys': list});
+      }
+      return list;
+    }
 
     final pair = await Pair.fresh();
     list.add({
       'id': list.isEmpty ? 1 : (list.last['id'] as int) + 1,
       'created': now,
       ...pair.toJson(),
+      if (Kem.available) 'kem': kem(),
     });
     list.removeWhere(
       (item) =>
@@ -250,13 +266,24 @@ class Ratchet {
     return list;
   }
 
-  /// What a peer needs to start a session with this identity.
+  static Map<String, String> kem() {
+    final pair = Kem.pair();
+    return {
+      'public': base64.encode(pair.public),
+      'secret': base64.encode(pair.secret),
+    };
+  }
+
+  /// What a peer needs to start a session with this identity. With liboqs
+  /// present it carries an ML-KEM-768 key beside the X25519 prekey.
   static Future<Map<String, dynamic>> bundle(Identity self) async {
     final current = (await prekeys(self)).last;
+    final kem = current['kem'] as Map?;
     return {
       'ik': base64.encode((await identity(self)).public),
       'id': current['id'],
       'spk': current['public'],
+      if (kem != null) 'pq': kem['public'],
     };
   }
 
@@ -270,7 +297,14 @@ class Ratchet {
     if (base64.decode(ik).length != 32 || base64.decode(spk).length != 32) {
       return;
     }
-    await Ledger.write('bundle:$peer', {'ik': ik, 'spk': spk, 'id': id});
+    final pq = bundle['pq'];
+    final quantum = pq is String && base64.decode(pq).length == Kem.publics;
+    await Ledger.write('bundle:$peer', {
+      'ik': ik,
+      'spk': spk,
+      'id': id,
+      if (quantum) 'pq': pq,
+    });
   }
 
   static String slot(Identity self, String peer) =>
@@ -335,13 +369,18 @@ class Ratchet {
     final spk = base64.decode(stored['spk'] as String);
     final mine = await identity(self);
     final ephemeral = await Pair.fresh();
+    final pq = stored['pq'];
+    final sealed = pq is String && Kem.available
+        ? Kem.seal(base64.decode(pq))
+        : null;
 
     final secret = await derive([
       ...List.filled(32, 0xFF),
       ...await mine.agree(spk),
       ...await ephemeral.agree(ik),
       ...await ephemeral.agree(spk),
-    ], info: 'zephyron/x3dh');
+      ...?sealed?.secret,
+    ], info: sealed == null ? 'zephyron/x3dh' : 'zephyron/pqxdh');
     final ratchet = await Pair.fresh();
     final (root, sending) = await step(secret, await ratchet.agree(spk));
     final state = Bond(
@@ -349,10 +388,12 @@ class Ratchet {
       mine: ratchet,
       theirs: spk,
       sending: sending,
+      quantum: sealed != null,
       opening: {
         'ik': base64.encode(mine.public),
         'ek': base64.encode(ephemeral.public),
         'id': stored['id'],
+        if (sealed != null) 'kem': base64.encode(sealed.cipher),
       },
     );
     await keep(self, peer, state);
@@ -372,13 +413,27 @@ class Ratchet {
     final ik = base64.decode(opening['ik'] as String);
     final ek = base64.decode(opening['ek'] as String);
 
+    Uint8List? shared;
+    final cipher = opening['kem'];
+    if (cipher is String) {
+      final kem = chosen.first['kem'] as Map?;
+      if (kem == null || !Kem.available) {
+        throw const Unreadable('post-quantum key is not on this phone');
+      }
+      shared = Kem.open(
+        base64.decode(cipher),
+        base64.decode(kem['secret'] as String),
+      );
+    }
+
     final secret = await derive([
       ...List.filled(32, 0xFF),
       ...await prekey.agree(ik),
       ...await mine.agree(ek),
       ...await prekey.agree(ek),
-    ], info: 'zephyron/x3dh');
-    return Bond(root: secret, mine: prekey);
+      ...?shared,
+    ], info: shared == null ? 'zephyron/x3dh' : 'zephyron/pqxdh');
+    return Bond(root: secret, mine: prekey, quantum: shared != null);
   }
 
   static Future<Uint8List> lock(
