@@ -177,6 +177,49 @@ class CommunityPageState extends State<CommunityPage> {
     );
   }
 
+  /// Lets this member vote someone out, or take their vote back.
+  Future<void> ballot(Community community, Member member) async {
+    final self = Courier.instance.self?.address;
+    if (member.address == self) return;
+    final name = mesh.called(community.id, member.address);
+    final cast =
+        mesh.ballots(community.id)[member.address]?.contains(self) ?? false;
+    final needed = mesh.needed(community.id, member.address);
+    await Sheets.actions(
+      context,
+      header: ListTile(
+        title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Text(
+          'Removed once $needed ${needed == 1 ? 'member agrees' : 'members agree'}, more than half of everyone else',
+        ),
+      ),
+      items: [
+        if (cast)
+          SheetAction(
+            icon: Icons.undo,
+            label: 'Withdraw My Vote',
+            onTap: () => mesh.vote(community, member.address, withdraw: true),
+          )
+        else
+          SheetAction(
+            icon: Icons.how_to_vote_outlined,
+            label: 'Vote to Remove',
+            destructive: true,
+            onTap: () async {
+              final sure = await Sheets.confirm(
+                context,
+                title: 'Vote to remove $name?',
+                message:
+                    'Everyone in the community can see this vote. If more than half of the other members agree, $name is removed and the community moves to a new key they never get.',
+                action: 'Vote',
+              );
+              if (sure) await mesh.vote(community, member.address);
+            },
+          ),
+      ],
+    );
+  }
+
   Future<void> more(Community community) async {
     await Sheets.actions(
       context,
@@ -302,6 +345,8 @@ class CommunityPageState extends State<CommunityPage> {
           final rank = everyone.indexOf(member) + 1;
           final trustee = Courier.instance.roster[member.address];
           final yourself = member.address == Courier.instance.self?.address;
+          final against =
+              mesh.ballots(community.id)[member.address]?.length ?? 0;
           return ListTile(
             onTap: trustee == null || yourself
                 ? null
@@ -310,6 +355,7 @@ class CommunityPageState extends State<CommunityPage> {
                     '/dashboard/peers/node',
                     arguments: {'id': member.address},
                   ),
+            onLongPress: yourself ? null : () => ballot(community, member),
             leading: trustee != null
                 ? Portrait(address: member.address, size: 40)
                 : Avatar(
@@ -326,11 +372,16 @@ class CommunityPageState extends State<CommunityPage> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-            subtitle: Text(
-              member.address == community.founder
-                  ? 'Started this community'
-                  : 'Joined ${brief(member.since)}',
-            ),
+            subtitle: against > 0
+                ? Text(
+                    '$against of ${mesh.needed(community.id, member.address)} votes to remove',
+                    style: TextStyle(color: scheme.error),
+                  )
+                : Text(
+                    member.address == community.founder
+                        ? 'Started this community'
+                        : 'Joined ${brief(member.since)}',
+                  ),
             trailing: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
@@ -504,7 +555,7 @@ class CommunityPageState extends State<CommunityPage> {
                 'Members',
                 count: people.length,
                 description:
-                    'Listed by when they joined. Nobody here outranks anyone else.',
+                    'Listed by when they joined. Nobody here outranks anyone else; press and hold someone to vote on removing them.',
               ),
               if (people.isEmpty)
                 const Vacant(
@@ -526,6 +577,28 @@ class CommunityPageState extends State<CommunityPage> {
                   pages: pages,
                   onChanged: (next) => setState(() => page = next),
                 ),
+              if (mesh.removed(community.id).isNotEmpty) ...[
+                Heading(
+                  'Removed by Vote',
+                  count: mesh.removed(community.id).length,
+                  description:
+                      'They no longer receive anything, and the community key changed after they left.',
+                ),
+                Group(
+                  indent: 60,
+                  children: [
+                    for (final entry in mesh.removed(community.id).entries)
+                      ListTile(
+                        leading: Icon(
+                          Icons.person_off_outlined,
+                          color: scheme.error,
+                        ),
+                        title: Text(mesh.called(community.id, entry.key)),
+                        subtitle: Text('Removed ${brief(entry.value)}'),
+                      ),
+                  ],
+                ),
+              ],
             ],
           ),
         );

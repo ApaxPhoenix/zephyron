@@ -15,8 +15,18 @@ class Community {
   Uint8List? icon;
   Uint8List? banner;
 
-  /// Shared secret every post is encrypted with.
-  final Uint8List key;
+  /// Every community key this phone has held, by fingerprint. Removing a
+  /// member brings in a new one; old ones stay so history remains readable.
+  final Map<String, Uint8List> keys;
+
+  /// Fingerprint of the key new posts are encrypted with.
+  String epoch;
+
+  /// When [epoch] became the current key, in milliseconds.
+  int rotated;
+
+  /// Shared secret new posts are encrypted with.
+  Uint8List get key => keys[epoch]!;
 
   /// Whoever made it. They appear first among members, nothing more.
   final String founder;
@@ -31,8 +41,11 @@ class Community {
   Community({
     required this.id,
     required this.name,
-    required this.key,
+    required Uint8List key,
     required this.founder,
+    Map<String, Uint8List>? keys,
+    String? epoch,
+    this.rotated = 0,
     this.about = '',
     this.icon,
     this.banner,
@@ -41,8 +54,26 @@ class Community {
     this.pinned = false,
     this.muted = false,
     this.revised = 0,
-  }) : created = created ?? DateTime.now(),
-       joined = joined ?? DateTime.now();
+  }) : keys = keys ?? {fingerprint(key): key},
+       epoch = epoch ?? fingerprint(key),
+       created = created ?? DateTime.now(),
+       joined = joined ?? DateTime.now() {
+    this.keys.putIfAbsent(this.epoch, () => key);
+  }
+
+  /// A short public name for a key, safe to send in the clear.
+  static String fingerprint(List<int> key) => sha256
+      .convert([...utf8.encode('zephyron/key'), ...key])
+      .toString()
+      .substring(0, 16);
+
+  /// Adopts [secret] as the key for new posts.
+  void rekey(Uint8List secret, int at) {
+    final id = fingerprint(secret);
+    keys[id] = secret;
+    epoch = id;
+    rotated = at;
+  }
 
   /// The channel every community starts with.
   String get general => Community.lobby(id);
@@ -55,8 +86,18 @@ class Community {
   factory Community.fromRow(Map<String, dynamic> row) {
     Uint8List? blob(Object? value) =>
         value is Uint8List && value.isNotEmpty ? value : null;
+    final ring = <String, Uint8List>{};
+    final raw = row['keys'] as String?;
+    if (raw != null && raw.isNotEmpty) {
+      for (final entry in (jsonDecode(raw) as Map).entries) {
+        ring[entry.key as String] = base64.decode(entry.value as String);
+      }
+    }
     return Community(
       id: row['id'] as String,
+      keys: ring.isEmpty ? null : ring,
+      epoch: row['epoch'] as String?,
+      rotated: row['rotated'] as int? ?? 0,
       name: row['name'] as String? ?? '',
       about: row['about'] as String? ?? '',
       icon: blob(row['icon']),
@@ -78,6 +119,11 @@ class Community {
     'icon': icon,
     'banner': banner,
     'key': base64.encode(key),
+    'keys': jsonEncode({
+      for (final entry in keys.entries) entry.key: base64.encode(entry.value),
+    }),
+    'epoch': epoch,
+    'rotated': rotated,
     'founder': founder,
     'created': created.millisecondsSinceEpoch,
     'joined': joined.millisecondsSinceEpoch,

@@ -155,6 +155,9 @@ enum Note {
 
   /// A podcast episode; its audio is fetched in pieces from members.
   episode,
+
+  /// A vote to remove a member, or to take that vote back.
+  vote,
 }
 
 /// The kinds of channel a community can have. Persisted by name.
