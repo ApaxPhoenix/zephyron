@@ -143,75 +143,6 @@ class _Voice extends State<Voice> {
               return alpha.value.seen.compareTo(beta.value.seen);
             });
 
-          Widget tile(MapEntry<String, Seat> entry) {
-            final address = entry.key;
-            final seat = entry.value;
-            final talking = !seat.muted && seat.level > 0.12;
-            final name = mesh.called(widget.community.id, address);
-            final trustee = Courier.instance.roster[address];
-            final member = mesh
-                .members(widget.community.id)
-                .where((item) => item.address == address);
-            return Container(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              decoration: BoxDecoration(
-                color: scheme.surfaceContainerHigh.withValues(alpha: 0.5),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: scheme.outlineVariant),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 120),
-                    padding: const EdgeInsets.all(3),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: talking
-                            ? const Color(0xFF34C759)
-                            : Colors.transparent,
-                        width: 3,
-                      ),
-                    ),
-                    child: trustee != null
-                        ? Portrait(address: address, size: 64, presence: false)
-                        : Avatar(
-                            label: name,
-                            size: 64,
-                            image: address == self
-                                ? Courier.instance.me.avatar
-                                : member.isEmpty
-                                ? null
-                                : member.first.avatar,
-                          ),
-                  ),
-                  const SizedBox(height: 10),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        if (seat.muted) ...[
-                          Icon(Icons.mic_off, size: 14, color: scheme.error),
-                          const SizedBox(width: 4),
-                        ],
-                        Flexible(
-                          child: Text(
-                            address == self ? '$name (you)' : name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.labelLarge,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }
-
           return Column(
             children: [
               Padding(
@@ -284,7 +215,91 @@ class _Voice extends State<Voice> {
                         mainAxisSpacing: 12,
                         crossAxisSpacing: 12,
                         childAspectRatio: 1.15,
-                        children: seats.map(tile).toList(),
+                        children: seats.map((MapEntry<String, Seat> entry) {
+                          final address = entry.key;
+                          final seat = entry.value;
+                          final talking = !seat.muted && seat.level > 0.12;
+                          final name = mesh.called(
+                            widget.community.id,
+                            address,
+                          );
+                          final trustee = Courier.instance.roster[address];
+                          final member = mesh
+                              .members(widget.community.id)
+                              .where((item) => item.address == address);
+                          return Container(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            decoration: BoxDecoration(
+                              color: scheme.surfaceContainerHigh.withValues(
+                                alpha: 0.5,
+                              ),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: scheme.outlineVariant),
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                AnimatedContainer(
+                                  duration: const Duration(milliseconds: 120),
+                                  padding: const EdgeInsets.all(3),
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: talking
+                                          ? const Color(0xFF34C759)
+                                          : Colors.transparent,
+                                      width: 3,
+                                    ),
+                                  ),
+                                  child: trustee != null
+                                      ? Portrait(
+                                          address: address,
+                                          size: 64,
+                                          presence: false,
+                                        )
+                                      : Avatar(
+                                          label: name,
+                                          size: 64,
+                                          image: address == self
+                                              ? Courier.instance.me.avatar
+                                              : member.isEmpty
+                                              ? null
+                                              : member.first.avatar,
+                                        ),
+                                ),
+                                const SizedBox(height: 10),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      if (seat.muted) ...[
+                                        Icon(
+                                          Icons.mic_off,
+                                          size: 14,
+                                          color: scheme.error,
+                                        ),
+                                        const SizedBox(width: 4),
+                                      ],
+                                      Flexible(
+                                        child: Text(
+                                          address == self
+                                              ? '$name (you)'
+                                              : name,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: theme.textTheme.labelLarge,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
                       ),
               ),
               DecoratedBox(

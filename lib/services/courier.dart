@@ -93,7 +93,7 @@ class Transfer {
   final String text;
   final String name;
   final String mime;
-  final String sha;
+  final String checksum;
   final int size;
   final int width;
   final int height;
@@ -117,7 +117,7 @@ class Transfer {
     required this.text,
     required this.name,
     required this.mime,
-    required this.sha,
+    required this.checksum,
     required this.size,
     required this.width,
     required this.height,
@@ -181,7 +181,7 @@ class Courier extends ChangeNotifier {
   String? focus;
   int generation = 0;
   Profile me = Profile();
-  Preferences prefs = Preferences();
+  Preferences preferences = Preferences();
 
   final Map<String, Trustee> roster = {};
   final Map<String, List<Message>> threads = {};
@@ -237,10 +237,12 @@ class Courier extends ChangeNotifier {
       if (profile.name.isEmpty) profile.name = Session.profile ?? '';
       if (profile.revision == 0) profile.revision = 1;
       me = profile;
-      prefs = chosen == null ? Preferences() : Preferences.fromJson(chosen);
-      theme.value = prefs.theme;
-      shielded.value = prefs.shield;
-      unawaited(Shield.apply(prefs.shield));
+      preferences = chosen == null
+          ? Preferences()
+          : Preferences.fromJson(chosen);
+      theme.value = preferences.theme;
+      shielded.value = preferences.shield;
+      unawaited(Shield.apply(preferences.shield));
 
       roster
         ..clear()
@@ -328,13 +330,13 @@ class Courier extends ChangeNotifier {
     if (holding != null && address != null) {
       Keeper.instance
         ..begin()
-        ..alerts = prefs.banners && me.availability != Availability.busy;
+        ..alerts = preferences.banners && me.availability != Availability.busy;
     }
     self = null;
     secret = null;
     focus = null;
     me = Profile();
-    prefs = Preferences();
+    preferences = Preferences();
 
     if (holding == null) {
       await server?.close();
@@ -438,7 +440,7 @@ class Courier extends ChangeNotifier {
       await Sentinel.summon().prepare('${folder.path}/tor');
       if (epoch != generation) return;
       reach.value = Reach.online;
-      heartbeat();
+      unawaited(heartbeat());
     } catch (error) {
       if (epoch != generation) return;
       reach.value = Reach.offline;
@@ -454,11 +456,10 @@ class Courier extends ChangeNotifier {
     }
   }
 
-  void heartbeat() {
+  Future<void> heartbeat() async {
     if (reach.value != Reach.online || self == null) return;
     Mesh.instance.heartbeat();
     Catalog.instance.heartbeat();
-    unawaited(dispatch());
     final now = DateTime.now();
     for (final trustee in roster.values.toList()) {
       if (trustee.blocked) continue;
@@ -475,6 +476,33 @@ class Courier extends ChangeNotifier {
           state.probed == null ||
           now.difference(state.probed!) > const Duration(seconds: 60);
       if (quiet && rested) unawaited(ping(peer));
+    }
+
+    // Every couple of minutes per recipient, tries to reach people this
+    // phone is holding parcels for, and drops parcels older than [keep].
+    try {
+      await Ledger.prune('parcels', now.subtract(keep));
+      final recipients = {
+        for (final parcel in await Ledger.parcels())
+          parcel['recipient'] as String,
+      };
+      for (final to in recipients) {
+        final last = forwarded[to];
+        if (last != null && now.difference(last) < const Duration(minutes: 2)) {
+          continue;
+        }
+        forwarded[to] = now;
+        unawaited(
+          dial(to).then((channel) => release(to, channel)).catchError((_) {}),
+        );
+      }
+    } catch (error) {
+      developer.log(
+        'Could not pass on held parcels yet',
+        name: 'Courier.dispatch',
+        level: 800,
+        error: error,
+      );
     }
   }
 
@@ -524,49 +552,55 @@ class Courier extends ChangeNotifier {
     }
   }
 
-  Future<Channel> dial(String peer) {
+  Future<Channel> dial(String peer) async {
     final open = channels[peer];
-    if (open != null && open.alive) return Future.value(open);
-
-    return dialing[peer] ??= () async {
-      final epoch = generation;
+    if (open != null && open.alive) return open;
+    // Callers dialing the same peer at once share one attempt.
+    final pending = dialing[peer];
+    if (pending != null) return pending;
+    final attempt = Completer<Channel>();
+    dialing[peer] = attempt.future..ignore();
+    final epoch = generation;
+    try {
+      final Tunnel tunnel;
       try {
-        final Tunnel tunnel;
-        try {
-          tunnel = await Tor.connect(peer, 80);
-        } on StateError catch (error) {
-          // A peer back online with new introduction points leaves a stale
-          // descriptor behind, so Tor is asked to forget the ones it keeps,
-          // at most once a minute.
-          final now = DateTime.now();
-          if ((error.message.contains('introduction') ||
-                  error.message.contains('descriptor not found')) &&
-              (refreshed == null ||
-                  now.difference(refreshed!) >= const Duration(minutes: 1))) {
-            refreshed = now;
-            unawaited(Sentinel.summon().forget());
-          }
-          rethrow;
+        tunnel = await Tor.connect(peer, 80);
+      } on StateError catch (error) {
+        // A peer back online with new introduction points leaves a stale
+        // descriptor behind, so Tor is asked to forget the ones it keeps,
+        // at most once a minute.
+        final now = DateTime.now();
+        if ((error.message.contains('introduction') ||
+                error.message.contains('descriptor not found')) &&
+            (refreshed == null ||
+                now.difference(refreshed!) >= const Duration(minutes: 1))) {
+          refreshed = now;
+          unawaited(Sentinel.summon().forget());
         }
-        final channel = Channel(tunnel.socket, peer: peer);
-        if (epoch != generation) {
-          channel.close();
-          throw StateError('Courier restarted while dialing');
-        }
-        adopt(channel, tunnel.stream);
-        channels[peer] = channel;
-        greet(peer, channel);
-        return channel;
-      } finally {
-        dialing.remove(peer);
+        rethrow;
       }
-    }();
+      final channel = Channel(tunnel.socket, peer: peer);
+      if (epoch != generation) {
+        channel.close();
+        throw StateError('Courier restarted while dialing');
+      }
+      adopt(channel, tunnel.stream);
+      channels[peer] = channel;
+      unawaited(greet(peer, channel));
+      attempt.complete(channel);
+      return channel;
+    } catch (error, stack) {
+      attempt.completeError(error, stack);
+      rethrow;
+    } finally {
+      dialing.remove(peer);
+    }
   }
 
   /// When Tor last forgot its cached onion service descriptors.
   DateTime? refreshed;
 
-  void greet(String peer, Channel channel) {
+  Future<void> greet(String peer, Channel channel) async {
     if (channel.greeted || roster[peer]?.trusted != true || self == null) {
       return;
     }
@@ -575,20 +609,18 @@ class Courier extends ChangeNotifier {
     Catalog.instance.greet(peer, channel);
     final known = roster[peer]!;
     final identity = self!;
-    unawaited(() async {
-      channel.send(
-        seal(
-          Signal.hello,
-          peer,
-          body: jsonEncode({
-            'revision': me.revision,
-            'fuse': known.fuse,
-            'fused': known.fused,
-            'bundle': await Ratchet.bundle(identity),
-          }),
-        ),
-      );
-    }());
+    channel.send(
+      seal(
+        Signal.hello,
+        peer,
+        body: jsonEncode({
+          'revision': me.revision,
+          'fuse': known.fuse,
+          'fused': known.fused,
+          'bundle': await Ratchet.bundle(identity),
+        }),
+      ),
+    );
   }
 
   /// Makes sure an end-to-end session with [peer] exists or can be started.
@@ -785,15 +817,15 @@ class Courier extends ChangeNotifier {
         final transfer = id is String ? transfers[id] : null;
         if (transfer == null || !identical(transfer.channel, channel)) return;
 
-        final seq = decoded['seq'];
+        final sequence = decoded['seq'];
         final data = decoded['data'];
-        if (seq != transfer.next || data is! String) {
+        if (sequence != transfer.next || data is! String) {
           transfers.remove(transfer.id);
           return;
         }
         try {
           transfer.buffer.add(
-            await Ratchet.unchunk(transfer.key, seq, base64.decode(data)),
+            await Ratchet.unwrap(transfer.key, sequence, base64.decode(data)),
           );
         } catch (_) {
           transfers.remove(transfer.id);
@@ -811,7 +843,9 @@ class Courier extends ChangeNotifier {
 
         transfers.remove(transfer.id);
         final clear = transfer.buffer.takeBytes();
-        if (hashing.sha256.convert(clear).toString() != transfer.sha) return;
+        if (hashing.sha256.convert(clear).toString() != transfer.checksum) {
+          return;
+        }
 
         final sealed = await Locker.store(transfer.id, clear);
         if (epoch != generation) return;
@@ -867,7 +901,7 @@ class Courier extends ChangeNotifier {
         final current = channels[from];
         if (current == null || !current.alive) channels[from] = channel;
         channel.used = now;
-        greet(from, channel);
+        unawaited(greet(from, channel));
       }
 
       final state = track(from);
@@ -897,7 +931,18 @@ class Courier extends ChangeNotifier {
           if (known != null && known.revision != greeting['revision']) {
             channel.send(seal(Signal.whois, from));
           }
-          await adjust(from, greeting['fuse'], greeting['fused']);
+          // A trustee's disappearing message timer is adopted when theirs
+          // is newer.
+          final fused = greeting['fused'];
+          if (known != null &&
+              known.trusted &&
+              fused is int &&
+              fused > known.fused) {
+            known
+              ..fuse = clamp(greeting['fuse'])
+              ..fused = fused;
+            await Ledger.keep(known);
+          }
           await Ratchet.learn(from, greeting['bundle']);
           if (Ratchet.lead(self!, from)) settle(from);
         case Signal.whois:
@@ -921,7 +966,7 @@ class Courier extends ChangeNotifier {
           known.mailbox = Identity.valid(mailbox) ? mailbox : '';
           known
             ..alias = profile.name
-            ..bio = profile.bio
+            ..biography = profile.biography
             ..mood = profile.mood
             ..availability = profile.availability
             ..avatar = (profile.avatar?.length ?? 0) <= portrait
@@ -964,9 +1009,9 @@ class Courier extends ChangeNotifier {
             break;
           }
           final size = data['size'];
-          final sha = '${data['sha'] ?? ''}';
+          final checksum = '${data['sha'] ?? ''}';
           if (size is! int || size <= 0 || size > Locker.ceiling) break;
-          if (!RegExp(r'^[0-9a-f]{64}$').hasMatch(sha)) break;
+          if (!RegExp(r'^[0-9a-f]{64}$').hasMatch(checksum)) break;
           if (!await admit(from)) break;
 
           final active = transfers.values
@@ -978,8 +1023,6 @@ class Courier extends ChangeNotifier {
             data['name'],
             120,
           ).replaceAll(RegExp(r'[/\\]'), '_');
-          int dimension(Object? value) =>
-              value is int && value > 0 && value < 20000 ? value : 0;
           transfers[id] = Transfer(
             id: id,
             peer: from,
@@ -988,10 +1031,16 @@ class Courier extends ChangeNotifier {
             text: Profile.clip(data['text'], limit),
             name: name.isEmpty ? 'file' : name,
             mime: Profile.clip(data['mime'], 80),
-            sha: sha,
+            checksum: checksum,
             size: size,
-            width: dimension(data['width']),
-            height: dimension(data['height']),
+            width: switch (data['width']) {
+              final int value when value > 0 && value < 20000 => value,
+              _ => 0,
+            },
+            height: switch (data['height']) {
+              final int value when value > 0 && value < 20000 => value,
+              _ => 0,
+            },
             time: stamp.millisecondsSinceEpoch,
             fuse: clamp(data['fuse']),
             key: key,
@@ -1050,7 +1099,17 @@ class Courier extends ChangeNotifier {
           }
         case Signal.timer:
           final choice = jsonDecode(body) as Map;
-          await adjust(from, choice['fuse'], choice['fused']);
+          final known = roster[from];
+          final fused = choice['fused'];
+          if (known != null &&
+              known.trusted &&
+              fused is int &&
+              fused > known.fused) {
+            known
+              ..fuse = clamp(choice['fuse'])
+              ..fused = fused;
+            await Ledger.keep(known);
+          }
         case Signal.session:
           final exchange = jsonDecode(body) as Map;
           await Ratchet.learn(from, exchange['bundle']);
@@ -1105,17 +1164,6 @@ class Courier extends ChangeNotifier {
   /// Timer seconds from a peer, kept within what this app allows.
   static int clamp(Object? value) =>
       value is int && value > 0 ? min(value, Fuse.ceiling) : 0;
-
-  /// Adopts a trustee's disappearing message timer when theirs is newer.
-  Future<void> adjust(String from, Object? fuse, Object? fused) async {
-    final known = roster[from];
-    if (known == null || !known.trusted || fused is! int) return;
-    if (fused <= known.fused) return;
-    known
-      ..fuse = clamp(fuse)
-      ..fused = fused;
-    await Ledger.keep(known);
-  }
 
   /// Sets the disappearing message timer for [peer] and tells them.
   Future<void> fuse(String peer, int seconds) async {
@@ -1259,12 +1307,23 @@ class Courier extends ChangeNotifier {
           frame['body'] as String,
           channel: channel,
           relayed: true,
-          answer: () => respond(
-            sender,
-            seal(Signal.receipt, sender, id: id),
-            relay,
-            channel,
-          ),
+          answer: () {
+            // The receipt goes to the sender directly when connected,
+            // otherwise back through the trustee that brought the message.
+            final receipt = seal(Signal.receipt, sender, id: id);
+            final direct = channels[sender];
+            if (direct != null && direct.alive) {
+              direct.send(receipt);
+            } else {
+              channel.send(
+                seal(
+                  Signal.parcel,
+                  relay,
+                  body: jsonEncode({'to': sender, 'frame': receipt}),
+                ),
+              );
+            }
+          },
         );
       case 'receipt':
         waiting.remove(id)?.complete();
@@ -1272,28 +1331,6 @@ class Courier extends ChangeNotifier {
         await upgrade(sender, id, Status.delivered);
     }
     notifyListeners();
-  }
-
-  /// Sends [frame] to [peer] directly when connected, otherwise back through
-  /// the trustee that brought the message.
-  void respond(
-    String peer,
-    Map<String, dynamic> frame,
-    String relay,
-    Channel via,
-  ) {
-    final direct = channels[peer];
-    if (direct != null && direct.alive) {
-      direct.send(frame);
-      return;
-    }
-    via.send(
-      seal(
-        Signal.parcel,
-        relay,
-        body: jsonEncode({'to': peer, 'frame': frame}),
-      ),
-    );
   }
 
   /// Holds a sealed frame for [to] on behalf of [from]: for trustees when
@@ -1307,8 +1344,8 @@ class Courier extends ChangeNotifier {
   ) async {
     final friend = roster[from]?.trusted == true;
     final allowed =
-        (prefs.carry && (friend || roster[to]?.trusted == true)) ||
-        (prefs.serve.isNotEmpty && prefs.serve == to);
+        (preferences.carry && (friend || roster[to]?.trusted == true)) ||
+        (preferences.serve.isNotEmpty && preferences.serve == to);
     if (!allowed || roster[from]?.blocked == true) return;
     final id = frame['id'];
     if (id is! String) return;
@@ -1334,101 +1371,6 @@ class Courier extends ChangeNotifier {
         seal(Signal.parcel, to, body: jsonEncode({'to': to, 'frame': frame})),
       );
       if (sent) await Ledger.handed(parcel['id'] as String);
-    }
-  }
-
-  /// Every couple of minutes per recipient, tries to reach people this phone
-  /// is holding parcels for, and drops parcels older than [keep].
-  Future<void> dispatch() async {
-    if (self == null) return;
-    try {
-      await Ledger.prune('parcels', DateTime.now().subtract(keep));
-      final now = DateTime.now();
-      final recipients = {
-        for (final parcel in await Ledger.parcels())
-          parcel['recipient'] as String,
-      };
-      for (final to in recipients) {
-        final last = forwarded[to];
-        if (last != null && now.difference(last) < const Duration(minutes: 2)) {
-          continue;
-        }
-        forwarded[to] = now;
-        unawaited(
-          dial(to).then((channel) => release(to, channel)).catchError((_) {}),
-        );
-      }
-    } catch (error) {
-      developer.log(
-        'Could not pass on held parcels yet',
-        name: 'Courier.dispatch',
-        level: 800,
-        error: error,
-      );
-    }
-  }
-
-  /// Hands sealed copies of messages for [peer], who could not be reached,
-  /// to trustees who will pass them on. Needs an end-to-end session already,
-  /// since agreeing one takes both phones online.
-  Future<void> entrust(String peer) async {
-    final identity = self;
-    if (identity == null) return;
-    final pending = undelivered(peer)
-        .where(
-          (item) =>
-              !item.attachment &&
-              item.status == Status.sending &&
-              !entrusted.contains(item.id),
-        )
-        .toList();
-    if (pending.isEmpty) return;
-    // The recipient's own mailbox, then trustees online now, two at most.
-    final mailbox = roster[peer]?.mailbox ?? '';
-    final carriers = <String>[
-      if (mailbox.isNotEmpty &&
-          mailbox != identity.address &&
-          roster[mailbox]?.blocked != true)
-        mailbox,
-      for (final trustee in roster.values)
-        if (trustee.trusted &&
-            trustee.address != peer &&
-            trustee.address != mailbox &&
-            online(trustee.address))
-          trustee.address,
-    ].take(2).toList();
-    if (carriers.isEmpty) return;
-    for (final message in pending) {
-      final Map<String, dynamic> sealed;
-      try {
-        sealed = await Ratchet.seal(
-          identity,
-          peer,
-          utf8.encode(jsonEncode(envelope(message))),
-        );
-      } on Unpaired {
-        return;
-      }
-      final frame = seal(
-        Signal.message,
-        peer,
-        id: message.id,
-        body: jsonEncode(sealed),
-        time: message.time,
-      );
-      for (final relay in carriers) {
-        try {
-          final channel = await dial(relay);
-          channel.send(
-            seal(
-              Signal.parcel,
-              relay,
-              body: jsonEncode({'to': peer, 'frame': frame}),
-            ),
-          );
-        } catch (_) {}
-      }
-      entrusted.add(message.id);
     }
   }
 
@@ -1472,7 +1414,7 @@ class Courier extends ChangeNotifier {
   Future<bool> admit(String from) async {
     final known = roster[from];
     if (known != null) return !known.blocked;
-    if (!prefs.strangers) return false;
+    if (!preferences.strangers) return false;
     final stranger = Trustee(address: from, trust: Trust.stranger);
     roster[from] = stranger;
     await Ledger.keep(stranger);
@@ -1623,12 +1565,74 @@ class Courier extends ChangeNotifier {
         try {
           channel = await dial(peer);
         } catch (_) {
-          // They are offline: trustees can carry it until they are back.
-          await entrust(peer);
+          // They are offline, so sealed copies go to trustees who will pass
+          // them on. That needs an end-to-end session already, since agreeing
+          // one takes both phones online.
+          entrusting:
+          {
+            final identity = self;
+            if (identity == null) break entrusting;
+            final pending = undelivered(peer)
+                .where(
+                  (item) =>
+                      !item.attachment &&
+                      item.status == Status.sending &&
+                      !entrusted.contains(item.id),
+                )
+                .toList();
+            if (pending.isEmpty) break entrusting;
+            // The recipient's own mailbox, then trustees online now, two at most.
+            final mailbox = roster[peer]?.mailbox ?? '';
+            final carriers = <String>[
+              if (mailbox.isNotEmpty &&
+                  mailbox != identity.address &&
+                  roster[mailbox]?.blocked != true)
+                mailbox,
+              for (final trustee in roster.values)
+                if (trustee.trusted &&
+                    trustee.address != peer &&
+                    trustee.address != mailbox &&
+                    online(trustee.address))
+                  trustee.address,
+            ].take(2).toList();
+            if (carriers.isEmpty) break entrusting;
+            for (final item in pending) {
+              final Map<String, dynamic> sealed;
+              try {
+                sealed = await Ratchet.seal(
+                  identity,
+                  peer,
+                  utf8.encode(jsonEncode(envelope(item))),
+                );
+              } on Unpaired {
+                break entrusting;
+              }
+              final frame = seal(
+                Signal.message,
+                peer,
+                id: item.id,
+                body: jsonEncode(sealed),
+                time: item.time,
+              );
+              for (final relay in carriers) {
+                try {
+                  final carrier = await dial(relay);
+                  carrier.send(
+                    seal(
+                      Signal.parcel,
+                      relay,
+                      body: jsonEncode({'to': peer, 'frame': frame}),
+                    ),
+                  );
+                } catch (_) {}
+              }
+              entrusted.add(item.id);
+            }
+          }
           rethrow;
         }
-        final ack = Completer<void>();
-        waiting[message.id] = ack;
+        final confirmation = Completer<void>();
+        waiting[message.id] = confirmation;
 
         if (message.attachment) {
           final clear = await Locker.load(message);
@@ -1664,18 +1668,18 @@ class Courier extends ChangeNotifier {
           );
           if (!opened) throw const SocketException('Channel closed');
 
-          var seq = 0;
+          var sequence = 0;
           for (var offset = 0; offset < clear.length; offset += slice) {
             final end = min(offset + slice, clear.length);
             final written = await channel.send({
               'v': protocol,
               'kind': Signal.chunk.name,
               'id': message.id,
-              'seq': seq,
+              'seq': sequence,
               'data': base64.encode(
-                await Ratchet.chunk(
+                await Ratchet.wrap(
                   key,
-                  seq,
+                  sequence,
                   clear.sublist(offset, end),
                   width: slice,
                 ),
@@ -1684,9 +1688,9 @@ class Courier extends ChangeNotifier {
             if (!written) {
               throw const SocketException('Channel closed mid transfer');
             }
-            seq += 1;
+            sequence += 1;
             progress[message.id] = end / clear.length;
-            if (seq % 4 == 0 || end == clear.length) notifyListeners();
+            if (sequence % 4 == 0 || end == clear.length) notifyListeners();
           }
         } else {
           final body = await whisper(
@@ -1710,7 +1714,7 @@ class Courier extends ChangeNotifier {
         final patience = Duration(
           seconds: 30 + (message.attachment ? message.size ~/ 16384 : 0),
         );
-        await ack.future.timeout(patience);
+        await confirmation.future.timeout(patience);
         progress.remove(message.id);
         await upgrade(peer, message.id, Status.delivered);
       }
@@ -1733,10 +1737,10 @@ class Courier extends ChangeNotifier {
     final id = token();
     try {
       final channel = await dial(peer);
-      final ack = Completer<void>();
-      waiting[id] = ack;
+      final confirmation = Completer<void>();
+      waiting[id] = confirmation;
       channel.send(seal(Signal.ping, peer, id: id));
-      await ack.future.timeout(const Duration(seconds: 30));
+      await confirmation.future.timeout(const Duration(seconds: 30));
       state.latency = clock.elapsedMilliseconds;
       state.seen = DateTime.now();
       notifyListeners();
@@ -1750,7 +1754,9 @@ class Courier extends ChangeNotifier {
   }
 
   void typing(String peer) {
-    if (!prefs.typing || invisible || roster[peer]?.trusted != true) return;
+    if (!preferences.typing || invisible || roster[peer]?.trusted != true) {
+      return;
+    }
     final channel = channels[peer];
     if (channel == null || !channel.alive || self == null) return;
     final last = hinted[peer];
@@ -1785,7 +1791,9 @@ class Courier extends ChangeNotifier {
       );
       return;
     }
-    if (!prefs.receipts || invisible || roster[peer]?.trusted != true) return;
+    if (!preferences.receipts || invisible || roster[peer]?.trusted != true) {
+      return;
+    }
     try {
       await hesitate();
       if (self == null) return;
@@ -1817,17 +1825,17 @@ class Courier extends ChangeNotifier {
     }
   }
 
-  Future<void> configure(Preferences preferences) async {
-    final relist = prefs.listed != preferences.listed;
-    prefs = preferences;
-    theme.value = preferences.theme;
-    if (shielded.value != preferences.shield) {
-      shielded.value = preferences.shield;
-      unawaited(Shield.apply(preferences.shield));
+  Future<void> configure(Preferences incoming) async {
+    final toggled = preferences.listed != incoming.listed;
+    preferences = incoming;
+    theme.value = incoming.theme;
+    if (shielded.value != incoming.shield) {
+      shielded.value = incoming.shield;
+      unawaited(Shield.apply(incoming.shield));
     }
-    await Ledger.write('preferences', preferences.toJson());
+    await Ledger.write('preferences', incoming.toJson());
     notifyListeners();
-    if (relist) unawaited(Catalog.instance.refresh());
+    if (toggled) unawaited(Catalog.instance.refresh());
   }
 
   Future<Trustee> add(String address, String nickname) async {
@@ -1861,7 +1869,7 @@ class Courier extends ChangeNotifier {
       presence.remove(peer);
     } else if (level == Trust.trustee) {
       final channel = channels[peer];
-      if (channel != null && channel.alive) greet(peer, channel);
+      if (channel != null && channel.alive) unawaited(greet(peer, channel));
     }
     notifyListeners();
   }

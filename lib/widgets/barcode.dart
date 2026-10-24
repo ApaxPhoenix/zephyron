@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:zephyron/services/qr.dart';
+import 'package:zephyron/services/mosaic.dart';
 
 /// A QR code drawn as dots, with round finder eyes in their own color.
 class Barcode extends StatelessWidget {
@@ -26,7 +26,7 @@ class Barcode extends StatelessWidget {
       child: CustomPaint(
         size: Size.square(size),
         painter: Dots(
-          code: Qr.encode(data, correction: correction),
+          code: Mosaic.encode(data, correction: correction),
           color: color,
           eyes: eyes,
         ),
@@ -36,7 +36,7 @@ class Barcode extends StatelessWidget {
 }
 
 class Dots extends CustomPainter {
-  final Qr code;
+  final Mosaic code;
   final Color color;
   final Color eyes;
 
@@ -49,15 +49,17 @@ class Dots extends CustomPainter {
     final dot = Paint()
       ..color = color
       ..isAntiAlias = true;
-    bool finder(int x, int y) =>
-        (x < 7 && y < 7) ||
-        (x >= count - 7 && y < 7) ||
-        (x < 7 && y >= count - 7);
-    for (var y = 0; y < count; y++) {
-      for (var x = 0; x < count; x++) {
-        if (!code.dark(x, y) || finder(x, y)) continue;
+    for (var row = 0; row < count; row++) {
+      for (var column = 0; column < count; column++) {
+        // The three finder eyes are drawn as rings below, not as dots.
+        if (!code.dark(column, row) ||
+            (column < 7 && row < 7) ||
+            (column >= count - 7 && row < 7) ||
+            (column < 7 && row >= count - 7)) {
+          continue;
+        }
         canvas.drawCircle(
-          Offset((x + 0.5) * cell, (y + 0.5) * cell),
+          Offset((column + 0.5) * cell, (row + 0.5) * cell),
           cell * 0.45,
           dot,
         );
@@ -71,8 +73,8 @@ class Dots extends CustomPainter {
     final pupil = Paint()
       ..color = eyes
       ..isAntiAlias = true;
-    for (final (x, y) in [(0, 0), (count - 7, 0), (0, count - 7)]) {
-      final center = Offset((x + 3.5) * cell, (y + 3.5) * cell);
+    for (final (column, row) in [(0, 0), (count - 7, 0), (0, count - 7)]) {
+      final center = Offset((column + 3.5) * cell, (row + 3.5) * cell);
       canvas.drawCircle(center, cell * 3, ring);
       canvas.drawCircle(center, cell * 1.5, pupil);
     }

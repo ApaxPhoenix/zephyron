@@ -105,7 +105,7 @@ void main() {
     await tester.pumpWidget(
       Builder(
         builder: (context) =>
-            MaterialApp(theme: Pallete.day(context), home: page),
+            MaterialApp(theme: Palette.day(context), home: page),
       ),
     );
     await tester.pumpAndSettle();

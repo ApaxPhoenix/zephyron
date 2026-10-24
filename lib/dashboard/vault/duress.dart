@@ -57,20 +57,6 @@ class _Decoy extends State<Decoy> {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
 
-    Widget label(String title, String hint) {
-      return Padding(
-        padding: const EdgeInsets.only(top: 24, bottom: 10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: theme.textTheme.titleMedium),
-            const SizedBox(height: 4),
-            Text(hint, style: theme.textTheme.bodySmall),
-          ],
-        ),
-      );
-    }
-
     InputDecoration field(String hint) => InputDecoration(
       hintText: hint,
       errorMaxLines: 3,
@@ -139,9 +125,22 @@ class _Decoy extends State<Decoy> {
                     ),
                   ),
                 ),
-                label(
-                  'This identity\'s passphrase',
-                  'Proves it is you, and lets the decoy open without it.',
+                Padding(
+                  padding: const EdgeInsets.only(top: 24, bottom: 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'This identity\'s passphrase',
+                        style: theme.textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Proves it is you, and lets the decoy open without it.',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
                 ),
                 TextFormField(
                   controller: current,
@@ -155,9 +154,22 @@ class _Decoy extends State<Decoy> {
                     return wrong;
                   },
                 ),
-                label(
-                  'Duress passphrase',
-                  'Different from every real passphrase you use, and easy to remember under stress.',
+                Padding(
+                  padding: const EdgeInsets.only(top: 24, bottom: 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Duress passphrase',
+                        style: theme.textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Different from every real passphrase you use, and easy to remember under stress.',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
                 ),
                 TextFormField(
                   controller: duress,

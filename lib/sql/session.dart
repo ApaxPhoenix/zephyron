@@ -116,24 +116,6 @@ class Session {
     }
   }
 
-  static Future<void> enroll(String name) async {
-    try {
-      final items = await sessions();
-      if (!items.contains(name)) {
-        items.add(name);
-        await storage.write(key: key, value: json.encode(items));
-      }
-    } catch (error) {
-      developer.log(
-        'Failed to enroll identity into roster in secure storage for profile: $name',
-        name: 'Session.enroll',
-        level: 1000,
-        error: error,
-        stackTrace: StackTrace.current,
-      );
-    }
-  }
-
   static Future<void> erase(String name) async {
     try {
       final items = await sessions();
@@ -167,42 +149,6 @@ class Session {
     }
   }
 
-  static Future<void> persist(String name, Attempts record) async {
-    try {
-      await storage.write(
-        key: label(name),
-        value: json.encode(record.toJson()),
-      );
-    } catch (error) {
-      developer.log(
-        'Failed to persist failed-attempt ledger to secure storage for profile: $name',
-        name: 'Session.persist',
-        level: 1000,
-        error: error,
-        stackTrace: StackTrace.current,
-      );
-    }
-  }
-
-  static Future<void> forgive(String name) async {
-    try {
-      await storage.delete(key: label(name));
-      developer.log(
-        'Cleared failed-attempt ledger after successful unlock for profile: $name',
-        name: 'Session.forgive',
-        level: 500,
-      );
-    } catch (error) {
-      developer.log(
-        'Failed to clear failed-attempt ledger for profile: $name',
-        name: 'Session.forgive',
-        level: 1000,
-        error: error,
-        stackTrace: StackTrace.current,
-      );
-    }
-  }
-
   static Future<Duration?> quarantine(String name) async {
     final record = await ledger(name);
     final device = await Warden.remaining();
@@ -220,28 +166,6 @@ class Session {
     final record = await ledger(name);
     final remaining = ceiling - record.strikes;
     return remaining < 0 ? 0 : remaining;
-  }
-
-  static Future<void> annihilate(String name) async {
-    try {
-      await Database.wipe(name);
-      await erase(name);
-      await storage.delete(key: label(name));
-      developer.log(
-        'Permanently annihilated identity and associated failed-attempt ledger for profile: $name',
-        name: 'Session.annihilate',
-        level: 1200,
-      );
-    } catch (error) {
-      developer.log(
-        'Failed to fully annihilate identity and ledger for profile: $name',
-        name: 'Session.annihilate',
-        level: 1000,
-        error: error,
-        stackTrace: StackTrace.current,
-      );
-      rethrow;
-    }
   }
 
   /// Erases every identity, its messages and attachments, and every secret
@@ -296,32 +220,28 @@ class Session {
     }
   }
 
-  /// Erases everything but the decoy, then opens it as a normal unlock.
-  static Future<Identity> spring(String decoy, String pass) async {
-    await purge(spare: decoy);
-    final identity = await open(decoy, pass);
-    try {
-      await Ledger.ensure();
-      final kept = (await Ledger.everything())
-          .where((message) => message.attachment)
-          .map((message) => message.id)
-          .toSet();
-      await Locker.prune(kept);
-    } catch (error) {
-      developer.log(
-        'Failed to prune attachments left by erased identities',
-        name: 'Session.spring',
-        level: 1000,
-        error: error,
-      );
-    }
-    return identity;
-  }
-
   static Future<Identity> open(String name, String pass) async {
     final coerced = await Duress.match(pass);
     if (coerced != null) {
-      return spring(coerced.name, coerced.passphrase);
+      // Erases everything but the decoy, then opens it as a normal unlock.
+      await purge(spare: coerced.name);
+      final identity = await open(coerced.name, coerced.passphrase);
+      try {
+        await Ledger.ensure();
+        final kept = (await Ledger.everything())
+            .where((message) => message.attachment)
+            .map((message) => message.id)
+            .toSet();
+        await Locker.prune(kept);
+      } catch (error) {
+        developer.log(
+          'Failed to prune attachments left by erased identities',
+          name: 'Session.open',
+          level: 1000,
+          error: error,
+        );
+      }
+      return identity;
     }
 
     final device = await Warden.remaining();
@@ -366,9 +286,42 @@ class Session {
 
       user = Identity.parse(data['seed'] as String);
       profile = name;
-      await forgive(name);
+
+      try {
+        await storage.delete(key: label(name));
+        developer.log(
+          'Cleared failed-attempt ledger after successful unlock for profile: $name',
+          name: 'Session.forgive',
+          level: 500,
+        );
+      } catch (error) {
+        developer.log(
+          'Failed to clear failed-attempt ledger for profile: $name',
+          name: 'Session.forgive',
+          level: 1000,
+          error: error,
+          stackTrace: StackTrace.current,
+        );
+      }
+
       await Warden.absolve(name);
-      await enroll(name);
+
+      try {
+        final items = await sessions();
+        if (!items.contains(name)) {
+          items.add(name);
+          await storage.write(key: key, value: json.encode(items));
+        }
+      } catch (error) {
+        developer.log(
+          'Failed to enroll identity into roster in secure storage for profile: $name',
+          name: 'Session.enroll',
+          level: 1000,
+          error: error,
+          stackTrace: StackTrace.current,
+        );
+      }
+
       touch();
       developer.log(
         'User session opened and identity loaded successfully for profile: $name',
@@ -416,7 +369,27 @@ class Session {
           error: error,
           stackTrace: StackTrace.current,
         );
-        await annihilate(name);
+
+        try {
+          await Database.wipe(name);
+          await erase(name);
+          await storage.delete(key: label(name));
+          developer.log(
+            'Permanently annihilated identity and associated failed-attempt ledger for profile: $name',
+            name: 'Session.annihilate',
+            level: 1200,
+          );
+        } catch (error) {
+          developer.log(
+            'Failed to fully annihilate identity and ledger for profile: $name',
+            name: 'Session.annihilate',
+            level: 1000,
+            error: error,
+            stackTrace: StackTrace.current,
+          );
+          rethrow;
+        }
+
         throw Annihilated(name);
       }
 
@@ -430,7 +403,20 @@ class Session {
         record.until = now.add(duration);
         record.failures = [];
 
-        await persist(name, record);
+        try {
+          await storage.write(
+            key: label(name),
+            value: json.encode(record.toJson()),
+          );
+        } catch (error) {
+          developer.log(
+            'Failed to persist failed-attempt ledger to secure storage for profile: $name',
+            name: 'Session.persist',
+            level: 1000,
+            error: error,
+            stackTrace: StackTrace.current,
+          );
+        }
 
         developer.log(
           'Too many failed unlock attempts within the throttle window for profile: $name, enforcing quarantine of ${duration.inSeconds} seconds',
@@ -441,7 +427,21 @@ class Session {
         throw Quarantined(duration);
       }
 
-      await persist(name, record);
+      try {
+        await storage.write(
+          key: label(name),
+          value: json.encode(record.toJson()),
+        );
+      } catch (error) {
+        developer.log(
+          'Failed to persist failed-attempt ledger to secure storage for profile: $name',
+          name: 'Session.persist',
+          level: 1000,
+          error: error,
+          stackTrace: StackTrace.current,
+        );
+      }
+
       if (verdict == Verdict.lockout) {
         throw Quarantined(await Warden.remaining() ?? Warden.shortest);
       }
@@ -458,13 +458,46 @@ class Session {
     try {
       final base = await Database.open(name, pass);
       await Database.save(base, identity, seed);
-      await enroll(name);
+
+      try {
+        final items = await sessions();
+        if (!items.contains(name)) {
+          items.add(name);
+          await storage.write(key: key, value: json.encode(items));
+        }
+      } catch (error) {
+        developer.log(
+          'Failed to enroll identity into roster in secure storage for profile: $name',
+          name: 'Session.enroll',
+          level: 1000,
+          error: error,
+          stackTrace: StackTrace.current,
+        );
+      }
+
       if (!(await sessions()).contains(name)) {
         throw StateError(
           'The identity could not be saved to secure storage on this device.',
         );
       }
-      await forgive(name);
+
+      try {
+        await storage.delete(key: label(name));
+        developer.log(
+          'Cleared failed-attempt ledger after successful unlock for profile: $name',
+          name: 'Session.forgive',
+          level: 500,
+        );
+      } catch (error) {
+        developer.log(
+          'Failed to clear failed-attempt ledger for profile: $name',
+          name: 'Session.forgive',
+          level: 1000,
+          error: error,
+          stackTrace: StackTrace.current,
+        );
+      }
+
       user = identity;
       profile = name;
       touch();

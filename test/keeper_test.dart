@@ -18,7 +18,7 @@ void main() {
 
   setUp(() async {
     reset();
-    courier.prefs = Preferences();
+    courier.preferences = Preferences();
     courier.kept = null;
     courier.roster[alice.address] = Trustee(address: alice.address);
     await Keeper.wipe();

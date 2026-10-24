@@ -323,14 +323,16 @@ class Ledger {
     int share = 200,
     int total = 2000,
   }) async {
-    int count(List<Map<String, Object?>> rows) =>
-        rows.first.values.first as int;
-    final mine = count(
-      await base.rawQuery('SELECT COUNT(*) FROM parcels WHERE sender = ?', [
-        sender,
-      ]),
-    );
-    final all = count(await base.rawQuery('SELECT COUNT(*) FROM parcels'));
+    final mine =
+        ((await base.rawQuery('SELECT COUNT(*) FROM parcels WHERE sender = ?', [
+              sender,
+            ])).first.values.first
+            as int);
+    final all =
+        ((await base.rawQuery(
+              'SELECT COUNT(*) FROM parcels',
+            )).first.values.first
+            as int);
     if (mine >= share || all >= total) return false;
     await base.insert('parcels', {
       'id': id,

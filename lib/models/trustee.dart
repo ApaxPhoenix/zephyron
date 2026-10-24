@@ -10,7 +10,7 @@ class Trustee {
   DateTime created;
 
   String alias;
-  String bio;
+  String biography;
   String mood;
   Availability availability;
   Uint8List? avatar;
@@ -34,7 +34,7 @@ class Trustee {
     this.archived = false,
     DateTime? created,
     this.alias = '',
-    this.bio = '',
+    this.biography = '',
     this.mood = '',
     this.availability = Availability.available,
     this.avatar,
@@ -46,23 +46,27 @@ class Trustee {
   }) : created = created ?? DateTime.now();
 
   factory Trustee.from(Map<String, dynamic> row) {
-    int index(Object? value, int length) =>
-        ((value as int?) ?? 0).clamp(0, length - 1);
-
     final picture = row['avatar'];
     final cover = row['banner'];
     return Trustee(
       address: row['address'] as String,
       nickname: row['nickname'] as String? ?? '',
-      trust: Trust.values[index(row['trust'], Trust.values.length)],
+      trust:
+          Trust.values[((((row['trust']) as int?) ?? 0).clamp(
+            0,
+            Trust.values.length - 1,
+          ))],
       pinned: (row['pinned'] as int? ?? 0) == 1,
       archived: (row['archived'] as int? ?? 0) == 1,
       created: DateTime.fromMillisecondsSinceEpoch(row['created'] as int? ?? 0),
       alias: row['alias'] as String? ?? '',
-      bio: row['bio'] as String? ?? '',
+      biography: row['bio'] as String? ?? '',
       mood: row['mood'] as String? ?? '',
-      availability: Availability
-          .values[index(row['availability'], Availability.values.length)],
+      availability:
+          Availability.values[((((row['availability']) as int?) ?? 0).clamp(
+            0,
+            Availability.values.length - 1,
+          ))],
       avatar: picture is Uint8List && picture.isNotEmpty ? picture : null,
       banner: cover is Uint8List && cover.isNotEmpty ? cover : null,
       mailbox: row['mailbox'] as String? ?? '',
@@ -81,7 +85,7 @@ class Trustee {
       'archived': archived ? 1 : 0,
       'created': created.millisecondsSinceEpoch,
       'alias': alias,
-      'bio': bio,
+      'bio': biography,
       'mood': mood,
       'availability': availability.index,
       'avatar': avatar,

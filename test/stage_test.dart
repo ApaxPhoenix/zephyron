@@ -79,11 +79,17 @@ void main() {
 
   test('packets open only for the right room, sender and order', () async {
     final (community, room) = await lounge();
-    final pcm = tone(2);
-    final packet = await Stage.pack(community, room.id, alice.address, 7, pcm);
+    final samples = tone(2);
+    final packet = await Stage.pack(
+      community,
+      room.id,
+      alice.address,
+      7,
+      samples,
+    );
     expect(
       jsonEncode(packet),
-      isNot(contains(base64.encode(Stage.compress(pcm)))),
+      isNot(contains(base64.encode(Stage.compress(samples)))),
     );
 
     final heard = await Stage.unpack(community, alice.address, packet);
@@ -134,12 +140,18 @@ void main() {
 
     final wire = await Wire.open();
     final channel = courier.live.last;
-    for (var seq = 0; seq < 3; seq++) {
+    for (var number = 0; number < 3; number++) {
       await stage.receive(
         alice.address,
         channel,
         community,
-        await Stage.pack(community, room.id, alice.address, seq, tone(seq)),
+        await Stage.pack(
+          community,
+          room.id,
+          alice.address,
+          number,
+          tone(number),
+        ),
       );
     }
     expect(stage.buffers[alice.address], hasLength(3));

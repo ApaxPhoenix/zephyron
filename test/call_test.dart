@@ -25,7 +25,7 @@ void main() {
     reset();
     stage.reset();
     Stage.patience = const Duration(seconds: 45);
-    courier.prefs = Preferences();
+    courier.preferences = Preferences();
     courier.me = Profile(name: 'Bob Stone');
     courier.roster[alice.address] = Trustee(address: alice.address);
     await Mesh.instance.start();
@@ -43,13 +43,13 @@ void main() {
     );
   }
 
-  /// What came back over [wire] for the call signal with [op], whether it
+  /// What came back over [wire] for the call signal with [operation], whether it
   /// already arrived or is still on its way.
-  Future<Map> heard(Wire wire, String op) {
+  Future<Map> heard(Wire wire, String operation) {
     Map? match(Map<String, dynamic> frame) {
       if (frame['kind'] != 'call') return null;
       final body = jsonDecode(frame['body'] as String) as Map;
-      return body['op'] == op ? body : null;
+      return body['op'] == operation ? body : null;
     }
 
     for (final frame in wire.replies) {
@@ -163,7 +163,7 @@ void main() {
       expect(stage.connected, isNotNull);
       expect((await heard(wire, 'answer'))['r'], id);
 
-      for (var seq = 0; seq < 2; seq++) {
+      for (var number = 0; number < 2; number++) {
         wire.send(
           sealed(
             alice,
@@ -174,8 +174,8 @@ void main() {
                 'direct',
                 id,
                 alice.address,
-                seq,
-                tone(seq),
+                number,
+                tone(number),
               ),
             ),
           ),

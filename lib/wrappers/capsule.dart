@@ -16,7 +16,7 @@ typedef Sealed = int Function(Pointer<Uint8>, Pointer<Uint8>, Pointer<Uint8>);
 ///
 /// Where the library is missing, such as on iOS until it is built there,
 /// [available] is false and sessions fall back to classical X25519 alone.
-class Kem {
+class Capsule {
   static const int publics = 1184;
   static const int secrets = 2400;
   static const int ciphers = 1088;
@@ -53,13 +53,13 @@ class Kem {
 
   static bool get available => library != null;
 
-  static Paired get keypair =>
+  static Paired get generator =>
       library!.lookupFunction<Pairing, Paired>('OQS_KEM_ml_kem_768_keypair');
 
-  static Sealed get encaps =>
+  static Sealed get encapsulate =>
       library!.lookupFunction<Sealing, Sealed>('OQS_KEM_ml_kem_768_encaps');
 
-  static Sealed get decaps =>
+  static Sealed get decapsulate =>
       library!.lookupFunction<Sealing, Sealed>('OQS_KEM_ml_kem_768_decaps');
 
   /// Copies [count] bytes out of native memory, then wipes and frees it.
@@ -80,7 +80,7 @@ class Kem {
   static ({Uint8List public, Uint8List secret}) pair() {
     final public = calloc<Uint8>(publics);
     final secret = calloc<Uint8>(secrets);
-    final status = keypair(public, secret);
+    final status = generator(public, secret);
     final result = (
       public: take(public, publics),
       secret: take(secret, secrets),
@@ -96,7 +96,7 @@ class Kem {
     final key = give(public);
     final cipher = calloc<Uint8>(ciphers);
     final secret = calloc<Uint8>(shared);
-    final status = encaps(cipher, secret, key);
+    final status = encapsulate(cipher, secret, key);
     calloc.free(key);
     final result = (
       cipher: take(cipher, ciphers),
@@ -115,7 +115,7 @@ class Kem {
     final sealed = give(cipher);
     final key = give(secret);
     final out = calloc<Uint8>(shared);
-    final status = decaps(out, sealed, key);
+    final status = decapsulate(out, sealed, key);
     calloc.free(sealed);
     key.asTypedList(secrets).fillRange(0, secrets, 0);
     calloc.free(key);

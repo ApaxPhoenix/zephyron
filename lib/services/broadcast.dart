@@ -99,9 +99,11 @@ class Broadcast extends ChangeNotifier {
   Future<void> download(Community community, Post post) async {
     final id = blob(post);
     final size = post.meta['size'];
-    final sha = post.meta['sha'];
+    final checksum = post.meta['sha'];
     if (id.isEmpty || size is! int || size <= 0 || size > ceiling) return;
-    if (sha is! String || progress.containsKey(id) || await held(id)) return;
+    if (checksum is! String || progress.containsKey(id) || await held(id)) {
+      return;
+    }
 
     final total = (size + piece - 1) ~/ piece;
     final parts = List<Uint8List?>.filled(total, null);
@@ -121,11 +123,17 @@ class Broadcast extends ChangeNotifier {
           var next = parts.indexWhere((part) => part == null);
           while (next != -1) {
             final batch = <int>[
-              for (var seq = next; seq < total && seq < next + window; seq++)
-                if (parts[seq] == null) seq,
+              for (
+                var sequence = next;
+                sequence < total && sequence < next + window;
+                sequence++
+              )
+                if (parts[sequence] == null) sequence,
             ];
             final replies = await Future.wait(
-              batch.map((seq) => ask(community, channel, source, id, seq)),
+              batch.map(
+                (sequence) => ask(community, channel, source, id, sequence),
+              ),
             );
             final secret = await key(community, id);
             for (var index = 0; index < batch.length; index++) {
@@ -133,7 +141,7 @@ class Broadcast extends ChangeNotifier {
               if (reply['missing'] == true) throw StateError('missing');
               final data = reply['d'];
               if (data is! String) throw StateError('malformed');
-              parts[batch[index]] = await Ratchet.unchunk(
+              parts[batch[index]] = await Ratchet.unwrap(
                 secret,
                 batch[index],
                 base64.decode(data),
@@ -161,7 +169,7 @@ class Broadcast extends ChangeNotifier {
       }
       final bytes = builder.takeBytes();
       if (bytes.length != size ||
-          hashing.sha256.convert(bytes).toString() != sha) {
+          hashing.sha256.convert(bytes).toString() != checksum) {
         return;
       }
       final sealed = await Locker.store(id, bytes);
@@ -177,15 +185,15 @@ class Broadcast extends ChangeNotifier {
     Channel channel,
     String peer,
     String blob,
-    int seq,
+    int sequence,
   ) {
-    final slot = '$peer:$blob:$seq';
+    final slot = '$peer:$blob:$sequence';
     final waiter = awaiting[slot] ??= Completer<Map<String, dynamic>>();
     mesh.send(channel, peer, {
       'op': 'fetch',
       'c': community.id,
       'b': blob,
-      's': seq,
+      's': sequence,
     });
     return waiter.future
         .timeout(const Duration(seconds: 45))
@@ -200,8 +208,8 @@ class Broadcast extends ChangeNotifier {
     Map<String, dynamic> data,
   ) async {
     final id = data['b'];
-    final seq = data['s'];
-    if (id is! String || seq is! int || seq < 0) return;
+    final sequence = data['s'];
+    if (id is! String || sequence is! int || sequence < 0) return;
     switch (data['op']) {
       case 'fetch':
         if (!mesh.member(community.id, from)) return;
@@ -209,17 +217,17 @@ class Broadcast extends ChangeNotifier {
           'op': 'piece',
           'c': community.id,
           'b': id,
-          's': seq,
+          's': sequence,
         };
         try {
           final bytes = await audio(id);
-          final start = seq * piece;
+          final start = sequence * piece;
           if (start >= bytes.length) throw RangeError('past the end');
           final slice = bytes.sublist(start, min(start + piece, bytes.length));
           reply['d'] = base64.encode(
-            await Ratchet.chunk(
+            await Ratchet.wrap(
               await key(community, id),
-              seq,
+              sequence,
               slice,
               width: piece,
             ),
@@ -229,7 +237,7 @@ class Broadcast extends ChangeNotifier {
         }
         mesh.send(channel, from, reply);
       case 'piece':
-        final waiter = awaiting.remove('$from:$id:$seq');
+        final waiter = awaiting.remove('$from:$id:$sequence');
         if (waiter != null && !waiter.isCompleted) waiter.complete(data);
     }
   }

@@ -254,9 +254,9 @@ class _Node extends State<Node> {
                               ?.copyWith(color: scheme.primary),
                         ),
                       ],
-                      if (trustee.bio.isNotEmpty) ...[
+                      if (trustee.biography.isNotEmpty) ...[
                         const SizedBox(height: 8),
-                        Text(trustee.bio, textAlign: TextAlign.center),
+                        Text(trustee.biography, textAlign: TextAlign.center),
                       ],
                     ],
                   ),
@@ -284,7 +284,7 @@ class _Node extends State<Node> {
                     subtitle: SelectableText(
                       address,
                       style: const TextStyle(
-                        fontFamily: Pallete.mono,
+                        fontFamily: Palette.mono,
                         fontSize: 12,
                       ),
                     ),
@@ -345,7 +345,7 @@ class _Node extends State<Node> {
                           Text(
                             '${code.take(3).join('  ')}\n${code.skip(3).join('  ')}',
                             style: TextStyle(
-                              fontFamily: Pallete.mono,
+                              fontFamily: Palette.mono,
                               fontSize: 16,
                               letterSpacing: 1.5,
                               fontWeight: FontWeight.w600,

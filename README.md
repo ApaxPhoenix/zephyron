@@ -241,7 +241,7 @@ If `APP_CERT_HASH` is set, freeRASP closes the app when the signing certificate
 doesn't match it, so make sure it is the hash of the key in `key.properties`.
 Without `APP_CERT_HASH`, runtime threat detection is turned off for that build.
 
-`scripts/oqs.sh` rebuilds the bundled liboqs libraries from source if you want
+`scripts/quantum.sh` rebuilds the bundled liboqs libraries from source if you want
 to check or update them.
 
 ### Tests

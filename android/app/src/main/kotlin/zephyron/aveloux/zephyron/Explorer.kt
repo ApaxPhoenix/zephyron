@@ -58,10 +58,10 @@ class Explorer(private val activity: Activity) {
             "camera" -> {
                 val file = File(Vault.outbox(activity), "camera-${UUID.randomUUID()}.jpg")
                 shot = file
-                val uri = Vault.uri(activity, file)
+                val link = Vault.link(activity, file)
                 Intent(MediaStore.ACTION_IMAGE_CAPTURE).apply {
-                    putExtra(MediaStore.EXTRA_OUTPUT, uri)
-                    clipData = ClipData.newRawUri("", uri)
+                    putExtra(MediaStore.EXTRA_OUTPUT, link)
+                    clipData = ClipData.newRawUri("", link)
                     addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     if (call.argument<Boolean>("front") == true) {
                         // Not part of the platform, but most camera apps honour one of these.
@@ -94,8 +94,8 @@ class Explorer(private val activity: Activity) {
         if (code !in GALLERY..FILE) return false
         val result = pending ?: return true
         pending = null
-        val uri = if (code == CAMERA) shot?.let { Vault.uri(activity, it) } else data?.data
-        if (status != Activity.RESULT_OK || uri == null) {
+        val link = if (code == CAMERA) shot?.let { Vault.link(activity, it) } else data?.data
+        if (status != Activity.RESULT_OK || link == null) {
             shot?.delete()
             shot = null
             result.success(null)
@@ -106,26 +106,26 @@ class Explorer(private val activity: Activity) {
         Thread {
             val picked = try {
                 val resolver = activity.contentResolver
-                var name = uri.lastPathSegment?.substringAfterLast('/') ?: "file"
-                resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
+                var name = link.lastPathSegment?.substringAfterLast('/') ?: "file"
+                resolver.query(link, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
                     if (it.moveToFirst() && !it.getString(0).isNullOrBlank()) name = it.getString(0)
                 }
                 name = name.replace(Regex("[^\\w.\\- ]"), "_")
-                val mime = resolver.getType(uri) ?: Vault.mime(name)
+                val mime = resolver.getType(link) ?: Vault.mime(name)
                 val folder = Vault.outbox(activity)
                 // A photo is decoded no larger than [limit] on its long side,
                 // turned upright.
                 val shrunk = if (!photo || mime == "image/gif") null else run {
                     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                    resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+                    resolver.openInputStream(link)?.use { BitmapFactory.decodeStream(it, null, bounds) }
                     val longest = maxOf(bounds.outWidth, bounds.outHeight)
                     if (longest <= 0) return@run null
                     var sample = 1
                     while (longest / (sample * 2) >= limit) sample *= 2
-                    val decoded = resolver.openInputStream(uri)?.use {
+                    val decoded = resolver.openInputStream(link)?.use {
                         BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = sample })
                     } ?: return@run null
-                    val turn = resolver.openInputStream(uri)?.use {
+                    val turn = resolver.openInputStream(link)?.use {
                         when (
                             ExifInterface(it).getAttributeInt(
                                 ExifInterface.TAG_ORIENTATION,
@@ -156,7 +156,7 @@ class Explorer(private val activity: Activity) {
                     mapOf("path" to file.path, "name" to "$base.jpg", "mime" to "image/jpeg", "size" to file.length())
                 } else {
                     val file = File(folder, "picked-${UUID.randomUUID()}-$name")
-                    resolver.openInputStream(uri).use { input ->
+                    resolver.openInputStream(link).use { input ->
                         requireNotNull(input) { "Could not open what was picked" }
                         FileOutputStream(file).use { input.copyTo(it) }
                     }

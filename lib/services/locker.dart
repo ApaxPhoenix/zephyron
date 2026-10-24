@@ -79,7 +79,15 @@ class Locker {
     await File(
       '${directory.path}/${slot(id)}',
     ).writeAsBytes(sealed, flush: true);
-    remember(id, clear);
+    // Small attachments stay in memory too, the oldest dropped past [budget].
+    if (clear.length <= budget ~/ 4) {
+      cache[id] = clear;
+      cached += clear.length;
+      while (cached > budget && cache.isNotEmpty) {
+        final oldest = cache.keys.first;
+        cached -= cache.remove(oldest)!.length;
+      }
+    }
     return {
       'key': base64.encode(key),
       'nonce': base64.encode(nonce),
@@ -102,7 +110,15 @@ class Locker {
     final directory = await folder();
     final sealed = await File('${directory.path}/${slot(id)}').readAsBytes();
     final clear = await Isolate.run(() => decrypt(sealed, key, nonce));
-    remember(id, clear);
+    // Small attachments stay in memory too, the oldest dropped past [budget].
+    if (clear.length <= budget ~/ 4) {
+      cache[id] = clear;
+      cached += clear.length;
+      while (cached > budget && cache.isNotEmpty) {
+        final oldest = cache.keys.first;
+        cached -= cache.remove(oldest)!.length;
+      }
+    }
     return clear;
   }
 
@@ -113,16 +129,6 @@ class Locker {
     final file = File('${directory.path}/$id-$safe');
     if (!await file.exists()) await file.writeAsBytes(clear, flush: true);
     return file;
-  }
-
-  static void remember(String id, Uint8List clear) {
-    if (clear.length > budget ~/ 4) return;
-    cache[id] = clear;
-    cached += clear.length;
-    while (cached > budget && cache.isNotEmpty) {
-      final oldest = cache.keys.first;
-      cached -= cache.remove(oldest)!.length;
-    }
   }
 
   static Future<void> discard(Message message) async {

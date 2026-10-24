@@ -22,9 +22,9 @@ enum Correction {
 /// Only byte mode is used, which holds any UTF-8 text. The smallest version
 /// that fits is chosen, and of the eight masks the one the standard scores
 /// best.
-class Qr {
+class Mosaic {
   /// Error correction codewords in each block, by level and version.
-  static const List<List<int>> eccs = [
+  static const List<List<int>> parities = [
     [
       -1,
       7,
@@ -382,15 +382,18 @@ class Qr {
   /// Dark modules, row by row.
   final List<List<bool>> modules;
 
-  Qr._(this.version, this.correction, this.mask, this.modules);
+  Mosaic._(this.version, this.correction, this.mask, this.modules);
 
   int get size => modules.length;
 
-  bool dark(int x, int y) => modules[y][x];
+  bool dark(int column, int row) => modules[row][column];
 
   /// Encodes [text], or throws [ArgumentError] when it is too long for any
   /// version at [correction].
-  static Qr encode(String text, {Correction correction = Correction.medium}) {
+  static Mosaic encode(
+    String text, {
+    Correction correction = Correction.medium,
+  }) {
     final data = utf8.encode(text);
     for (var version = 1; version <= 40; version++) {
       final count = version < 10 ? 8 : 16;
@@ -417,7 +420,7 @@ class Qr {
   /// Data codewords a version holds at a level.
   static int limit(int version, Correction correction) =>
       raw(version) ~/ 8 -
-      eccs[correction.row][version] * blocks[correction.row][version];
+      parities[correction.row][version] * blocks[correction.row][version];
 
   /// Where the alignment patterns sit along each axis.
   static List<int> alignments(int version) {
@@ -434,38 +437,13 @@ class Qr {
 
   // Arithmetic in GF(2^8) with the polynomial 0x11D, for Reed-Solomon.
 
-  static int multiply(int x, int y) {
-    var z = 0;
+  static int multiply(int left, int right) {
+    var product = 0;
     for (var bit = 7; bit >= 0; bit--) {
-      z = (z << 1) ^ ((z >> 7) * 0x11D);
-      z ^= ((y >> bit) & 1) * x;
+      product = (product << 1) ^ ((product >> 7) * 0x11D);
+      product ^= ((right >> bit) & 1) * left;
     }
-    return z;
-  }
-
-  static List<int> divisor(int degree) {
-    final result = List.filled(degree, 0)..[degree - 1] = 1;
-    var root = 1;
-    for (var step = 0; step < degree; step++) {
-      for (var index = 0; index < degree; index++) {
-        result[index] = multiply(result[index], root);
-        if (index + 1 < degree) result[index] ^= result[index + 1];
-      }
-      root = multiply(root, 0x02);
-    }
-    return result;
-  }
-
-  static List<int> remainder(List<int> data, List<int> divisor) {
-    final result = List.filled(divisor.length, 0, growable: true);
-    for (final byte in data) {
-      final factor = byte ^ result.removeAt(0);
-      result.add(0);
-      for (var index = 0; index < result.length; index++) {
-        result[index] ^= multiply(divisor[index], factor);
-      }
-    }
-    return result;
+    return product;
   }
 }
 
@@ -488,7 +466,7 @@ class Weave {
         (_) => List.filled(version * 4 + 17, false),
       );
 
-  Qr build(List<int> data, int count, int capacity) {
+  Mosaic build(List<int> data, int count, int capacity) {
     final bits = <bool>[];
     void put(int value, int length) {
       for (var bit = length - 1; bit >= 0; bit--) {
@@ -513,14 +491,187 @@ class Weave {
       codewords.add(pad);
     }
 
-    patterns();
-    place(interleave(codewords));
+    // The timing lines, the three finders and the alignment patterns.
+    for (var index = 0; index < size; index++) {
+      set(6, index, index % 2 == 0);
+      set(index, 6, index % 2 == 0);
+    }
+    finder(3, 3);
+    finder(size - 4, 3);
+    finder(3, size - 4);
+    final spots = Mosaic.alignments(version);
+    final last = spots.length - 1;
+    for (var row = 0; row < spots.length; row++) {
+      for (var column = 0; column < spots.length; column++) {
+        if ((row == 0 && column == 0) ||
+            (row == 0 && column == last) ||
+            (row == last && column == 0)) {
+          continue;
+        }
+        for (var drop = -2; drop <= 2; drop++) {
+          for (var shift = -2; shift <= 2; shift++) {
+            set(
+              spots[column] + shift,
+              spots[row] + drop,
+              max(shift.abs(), drop.abs()) != 1,
+            );
+          }
+        }
+      }
+    }
+    format(0);
+    // The version, from version 7 up, in both corners.
+    if (version >= 7) {
+      var rest = version;
+      for (var step = 0; step < 12; step++) {
+        rest = (rest << 1) ^ ((rest >> 11) * 0x1F25);
+      }
+      final marks = version << 12 | rest;
+      for (var index = 0; index < 18; index++) {
+        final dark = bit(marks, index);
+        final edge = size - 11 + index % 3;
+        final offset = index ~/ 3;
+        set(edge, offset, dark);
+        set(offset, edge, dark);
+      }
+    }
+    // Fills the free modules in the zigzag order the standard sets.
+    // The data split into blocks, each with its Reed-Solomon error
+    // correction, interleaved.
+    final groups = Mosaic.blocks[correction.row][version];
+    final parity = Mosaic.parities[correction.row][version];
+    final total = Mosaic.raw(version) ~/ 8;
+    final short = groups - total % groups;
+    final length = total ~/ groups;
+    // The Reed-Solomon generator polynomial of degree [parity].
+    final generator = List.filled(parity, 0)..[parity - 1] = 1;
+    var root = 1;
+    for (var step = 0; step < parity; step++) {
+      for (var spot = 0; spot < parity; spot++) {
+        generator[spot] = Mosaic.multiply(generator[spot], root);
+        if (spot + 1 < parity) generator[spot] ^= generator[spot + 1];
+      }
+      root = Mosaic.multiply(root, 0x02);
+    }
+    final made = <List<int>>[];
+    var cursor = 0;
+    for (var group = 0; group < groups; group++) {
+      final take = length - parity + (group < short ? 0 : 1);
+      final block = codewords.sublist(cursor, cursor + take);
+      cursor += take;
+      final check = List.filled(generator.length, 0, growable: true);
+      for (final byte in block) {
+        final factor = byte ^ check.removeAt(0);
+        check.add(0);
+        for (var spot = 0; spot < check.length; spot++) {
+          check[spot] ^= Mosaic.multiply(generator[spot], factor);
+        }
+      }
+      if (group < short) block.add(0);
+      made.add([...block, ...check]);
+    }
+    final woven = [
+      for (var column = 0; column < made[0].length; column++)
+        for (var row = 0; row < made.length; row++)
+          if (column != length - parity || row >= short) made[row][column],
+    ];
+    var index = 0;
+    for (var right = size - 1; right >= 1; right -= 2) {
+      if (right == 6) right = 5;
+      for (var step = 0; step < size; step++) {
+        for (var side = 0; side < 2; side++) {
+          final column = right - side;
+          final upward = (right + 1) & 2 == 0;
+          final row = upward ? size - 1 - step : step;
+          if (!fixed[row][column] && index < woven.length * 8) {
+            modules[row][column] = bit(woven[index >> 3], 7 - (index & 7));
+            index += 1;
+          }
+        }
+      }
+    }
+
     var best = 0;
     var lowest = -1;
     for (var mask = 0; mask < 8; mask++) {
       apply(mask);
       format(mask);
-      final score = penalty();
+      // The standard's score for how hard this mask makes the code to read.
+      var score = 0;
+      for (final across in [true, false]) {
+        for (var line = 0; line < size; line++) {
+          var color = false;
+          var run = 0;
+          final history = List.filled(7, 0, growable: true);
+          for (var along = 0; along < size; along++) {
+            final dark = across ? modules[line][along] : modules[along][line];
+            if (dark == color) {
+              run += 1;
+              if (run == 5) {
+                score += 3;
+              } else if (run > 5) {
+                score += 1;
+              }
+            } else {
+              record(run, history);
+              if (!color) {
+                // A finder-like 1:1:3:1:1 run, light on one side or both.
+                final unit = history[1];
+                final core =
+                    unit > 0 &&
+                    history[2] == unit &&
+                    history[3] == unit * 3 &&
+                    history[4] == unit &&
+                    history[5] == unit;
+                score +=
+                    ((core && history[0] >= unit * 4 && history[6] >= unit
+                            ? 1
+                            : 0) +
+                        (core && history[6] >= unit * 4 && history[0] >= unit
+                            ? 1
+                            : 0)) *
+                    40;
+              }
+              color = dark;
+              run = 1;
+            }
+          }
+          if (color) {
+            record(run, history);
+            run = 0;
+          }
+          record(run + size, history);
+          final unit = history[1];
+          final core =
+              unit > 0 &&
+              history[2] == unit &&
+              history[3] == unit * 3 &&
+              history[4] == unit &&
+              history[5] == unit;
+          score +=
+              ((core && history[0] >= unit * 4 && history[6] >= unit ? 1 : 0) +
+                  (core && history[6] >= unit * 4 && history[0] >= unit
+                      ? 1
+                      : 0)) *
+              40;
+        }
+      }
+      for (var row = 0; row < size - 1; row++) {
+        for (var column = 0; column < size - 1; column++) {
+          final color = modules[row][column];
+          if (color == modules[row][column + 1] &&
+              color == modules[row + 1][column] &&
+              color == modules[row + 1][column + 1]) {
+            score += 3;
+          }
+        }
+      }
+      final dark = modules.fold<int>(
+        0,
+        (sum, row) => sum + row.where((item) => item).length,
+      );
+      final area = size * size;
+      score += (((dark * 20 - area * 10).abs() + area - 1) ~/ area - 1) * 10;
       if (lowest < 0 || score < lowest) {
         best = mask;
         lowest = score;
@@ -529,54 +680,23 @@ class Weave {
     }
     apply(best);
     format(best);
-    return Qr._(version, correction, best, modules);
+    return Mosaic._(version, correction, best, modules);
   }
 
-  void set(int x, int y, bool dark) {
-    modules[y][x] = dark;
-    fixed[y][x] = true;
+  void set(int column, int row, bool dark) {
+    modules[row][column] = dark;
+    fixed[row][column] = true;
   }
 
-  void patterns() {
-    for (var index = 0; index < size; index++) {
-      set(6, index, index % 2 == 0);
-      set(index, 6, index % 2 == 0);
-    }
-    finder(3, 3);
-    finder(size - 4, 3);
-    finder(3, size - 4);
-    final spots = Qr.alignments(version);
-    final last = spots.length - 1;
-    for (var row = 0; row < spots.length; row++) {
-      for (var column = 0; column < spots.length; column++) {
-        final corner =
-            (row == 0 && column == 0) ||
-            (row == 0 && column == last) ||
-            (row == last && column == 0);
-        if (!corner) alignment(spots[row], spots[column]);
-      }
-    }
-    format(0);
-    stamp();
-  }
-
-  void finder(int x, int y) {
-    for (var dy = -4; dy <= 4; dy++) {
-      for (var dx = -4; dx <= 4; dx++) {
-        final distance = max(dx.abs(), dy.abs());
-        final px = x + dx;
-        final py = y + dy;
-        if (px >= 0 && px < size && py >= 0 && py < size) {
-          set(px, py, distance != 2 && distance != 4);
+  void finder(int column, int row) {
+    for (var drop = -4; drop <= 4; drop++) {
+      for (var shift = -4; shift <= 4; shift++) {
+        final distance = max(shift.abs(), drop.abs());
+        final left = column + shift;
+        final top = row + drop;
+        if (left >= 0 && left < size && top >= 0 && top < size) {
+          set(left, top, distance != 2 && distance != 4);
         }
-      }
-    }
-  }
-
-  void alignment(int x, int y) {
-    for (var dy = -2; dy <= 2; dy++) {
-      for (var dx = -2; dx <= 2; dx++) {
-        set(x + dx, y + dy, max(dx.abs(), dy.abs()) != 1);
       }
     }
   }
@@ -609,135 +729,24 @@ class Weave {
     set(8, size - 8, true);
   }
 
-  /// The version, from version 7 up, in both corners.
-  void stamp() {
-    if (version < 7) return;
-    var rest = version;
-    for (var step = 0; step < 12; step++) {
-      rest = (rest << 1) ^ ((rest >> 11) * 0x1F25);
-    }
-    final bits = version << 12 | rest;
-    for (var index = 0; index < 18; index++) {
-      final dark = bit(bits, index);
-      final a = size - 11 + index % 3;
-      final b = index ~/ 3;
-      set(a, b, dark);
-      set(b, a, dark);
-    }
-  }
-
-  /// Splits the data into blocks, adds each block's error correction, and
-  /// interleaves them.
-  List<int> interleave(List<int> data) {
-    final count = Qr.blocks[correction.row][version];
-    final ecc = Qr.eccs[correction.row][version];
-    final total = Qr.raw(version) ~/ 8;
-    final short = count - total % count;
-    final length = total ~/ count;
-    final generator = Qr.divisor(ecc);
-    final made = <List<int>>[];
-    var at = 0;
-    for (var index = 0; index < count; index++) {
-      final take = length - ecc + (index < short ? 0 : 1);
-      final block = data.sublist(at, at + take);
-      at += take;
-      final check = Qr.remainder(block, generator);
-      if (index < short) block.add(0);
-      made.add([...block, ...check]);
-    }
-    return [
-      for (var index = 0; index < made[0].length; index++)
-        for (var row = 0; row < made.length; row++)
-          if (index != length - ecc || row >= short) made[row][index],
-    ];
-  }
-
-  /// Fills the free modules in the zigzag order the standard sets.
-  void place(List<int> data) {
-    var index = 0;
-    for (var right = size - 1; right >= 1; right -= 2) {
-      if (right == 6) right = 5;
-      for (var step = 0; step < size; step++) {
-        for (var side = 0; side < 2; side++) {
-          final x = right - side;
-          final upward = (right + 1) & 2 == 0;
-          final y = upward ? size - 1 - step : step;
-          if (!fixed[y][x] && index < data.length * 8) {
-            modules[y][x] = bit(data[index >> 3], 7 - (index & 7));
-            index += 1;
-          }
-        }
-      }
-    }
-  }
-
   void apply(int mask) {
-    for (var y = 0; y < size; y++) {
-      for (var x = 0; x < size; x++) {
+    for (var row = 0; row < size; row++) {
+      for (var column = 0; column < size; column++) {
         final flip = switch (mask) {
-          0 => (x + y) % 2 == 0,
-          1 => y % 2 == 0,
-          2 => x % 3 == 0,
-          3 => (x + y) % 3 == 0,
-          4 => (x ~/ 3 + y ~/ 2) % 2 == 0,
-          5 => x * y % 2 + x * y % 3 == 0,
-          6 => (x * y % 2 + x * y % 3) % 2 == 0,
-          _ => ((x + y) % 2 + x * y % 3) % 2 == 0,
+          0 => (column + row) % 2 == 0,
+          1 => row % 2 == 0,
+          2 => column % 3 == 0,
+          3 => (column + row) % 3 == 0,
+          4 => (column ~/ 3 + row ~/ 2) % 2 == 0,
+          5 => column * row % 2 + column * row % 3 == 0,
+          6 => (column * row % 2 + column * row % 3) % 2 == 0,
+          _ => ((column + row) % 2 + column * row % 3) % 2 == 0,
         };
-        if (flip && !fixed[y][x]) modules[y][x] = !modules[y][x];
-      }
-    }
-  }
-
-  /// The standard's score for how hard a mask makes the code to read.
-  int penalty() {
-    var result = 0;
-    for (final across in [true, false]) {
-      for (var line = 0; line < size; line++) {
-        var color = false;
-        var run = 0;
-        final history = List.filled(7, 0, growable: true);
-        for (var along = 0; along < size; along++) {
-          final dark = across ? modules[line][along] : modules[along][line];
-          if (dark == color) {
-            run += 1;
-            if (run == 5) {
-              result += 3;
-            } else if (run > 5) {
-              result += 1;
-            }
-          } else {
-            record(run, history);
-            if (!color) result += finders(history) * 40;
-            color = dark;
-            run = 1;
-          }
-        }
-        if (color) {
-          record(run, history);
-          run = 0;
-        }
-        record(run + size, history);
-        result += finders(history) * 40;
-      }
-    }
-    for (var y = 0; y < size - 1; y++) {
-      for (var x = 0; x < size - 1; x++) {
-        final color = modules[y][x];
-        if (color == modules[y][x + 1] &&
-            color == modules[y + 1][x] &&
-            color == modules[y + 1][x + 1]) {
-          result += 3;
+        if (flip && !fixed[row][column]) {
+          modules[row][column] = !modules[row][column];
         }
       }
     }
-    final dark = modules.fold<int>(
-      0,
-      (sum, row) => sum + row.where((item) => item).length,
-    );
-    final total = size * size;
-    result += (((dark * 20 - total * 10).abs() + total - 1) ~/ total - 1) * 10;
-    return result;
   }
 
   void record(int run, List<int> history) {
@@ -745,17 +754,5 @@ class Weave {
     history
       ..removeLast()
       ..insert(0, run);
-  }
-
-  int finders(List<int> history) {
-    final unit = history[1];
-    final core =
-        unit > 0 &&
-        history[2] == unit &&
-        history[3] == unit * 3 &&
-        history[4] == unit &&
-        history[5] == unit;
-    return (core && history[0] >= unit * 4 && history[6] >= unit ? 1 : 0) +
-        (core && history[6] >= unit * 4 && history[0] >= unit ? 1 : 0);
   }
 }

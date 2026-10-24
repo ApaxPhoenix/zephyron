@@ -170,73 +170,6 @@ class Sheets {
         final theme = Theme.of(sheet);
         final scheme = theme.colorScheme;
 
-        Widget option(Choice<T> choice) {
-          final chosen = choice.value == current;
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 3),
-            child: Material(
-              color: chosen
-                  ? scheme.primary.withValues(alpha: 0.08)
-                  : Colors.transparent,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-                side: BorderSide(
-                  color: chosen
-                      ? scheme.primary.withValues(alpha: 0.35)
-                      : Colors.transparent,
-                ),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: InkWell(
-                key: choice.key,
-                onTap: () => Navigator.pop(sheet, choice.value),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
-                  ),
-                  child: Row(
-                    children: [
-                      SizedBox(width: 28, child: Center(child: choice.leading)),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              choice.label,
-                              style: theme.textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            if (choice.hint != null) ...[
-                              const SizedBox(height: 2),
-                              Text(
-                                choice.hint!,
-                                style: theme.textTheme.bodySmall,
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      AnimatedOpacity(
-                        opacity: chosen ? 1 : 0,
-                        duration: const Duration(milliseconds: 150),
-                        child: Icon(
-                          Icons.check_circle,
-                          size: 22,
-                          color: scheme.primary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          );
-        }
-
         return SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
@@ -267,7 +200,75 @@ class Sheets {
                       ),
                       child: Divider(),
                     ),
-                  option(options[index]),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 3),
+                    child: Material(
+                      color: (options[index].value == current)
+                          ? scheme.primary.withValues(alpha: 0.08)
+                          : Colors.transparent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        side: BorderSide(
+                          color: (options[index].value == current)
+                              ? scheme.primary.withValues(alpha: 0.35)
+                              : Colors.transparent,
+                        ),
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: InkWell(
+                        key: options[index].key,
+                        onTap: () => Navigator.pop(sheet, options[index].value),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
+                          child: Row(
+                            children: [
+                              SizedBox(
+                                width: 28,
+                                child: Center(child: options[index].leading),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      options[index].label,
+                                      style: theme.textTheme.titleSmall
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                    ),
+                                    if (options[index].hint != null) ...[
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        options[index].hint!,
+                                        style: theme.textTheme.bodySmall,
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              AnimatedOpacity(
+                                opacity: (options[index].value == current)
+                                    ? 1
+                                    : 0,
+                                duration: const Duration(milliseconds: 150),
+                                child: Icon(
+                                  Icons.check_circle,
+                                  size: 22,
+                                  color: scheme.primary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ],
             ),
