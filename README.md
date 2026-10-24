@@ -196,6 +196,10 @@ the Release workflow tags that commit and publishes what Build packaged.
 second, and `releases/<version>.md` holds that release's notes. To ship the
 next version, raise `VERSION` and add its notes.
 
+Alphas and betas come before each version, named like `0.3.0-beta.2`, and
+are published as pre-releases. Every release's notes say what works and what
+doesn't yet, and [CHANGELOG.md](CHANGELOG.md) lists them all.
+
 ## Building from source
 
 You need [Flutter](https://docs.flutter.dev/get-started/install) 3.44.2 or
