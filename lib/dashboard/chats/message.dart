@@ -127,12 +127,6 @@ class _Conversation extends State<Conversation> {
           primed = true;
         }
 
-        void details() => Navigator.pushNamed(
-          context,
-          '/dashboard/peers/node',
-          arguments: {'id': peer},
-        );
-
         return Scaffold(
           backgroundColor: scheme.surface,
           appBar: AppBar(
@@ -144,7 +138,13 @@ class _Conversation extends State<Conversation> {
             ),
             title: InkWell(
               borderRadius: BorderRadius.circular(12),
-              onTap: trustee == null ? null : details,
+              onTap: trustee == null
+                  ? null
+                  : () => Navigator.pushNamed(
+                      context,
+                      '/dashboard/peers/node',
+                      arguments: {'id': peer},
+                    ),
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 6),
                 child: Row(
@@ -227,7 +227,11 @@ class _Conversation extends State<Conversation> {
                     Icons.info_outline,
                     color: scheme.onSurfaceVariant,
                   ),
-                  onPressed: details,
+                  onPressed: () => Navigator.pushNamed(
+                    context,
+                    '/dashboard/peers/node',
+                    arguments: {'id': peer},
+                  ),
                 ),
               const SizedBox(width: 4),
             ],
@@ -419,17 +423,24 @@ class _Conversation extends State<Conversation> {
                           final dawn =
                               previous == null ||
                               day(previous.time) != day(message.time);
-                          bool joined(Message? other) =>
-                              other != null &&
-                              other.mine == message.mine &&
-                              day(other.time) == day(message.time) &&
-                              other.time
+                          final above =
+                              !dawn &&
+                              (previous.mine == message.mine &&
+                                  day(previous.time) == day(message.time) &&
+                                  previous.time
+                                          .difference(message.time)
+                                          .inMinutes
+                                          .abs() <
+                                      3);
+                          final below =
+                              (next != null &&
+                              next.mine == message.mine &&
+                              day(next.time) == day(message.time) &&
+                              next.time
                                       .difference(message.time)
                                       .inMinutes
                                       .abs() <
-                                  3;
-                          final above = !dawn && joined(previous);
-                          final below = joined(next);
+                                  3);
                           final fresh = !settled.contains(message.id);
                           settled.add(message.id);
 

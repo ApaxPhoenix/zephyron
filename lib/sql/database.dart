@@ -209,8 +209,14 @@ class Database {
       final route = join(folder, '$digest.db');
       final established = await File(route).exists();
 
-      Future<void> create(cipher.Database instance, int version) async {
-        await instance.execute('''
+      Future<cipher.Database> unseal(String secret) async {
+        final bytes = await salt(route);
+        return cipher.openDatabase(
+          route,
+          password: await key(secret, bytes),
+          version: 1,
+          onCreate: (cipher.Database instance, int version) async {
+            await instance.execute('''
           CREATE TABLE identity (
             identifier INTEGER PRIMARY KEY AUTOINCREMENT,
             address TEXT NOT NULL,
@@ -219,7 +225,7 @@ class Database {
             created TIMESTAMP DEFAULT CURRENT_TIMESTAMP
           )
         ''');
-        await instance.execute('''
+            await instance.execute('''
           CREATE TABLE messages (
             identifier INTEGER PRIMARY KEY AUTOINCREMENT,
             sender TEXT NOT NULL,
@@ -227,15 +233,7 @@ class Database {
             time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
           )
         ''');
-      }
-
-      Future<cipher.Database> unseal(String secret) async {
-        final bytes = await salt(route);
-        return cipher.openDatabase(
-          route,
-          password: await key(secret, bytes),
-          version: 1,
-          onCreate: create,
+          },
         );
       }
 

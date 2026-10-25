@@ -83,115 +83,6 @@ class _Board extends State<Board> {
         }
         final posts = mesh.messages(community.id, room.id);
 
-        Widget entry(int index) {
-          final post = posts[posts.length - 1 - index];
-          final before = posts.length - 2 - index >= 0
-              ? posts[posts.length - 2 - index]
-              : null;
-          final grouped =
-              before != null &&
-              before.author == post.author &&
-              day(before.time) == day(post.time) &&
-              post.time.difference(before.time).inMinutes < 5;
-          final dawn = before == null || day(before.time) != day(post.time);
-          final yourself = post.author == Courier.instance.self?.address;
-          final trustee = Courier.instance.roster[post.author];
-          final member = mesh
-              .members(community.id)
-              .where((item) => item.address == post.author);
-          final name = mesh.called(community.id, post.author);
-
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (dawn)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(0, 20, 0, 8),
-                  child: Row(
-                    children: [
-                      const Expanded(child: Divider()),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        child: Text(
-                          heading(post.time),
-                          style: theme.textTheme.labelSmall,
-                        ),
-                      ),
-                      const Expanded(child: Divider()),
-                    ],
-                  ),
-                ),
-              Padding(
-                padding: EdgeInsets.only(top: grouped ? 2 : 12),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(
-                      width: 40,
-                      child: grouped
-                          ? null
-                          : trustee != null
-                          ? Portrait(address: post.author, size: 40)
-                          : Avatar(
-                              label: name,
-                              size: 40,
-                              image: yourself
-                                  ? Courier.instance.me.avatar
-                                  : member.isEmpty
-                                  ? null
-                                  : member.first.avatar,
-                            ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (!grouped)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 2),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.baseline,
-                                textBaseline: TextBaseline.alphabetic,
-                                children: [
-                                  Flexible(
-                                    child: Text(
-                                      name,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: theme.textTheme.titleSmall
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.w700,
-                                            color: yourself
-                                                ? scheme.primary
-                                                : null,
-                                          ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    clock(post.time),
-                                    style: theme.textTheme.labelSmall,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          SelectableText(
-                            post.text,
-                            style: theme.textTheme.bodyLarge?.copyWith(
-                              height: 1.35,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          );
-        }
-
         return Scaffold(
           backgroundColor: scheme.surface,
           appBar: AppBar(
@@ -351,7 +242,137 @@ class _Board extends State<Board> {
                             ScrollViewKeyboardDismissBehavior.onDrag,
                         padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
                         itemCount: posts.length,
-                        itemBuilder: (context, index) => entry(index),
+                        itemBuilder: (context, index) {
+                          final post = posts[posts.length - 1 - index];
+                          final before = posts.length - 2 - index >= 0
+                              ? posts[posts.length - 2 - index]
+                              : null;
+                          final grouped =
+                              before != null &&
+                              before.author == post.author &&
+                              day(before.time) == day(post.time) &&
+                              post.time.difference(before.time).inMinutes < 5;
+                          final dawn =
+                              before == null ||
+                              day(before.time) != day(post.time);
+                          final yourself =
+                              post.author == Courier.instance.self?.address;
+                          final trustee = Courier.instance.roster[post.author];
+                          final member = mesh
+                              .members(community.id)
+                              .where((item) => item.address == post.author);
+                          final name = mesh.called(community.id, post.author);
+
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (dawn)
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    0,
+                                    20,
+                                    0,
+                                    8,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const Expanded(child: Divider()),
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                        ),
+                                        child: Text(
+                                          heading(post.time),
+                                          style: theme.textTheme.labelSmall,
+                                        ),
+                                      ),
+                                      const Expanded(child: Divider()),
+                                    ],
+                                  ),
+                                ),
+                              Padding(
+                                padding: EdgeInsets.only(top: grouped ? 2 : 12),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    SizedBox(
+                                      width: 40,
+                                      child: grouped
+                                          ? null
+                                          : trustee != null
+                                          ? Portrait(
+                                              address: post.author,
+                                              size: 40,
+                                            )
+                                          : Avatar(
+                                              label: name,
+                                              size: 40,
+                                              image: yourself
+                                                  ? Courier.instance.me.avatar
+                                                  : member.isEmpty
+                                                  ? null
+                                                  : member.first.avatar,
+                                            ),
+                                    ),
+                                    const SizedBox(width: 14),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          if (!grouped)
+                                            Padding(
+                                              padding: const EdgeInsets.only(
+                                                bottom: 2,
+                                              ),
+                                              child: Row(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.baseline,
+                                                textBaseline:
+                                                    TextBaseline.alphabetic,
+                                                children: [
+                                                  Flexible(
+                                                    child: Text(
+                                                      name,
+                                                      maxLines: 1,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                      style: theme
+                                                          .textTheme
+                                                          .titleSmall
+                                                          ?.copyWith(
+                                                            fontWeight:
+                                                                FontWeight.w700,
+                                                            color: yourself
+                                                                ? scheme.primary
+                                                                : null,
+                                                          ),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 8),
+                                                  Text(
+                                                    clock(post.time),
+                                                    style: theme
+                                                        .textTheme
+                                                        .labelSmall,
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          SelectableText(
+                                            post.text,
+                                            style: theme.textTheme.bodyLarge
+                                                ?.copyWith(height: 1.35),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          );
+                        },
                       ),
               ),
               DecoratedBox(

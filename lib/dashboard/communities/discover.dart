@@ -61,44 +61,6 @@ class _Discover extends State<Discover> with SingleTickerProviderStateMixin {
             final joined = mesh.communities[listing.subject];
             final trustee = courier.roster[listing.author]?.trusted == true;
 
-            Future<void> act() async {
-              if (community) {
-                if (joined == null) {
-                  refresh(() => busy = true);
-                  final made = await catalog.join(listing);
-                  if (!sheet.mounted) return;
-                  Navigator.pop(sheet);
-                  if (made == null) return;
-                  navigator.pushNamed(
-                    '/dashboard/communities/community',
-                    arguments: {'id': made.id},
-                  );
-                } else {
-                  Navigator.pop(sheet);
-                  navigator.pushNamed(
-                    '/dashboard/communities/community',
-                    arguments: {'id': joined.id},
-                  );
-                }
-                return;
-              }
-              if (!trustee) {
-                await courier.add(listing.author, listing.name);
-                messenger.showSnackBar(
-                  SnackBar(
-                    behavior: SnackBarBehavior.floating,
-                    content: Text('${title(listing)} is now a trustee'),
-                  ),
-                );
-              }
-              if (!sheet.mounted) return;
-              Navigator.pop(sheet);
-              navigator.pushNamed(
-                '/dashboard/chats/message',
-                arguments: {'id': listing.author, 'name': title(listing)},
-              );
-            }
-
             final details = community
                 ? '${listing.members} ${listing.members == 1 ? 'member' : 'members'} when listed · Founded by ${courier.roster[listing.author]?.label ?? listing.author.substring(0, 10)}'
                 : listing.author;
@@ -179,7 +141,50 @@ class _Discover extends State<Discover> with SingleTickerProviderStateMixin {
                       style: FilledButton.styleFrom(
                         minimumSize: const Size.fromHeight(48),
                       ),
-                      onPressed: busy ? null : act,
+                      onPressed: busy
+                          ? null
+                          : () async {
+                              if (community) {
+                                if (joined == null) {
+                                  refresh(() => busy = true);
+                                  final made = await catalog.join(listing);
+                                  if (!sheet.mounted) return;
+                                  Navigator.pop(sheet);
+                                  if (made == null) return;
+                                  navigator.pushNamed(
+                                    '/dashboard/communities/community',
+                                    arguments: {'id': made.id},
+                                  );
+                                } else {
+                                  Navigator.pop(sheet);
+                                  navigator.pushNamed(
+                                    '/dashboard/communities/community',
+                                    arguments: {'id': joined.id},
+                                  );
+                                }
+                                return;
+                              }
+                              if (!trustee) {
+                                await courier.add(listing.author, listing.name);
+                                messenger.showSnackBar(
+                                  SnackBar(
+                                    behavior: SnackBarBehavior.floating,
+                                    content: Text(
+                                      '${title(listing)} is now a trustee',
+                                    ),
+                                  ),
+                                );
+                              }
+                              if (!sheet.mounted) return;
+                              Navigator.pop(sheet);
+                              navigator.pushNamed(
+                                '/dashboard/chats/message',
+                                arguments: {
+                                  'id': listing.author,
+                                  'name': title(listing),
+                                },
+                              );
+                            },
                       child: busy
                           ? const SizedBox(
                               width: 20,
@@ -210,40 +215,6 @@ class _Discover extends State<Discover> with SingleTickerProviderStateMixin {
           },
         );
       },
-    );
-  }
-
-  Widget tile(Listing listing) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final community = listing.shelf == Shelf.community;
-    final known = community
-        ? mesh.communities.containsKey(listing.subject)
-        : courier.roster[listing.author]?.trusted == true;
-    return ListTile(
-      key: ValueKey(listing.id),
-      onTap: () => details(listing),
-      leading: community
-          ? Crest(label: listing.name, image: listing.picture)
-          : Avatar(label: title(listing), image: listing.picture),
-      title: Text(title(listing), maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: Text(
-        listing.about.isNotEmpty
-            ? listing.about
-            : community
-            ? '${listing.members} ${listing.members == 1 ? 'member' : 'members'}'
-            : listing.author.substring(0, 16),
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-      ),
-      trailing: known
-          ? Text(
-              community ? 'Joined' : 'Trustee',
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: scheme.primary,
-              ),
-            )
-          : Icon(Icons.chevron_right, color: scheme.onSurfaceVariant),
     );
   }
 
@@ -303,7 +274,46 @@ class _Discover extends State<Discover> with SingleTickerProviderStateMixin {
             text: 'Nothing matches "${search.text}".',
           )
         else
-          Group(indent: 76, children: shown.map(tile).toList()),
+          Group(
+            indent: 76,
+            children: shown.map((Listing listing) {
+              final theme = Theme.of(context);
+              final scheme = theme.colorScheme;
+              final community = listing.shelf == Shelf.community;
+              final known = community
+                  ? mesh.communities.containsKey(listing.subject)
+                  : courier.roster[listing.author]?.trusted == true;
+              return ListTile(
+                key: ValueKey(listing.id),
+                onTap: () => details(listing),
+                leading: community
+                    ? Crest(label: listing.name, image: listing.picture)
+                    : Avatar(label: title(listing), image: listing.picture),
+                title: Text(
+                  title(listing),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Text(
+                  listing.about.isNotEmpty
+                      ? listing.about
+                      : community
+                      ? '${listing.members} ${listing.members == 1 ? 'member' : 'members'}'
+                      : listing.author.substring(0, 16),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                trailing: known
+                    ? Text(
+                        community ? 'Joined' : 'Trustee',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: scheme.primary,
+                        ),
+                      )
+                    : Icon(Icons.chevron_right, color: scheme.onSurfaceVariant),
+              );
+            }).toList(),
+          ),
         const SizedBox(height: 20),
         if (people)
           Group(

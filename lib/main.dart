@@ -161,11 +161,7 @@ class _Zephyron extends State<Zephyron> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    shortcuts();
-  }
-
-  /// Adds "Panic wipe" to the app icon's long-press menu.
-  void shortcuts() {
+    // Adds "Panic wipe" to the app icon's long-press menu.
     try {
       const actions = QuickActions();
       actions.initialize((type) {
@@ -231,7 +227,7 @@ class _Zephyron extends State<Zephyron> with WidgetsBindingObserver {
             DefaultWidgetsLocalizations.delegate,
           ],
           theme: Palette.day(context),
-          darkTheme: Palette.night(context),
+          darkTheme: Palette.compose(context, Brightness.dark),
           themeMode: mode,
           builder: (context, child) => Curtain(
             enabled: Courier.instance.shielded,

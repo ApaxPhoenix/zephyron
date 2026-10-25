@@ -94,8 +94,6 @@ class Community {
       .substring(0, 32);
 
   factory Community.from(Map<String, dynamic> row) {
-    Uint8List? blob(Object? value) =>
-        value is Uint8List && value.isNotEmpty ? value : null;
     final ring = <String, Uint8List>{};
     final raw = row['keys'] as String?;
     if (raw != null && raw.isNotEmpty) {
@@ -110,8 +108,14 @@ class Community {
       rotated: row['rotated'] as int? ?? 0,
       name: row['name'] as String? ?? '',
       about: row['about'] as String? ?? '',
-      icon: blob(row['icon']),
-      banner: blob(row['banner']),
+      icon: switch (row['icon']) {
+        final Uint8List value when value.isNotEmpty => value,
+        _ => null,
+      },
+      banner: switch (row['banner']) {
+        final Uint8List value when value.isNotEmpty => value,
+        _ => null,
+      },
       key: base64.decode(row['key'] as String),
       founder: row['founder'] as String? ?? '',
       created: DateTime.fromMillisecondsSinceEpoch(row['created'] as int? ?? 0),
@@ -197,8 +201,6 @@ class Post {
   }) : meta = meta ?? {};
 
   factory Post.from(Map<String, dynamic> row) {
-    int index(Object? value, int length) =>
-        ((value as int?) ?? 0).clamp(0, length - 1);
     Map<String, dynamic> extra = {};
     final raw = row['meta'] as String?;
     if (raw != null && raw.isNotEmpty) {
@@ -213,7 +215,11 @@ class Post {
       author: row['author'] as String,
       sequence: row['seq'] as int? ?? 0,
       time: DateTime.fromMillisecondsSinceEpoch(row['time'] as int? ?? 0),
-      note: Note.values[index(row['note'], Note.values.length)],
+      note:
+          Note.values[((((row['note']) as int?) ?? 0).clamp(
+            0,
+            Note.values.length - 1,
+          ))],
       text: row['text'] as String? ?? '',
       meta: extra,
       frame: row['frame'] as String? ?? '',

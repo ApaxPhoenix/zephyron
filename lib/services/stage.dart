@@ -309,18 +309,20 @@ class Stage extends ChangeNotifier {
               .take(24)
               .toList();
     for (final peer in targets) {
-      unawaited(() async {
-        try {
-          final channel = await courier.dial(peer);
-          mesh.send(channel, peer, {
-            'op': 'room',
-            'c': group.id,
-            'r': here,
-            'state': state,
-            'muted': muted,
-          });
-        } catch (_) {}
-      }());
+      unawaited(
+        courier
+            .dial(peer)
+            .then(
+              (channel) => mesh.send(channel, peer, {
+                'op': 'room',
+                'c': group.id,
+                'r': here,
+                'state': state,
+                'muted': muted,
+              }),
+              onError: (_) {},
+            ),
+      );
     }
   }
 
@@ -403,14 +405,19 @@ class Stage extends ChangeNotifier {
 
   /// Sends [body] to [to] as part of a direct call, dialing if needed.
   void tell(String to, Map<String, dynamic> body) {
-    void write(Channel channel) =>
-        channel.send(courier.seal(Signal.call, to, body: jsonEncode(body)));
     final open = courier.channels[to];
     if (open != null && open.alive) {
-      write(open);
+      (open.send(courier.seal(Signal.call, to, body: jsonEncode(body))));
       return;
     }
-    unawaited(courier.dial(to).then(write).catchError((_) {}));
+    unawaited(
+      courier
+          .dial(to)
+          .then((Channel channel) {
+            channel.send(courier.seal(Signal.call, to, body: jsonEncode(body)));
+          })
+          .catchError((_) {}),
+    );
   }
 
   /// Rings [to], a trustee. The call key goes inside the end-to-end
@@ -711,21 +718,6 @@ class Stage extends ChangeNotifier {
     }
   }
 
-  /// Queues a packet of [from]'s speech in [id].
-  void hear(String from, String id, Int16List samples) {
-    final now = DateTime.now();
-    final seat = seated(id)[from] ??= Seat(seen: now);
-    seat
-      ..seen = now
-      ..level = loudness(samples);
-    final queue = buffers.putIfAbsent(from, Queue.new);
-    queue.add(samples);
-    while (queue.length > backlog) {
-      queue.removeFirst();
-    }
-    notifyListeners();
-  }
-
   /// Mixes one packet from every speaker who has enough buffered.
   Int16List mix() {
     final out = Int32List(frame);
@@ -815,7 +807,19 @@ class Stage extends ChangeNotifier {
         if (room != id || group.id != community) return;
         final samples = await unpack(group, from, data);
         if (samples == null) return;
-        hear(from, id, samples);
+        // Queues a packet of [from]'s speech in [id].
+
+        final now = DateTime.now();
+        final seat = seated(id)[from] ??= Seat(seen: now);
+        seat
+          ..seen = now
+          ..level = loudness(samples);
+        final queue = buffers.putIfAbsent(from, Queue.new);
+        queue.add(samples);
+        while (queue.length > backlog) {
+          queue.removeFirst();
+        }
+        notifyListeners();
     }
   }
 
@@ -894,7 +898,19 @@ class Stage extends ChangeNotifier {
         }
         final samples = await unseal(await line(key, id), 'direct', from, data);
         if (samples == null) return;
-        hear(from, id, samples);
+        // Queues a packet of [from]'s speech in [id].
+
+        final now = DateTime.now();
+        final seat = seated(id)[from] ??= Seat(seen: now);
+        seat
+          ..seen = now
+          ..level = loudness(samples);
+        final queue = buffers.putIfAbsent(from, Queue.new);
+        queue.add(samples);
+        while (queue.length > backlog) {
+          queue.removeFirst();
+        }
+        notifyListeners();
     }
   }
 
