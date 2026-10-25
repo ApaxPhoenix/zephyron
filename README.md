@@ -51,6 +51,10 @@ where they are. Everyone deserves the right to privacy.
    with Argon2id, mixed with a secret kept in your phone's secure hardware. A
    copy of the database taken off the phone can't be brute forced elsewhere.
    Photos and files are stored encrypted on the device too.
+6. **Locked, but still reachable.** Locking closes the encrypted store and
+   keeps your address online. Whatever arrives is sealed to a key inside the
+   locked store and read at the next unlock, and the notification only says
+   how many messages came in.
 
 ## Features
 
@@ -154,7 +158,8 @@ fall out of date. If something is wrong, please open an issue.
   currently only runs on Android)
 - Post-quantum sessions on iOS (they fall back to classical encryption there
   until liboqs is built for it)
-- Signed builds for every platform on the Releases page
+- Signed iOS and macOS builds (Android releases are signed; the Apple
+  packages are unsigned for now)
 
 **Later**
 - Video calls
@@ -255,6 +260,17 @@ flutter test
 Found a vulnerability? Please email
 [security@aveloux.com](mailto:security@aveloux.com) and read
 [SECURITY.md](SECURITY.md) before disclosing anything publicly.
+
+## Code style
+
+- Every class, file, function, field, parameter and variable is named with
+  one real English word: `sequence`, not `seq`; `Playback`, not
+  `ZephyronPlayer`. Overrides and names a framework asks for, like
+  `initState`, `toJson` or a test's `_test.dart`, keep theirs.
+- Code goes where it is used. A function used once or twice is written out in
+  its callers, even if that repeats a few lines, so a feature reads top to
+  bottom in one place. Functions stay for what many places share, for
+  callbacks, and for whole features other parts of the app call.
 
 ## Contributing
 
