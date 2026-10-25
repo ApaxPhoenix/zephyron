@@ -68,7 +68,9 @@ class InvitationState extends State<Invitation> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'COMMUNITY INVITATION',
+                        meta['group'] == true
+                            ? 'GROUP INVITATION'
+                            : 'COMMUNITY INVITATION',
                         style: TextStyle(
                           color: faded,
                           fontSize: 11,

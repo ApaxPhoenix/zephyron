@@ -69,7 +69,9 @@ class Ledger {
           revised INTEGER NOT NULL DEFAULT 0,
           keys TEXT,
           epoch TEXT,
-          rotated INTEGER NOT NULL DEFAULT 0
+          rotated INTEGER NOT NULL DEFAULT 0,
+          grouped INTEGER NOT NULL DEFAULT 0,
+          listed INTEGER NOT NULL DEFAULT 0
         )
       ''');
       await base.execute('''
@@ -99,6 +101,13 @@ class Ledger {
         )
       ''');
       await base.execute('''
+        CREATE TABLE IF NOT EXISTS listings (
+          id TEXT PRIMARY KEY,
+          frame TEXT NOT NULL,
+          time INTEGER NOT NULL
+        )
+      ''');
+      await base.execute('''
         CREATE TABLE IF NOT EXISTS preferences (
           key TEXT PRIMARY KEY,
           value TEXT NOT NULL
@@ -115,6 +124,8 @@ class Ledger {
         ('communities', 'keys', 'TEXT'),
         ('communities', 'epoch', 'TEXT'),
         ('communities', 'rotated', 'INTEGER NOT NULL DEFAULT 0'),
+        ('communities', 'grouped', 'INTEGER NOT NULL DEFAULT 0'),
+        ('communities', 'listed', 'INTEGER NOT NULL DEFAULT 0'),
       ]) {
         final columns = await base.rawQuery('PRAGMA table_info($table)');
         if (!columns.any((row) => row['name'] == name)) {
@@ -256,6 +267,32 @@ class Ledger {
   static Future<void> discardParcels(DateTime before) async {
     await base.delete(
       'parcels',
+      where: 'time < ?',
+      whereArgs: [before.millisecondsSinceEpoch],
+    );
+  }
+
+  /// Every directory listing held, as the frames they arrived in.
+  static Future<List<String>> listings() async {
+    final rows = await base.query('listings', columns: ['frame']);
+    return [for (final row in rows) row['frame'] as String];
+  }
+
+  static Future<void> list(String id, String frame, int time) async {
+    await base.insert('listings', {
+      'id': id,
+      'frame': frame,
+      'time': time,
+    }, conflictAlgorithm: cipher.ConflictAlgorithm.replace);
+  }
+
+  static Future<void> unlist(String id) async {
+    await base.delete('listings', where: 'id = ?', whereArgs: [id]);
+  }
+
+  static Future<void> discardListings(DateTime before) async {
+    await base.delete(
+      'listings',
       where: 'time < ?',
       whereArgs: [before.millisecondsSinceEpoch],
     );

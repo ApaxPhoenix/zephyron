@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zephyron/enums.dart';
 import 'package:zephyron/models/community.dart';
 import 'package:zephyron/models/identity.dart';
+import 'package:zephyron/models/message.dart';
 import 'package:zephyron/models/profile.dart';
 import 'package:zephyron/services/courier.dart';
 import 'package:zephyron/services/mesh.dart';
@@ -372,12 +373,23 @@ void main() {
 
     test('a join without real work does not make anyone a member', () async {
       final community = await founded();
+      // At test difficulty a made-up nonce sometimes works by luck, so pick
+      // one that does not.
+      var guess = 0;
+      while (Mesh.proven(
+        community.id,
+        alice.address,
+        'nope$guess',
+        Mesh.difficulty,
+      )) {
+        guess += 1;
+      }
       final lazy = await as(
         alice,
         community,
         note: Note.join,
         text: 'Bot',
-        meta: {'work': 'nope', 'bits': Mesh.difficulty},
+        meta: {'work': 'nope$guess', 'bits': Mesh.difficulty},
       );
       await mesh.accept((await mesh.verify(lazy))!);
       expect(mesh.member(community.id, alice.address), isFalse);
@@ -441,4 +453,34 @@ void main() {
       expect(kept, Mesh.burst - 1);
     });
   });
+
+  test('an invitation sent through chat keeps the whole keyring', () async {
+    final community = await founded();
+    community.rekey(Uint8List.fromList(List.filled(32, 9)), 1);
+    final card = Message(
+      id: Courier.token(),
+      peer: alice.address,
+      mine: true,
+      kind: Kind.invite,
+      text: '',
+      time: DateTime.now(),
+      meta: mesh.invitation(community),
+    );
+    final meta = courier.envelope(card)['meta'] as Map;
+    expect((meta['keys'] as Map).keys, containsAll(community.keys.keys));
+  });
+
+  test(
+    'a group stays out of the communities list and travels as a group',
+    () async {
+      final group = await mesh.create(name: 'Family', group: true);
+      expect(mesh.groups().map((item) => item.id), contains(group.id));
+      expect(mesh.ordered().map((item) => item.id), isNot(contains(group.id)));
+      final invitation = Mesh.valid(mesh.invitation(group), alice.address)!;
+      expect(invitation['group'], isTrue);
+      await mesh.leave(group.id);
+      final joined = (await mesh.join(invitation))!;
+      expect(joined.group, isTrue);
+    },
+  );
 }

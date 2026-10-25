@@ -9,6 +9,7 @@ import 'package:zephyron/dashboard/vault/index.dart';
 import 'package:zephyron/enums.dart';
 import 'package:zephyron/models/message.dart';
 import 'package:zephyron/services/courier.dart';
+import 'package:zephyron/services/stage.dart';
 import 'package:zephyron/sql/session.dart';
 import 'package:zephyron/widgets/avatar.dart';
 import 'dart:developer' as developer;
@@ -25,6 +26,9 @@ class DashboardScreenState extends State<DashboardScreen> {
   StreamSubscription<void>? expiry;
   StreamSubscription<Message>? arrivals;
 
+  /// The last call this screen rang for, so each rings once.
+  String? rung;
+
   @override
   void initState() {
     super.initState();
@@ -37,6 +41,7 @@ class DashboardScreenState extends State<DashboardScreen> {
 
     try {
       Courier.instance.start(identity);
+      Stage.instance.addListener(ring);
       expiry = Session.expired.stream.listen((_) => relock());
       arrivals = Courier.instance.arrivals.stream.listen((message) {
         final courier = Courier.instance;
@@ -98,6 +103,14 @@ class DashboardScreenState extends State<DashboardScreen> {
         stackTrace: StackTrace.current,
       );
     }
+  }
+
+  /// Shows a call that starts ringing, wherever the person is in the app.
+  void ring() {
+    final call = Stage.instance.ringing;
+    if (call == null || call.id == rung || !mounted) return;
+    rung = call.id;
+    Navigator.of(context).pushNamed('/dashboard/chats/call');
   }
 
   Future<void> relock() async {
@@ -237,6 +250,7 @@ class DashboardScreenState extends State<DashboardScreen> {
 
   @override
   void dispose() {
+    Stage.instance.removeListener(ring);
     expiry?.cancel();
     arrivals?.cancel();
     super.dispose();
