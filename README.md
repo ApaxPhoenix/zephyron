@@ -269,17 +269,6 @@ Found a vulnerability? Please email
 [security@aveloux.com](mailto:security@aveloux.com) and read
 [SECURITY.md](SECURITY.md) before disclosing anything publicly.
 
-## Code style
-
-- Every class, file, function, field, parameter and variable is named with
-  one real English word: `sequence`, not `seq`; `Playback`, not
-  `ZephyronPlayer`. Overrides and names a framework asks for, like
-  `initState`, `toJson` or a test's `_test.dart`, keep theirs.
-- Code goes where it is used. A function used once or twice is written out in
-  its callers, even if that repeats a few lines, so a feature reads top to
-  bottom in one place. Functions stay for what many places share, for
-  callbacks, and for whole features other parts of the app call.
-
 ## Contributing
 
 Contributions of every size are welcome. Start with
