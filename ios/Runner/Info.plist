@@ -8,6 +8,19 @@
 	<string>Zephyron uses the camera for photos and videos you choose to send, end-to-end encrypted.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Zephyron lets you pick photos and videos to send, and pictures for your profile and communities.</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.aveloux.zephyron</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>zephyron</string>
+			</array>
+		</dict>
+	</array>
+	<key>FlutterDeepLinkingEnabled</key>
+	<false/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>

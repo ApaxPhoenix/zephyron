@@ -51,6 +51,10 @@ where they are. Everyone deserves the right to privacy.
    with Argon2id, mixed with a secret kept in your phone's secure hardware. A
    copy of the database taken off the phone can't be brute forced elsewhere.
    Photos and files are stored encrypted on the device too.
+6. **Locked, but still reachable.** Locking closes the encrypted store and
+   keeps your address online. Whatever arrives is sealed to a key inside the
+   locked store and read at the next unlock, and the notification only says
+   how many messages came in.
 
 ## Features
 
@@ -108,6 +112,10 @@ where they are. Everyone deserves the right to privacy.
 **People**
 - Requests from strangers stay separate until you accept them.
 - Trustees see your profile; blocked addresses are silently dropped.
+- Add someone by scanning their code with your phone's camera: the zephyron://
+  link it holds opens Zephyron with their address filled in.
+- Long-press the app icon to add a trustee, show your code, lock the vault or
+  start a panic wipe.
 - Safety codes let you confirm, in person or over another channel, that you
   are talking to the right key.
 - Profile photos with a cropper, and a banner image or GIF.
@@ -154,7 +162,8 @@ fall out of date. If something is wrong, please open an issue.
   currently only runs on Android)
 - Post-quantum sessions on iOS (they fall back to classical encryption there
   until liboqs is built for it)
-- Signed builds for every platform on the Releases page
+- Signed iOS and macOS builds (Android releases are signed; the Apple
+  packages are unsigned for now)
 
 **Later**
 - Video calls
@@ -186,6 +195,10 @@ the Release workflow tags that commit and publishes what Build packaged.
 `VERSION` holds the version on its first line and the release's title on its
 second, and `releases/<version>.md` holds that release's notes. To ship the
 next version, raise `VERSION` and add its notes.
+
+Alphas and betas come before each version, named like `0.3.0-beta.2`, and
+are published as pre-releases. Every release's notes say what works and what
+doesn't yet, and [CHANGELOG.md](CHANGELOG.md) lists them all.
 
 ## Building from source
 
