@@ -10,6 +10,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:quick_actions/quick_actions.dart';
 import 'package:zephyron/routes.dart';
 import 'package:zephyron/services/courier.dart';
+import 'package:zephyron/services/launch.dart';
 import 'package:zephyron/services/shield.dart';
 import 'package:zephyron/services/tripwire.dart';
 import 'package:zephyron/theme.dart';
@@ -22,6 +23,20 @@ Future<void> main() async {
   runZonedGuarded(
     () async {
       WidgetsFlutterBinding.ensureInitialized();
+
+      // The zephyron:// link the app was opened with, and any that arrive
+      // while it runs.
+      Launch.channel.setMethodCallHandler((call) async {
+        if (call.method == 'open' && call.arguments is String) {
+          Launch.wanted.value = call.arguments as String;
+        }
+      });
+      try {
+        final first = await Launch.channel.invokeMethod<String>('initial');
+        if (first != null && first.isNotEmpty) Launch.wanted.value = first;
+      } on MissingPluginException {
+        // Platforms that open no links have nothing to hand over.
+      } catch (_) {}
 
       if (kReleaseMode) {
         try {
@@ -161,21 +176,28 @@ class _Zephyron extends State<Zephyron> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    // Adds "Panic wipe" to the app icon's long-press menu.
+    // The app icon's long-press menu. A panic wipe starts at once; the rest
+    // wait for an identity to be unlocked.
     try {
       const actions = QuickActions();
       actions.initialize((type) {
-        if (type != 'panic') return;
-        WidgetsBinding.instance.addPostFrameCallback(
-          (_) => navigator.currentState?.pushNamed('/panic'),
-        );
+        if (type == 'panic') {
+          WidgetsBinding.instance.addPostFrameCallback(
+            (_) => navigator.currentState?.pushNamed('/panic'),
+          );
+        } else {
+          Launch.wanted.value = type;
+        }
       });
       actions.setShortcutItems(const [
+        ShortcutItem(type: 'trustee', localizedTitle: 'Add a trustee'),
+        ShortcutItem(type: 'code', localizedTitle: 'Show my code'),
+        ShortcutItem(type: 'lock', localizedTitle: 'Lock now'),
         ShortcutItem(type: 'panic', localizedTitle: 'Panic wipe'),
       ]);
     } catch (error) {
       developer.log(
-        'Failed to register the panic wipe launcher shortcut',
+        'Failed to register the launcher shortcuts',
         name: '_Zephyron.shortcuts',
         level: 900,
         error: error,

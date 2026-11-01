@@ -24,15 +24,28 @@ class Main : FlutterActivity() {
     private val writer = Executors.newSingleThreadExecutor()
     private val explorer by lazy { Explorer(this) }
     private var playback: Playback? = null
+    private var links: MethodChannel? = null
+
+    // A zephyron:// link the app was opened with, until Dart asks for it.
+    private var pending: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        pending = intent?.dataString?.takeIf { it.startsWith("zephyron:") }
         // Secure from the first frame: no screenshots, no screen recording and
         // a blank card in Recents until an identity chooses otherwise.
         window.setFlags(
             WindowManager.LayoutParams.FLAG_SECURE,
             WindowManager.LayoutParams.FLAG_SECURE,
         )
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val link = intent.dataString?.takeIf { it.startsWith("zephyron:") } ?: return
+        val channel = links
+        if (channel != null) channel.invokeMethod("open", link) else pending = link
     }
 
     @Deprecated("Flutter's activity still delivers results this way")
@@ -51,6 +64,17 @@ class Main : FlutterActivity() {
     override fun configureFlutterEngine(engine: FlutterEngine) {
         super.configureFlutterEngine(engine)
         val messenger = engine.dartExecutor.binaryMessenger
+
+        links = MethodChannel(messenger, "links").apply {
+            setMethodCallHandler { call, result ->
+                if (call.method == "initial") {
+                    result.success(pending)
+                    pending = null
+                } else {
+                    result.notImplemented()
+                }
+            }
+        }
 
         MethodChannel(messenger, "alerts").setMethodCallHandler { call, result ->
             when (call.method) {

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:zephyron/dashboard/chats/compose.dart';
 import 'package:zephyron/dashboard/chats/index.dart';
 import 'package:zephyron/dashboard/communities/index.dart';
 import 'package:zephyron/dashboard/relays/index.dart';
@@ -10,9 +11,11 @@ import 'package:zephyron/enums.dart';
 import 'package:zephyron/models/message.dart';
 import 'package:zephyron/services/alerts.dart';
 import 'package:zephyron/services/courier.dart';
+import 'package:zephyron/services/launch.dart';
 import 'package:zephyron/services/stage.dart';
 import 'package:zephyron/sql/session.dart';
 import 'package:zephyron/widgets/avatar.dart';
+import 'package:zephyron/widgets/discovery.dart';
 import 'dart:developer' as developer;
 
 class Dashboard extends StatefulWidget {
@@ -61,6 +64,8 @@ class _Dashboard extends State<Dashboard> {
       arrivals = Courier.instance.arrivals.stream.listen(announce);
       unawaited(Alerts.permit());
       unawaited(Alerts.stand(true));
+      Launch.wanted.addListener(follow);
+      follow();
     } catch (error) {
       developer.log(
         'Failed to start the messaging courier for the unlocked identity',
@@ -122,6 +127,50 @@ class _Dashboard extends State<Dashboard> {
         ),
       ),
     );
+  }
+
+  /// Does what the app was opened for once an identity is unlocked: adds
+  /// the trustee a zephyron:// link names, or follows an app icon shortcut.
+  void follow() {
+    final wanted = Launch.wanted.value;
+    if (wanted == null) return;
+    Launch.wanted.value = null;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final courier = Courier.instance;
+      // The courier takes the unlocked identity up first, so the sheets
+      // can show this identity's own address.
+      for (var round = 0; courier.self == null && round < 50; round++) {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      }
+      if (!mounted || courier.self == null) return;
+      switch (wanted) {
+        case 'code':
+          await Discovery.show(
+            context,
+            address: courier.self!.address,
+            name: courier.me.name,
+            own: true,
+          );
+        case 'lock':
+          await Session.dispose();
+        default:
+          final found = wanted == 'trustee' ? null : Courier.parse(wanted);
+          if (wanted != 'trustee' && found == null) return;
+          final added = await Compose.show(
+            context,
+            address: found?.address,
+            name: found?.name,
+          );
+          if (added == null || !mounted) return;
+          unawaited(
+            Navigator.pushNamed(
+              context,
+              '/dashboard/chats/message',
+              arguments: {'id': added.address},
+            ),
+          );
+      }
+    });
   }
 
   /// Shows a call that starts ringing, wherever the person is in the app.
@@ -246,6 +295,7 @@ class _Dashboard extends State<Dashboard> {
   @override
   void dispose() {
     Stage.instance.removeListener(ring);
+    Launch.wanted.removeListener(follow);
     expiry?.cancel();
     arrivals?.cancel();
     super.dispose();
