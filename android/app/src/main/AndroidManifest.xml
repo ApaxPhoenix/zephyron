@@ -43,6 +43,19 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- zephyron:// links, as a phone's camera opens from a scanned
+                 code, open here and add the trustee they name. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="zephyron" android:host="trustee"/>
+            </intent-filter>
+            <!-- The app reads links itself instead of Flutter pushing them
+                 as routes. -->
+            <meta-data
+                android:name="flutter_deeplinking_enabled"
+                android:value="false" />
         </activity>
 
         <!-- Keeps Tor and the onion service running while the vault is locked -->

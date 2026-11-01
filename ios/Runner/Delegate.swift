@@ -10,6 +10,9 @@ import UserNotifications
   var format: AVAudioFormat?
   var explorer: Explorer?
   var playback: Playback?
+  var links: FlutterMethodChannel?
+  // A zephyron:// link the app was opened with, until Dart asks for it.
+  var pending: String?
 
   override func application(
     _ application: UIApplication,
@@ -20,6 +23,19 @@ import UserNotifications
       return super.application(application, didFinishLaunchingWithOptions: launchOptions)
     }
     let messenger = controller.binaryMessenger
+    if let link = launchOptions?[.url] as? URL, link.scheme == "zephyron" {
+      pending = link.absoluteString
+    }
+    let links = FlutterMethodChannel(name: "links", binaryMessenger: messenger)
+    self.links = links
+    links.setMethodCallHandler { [weak self] call, result in
+      guard call.method == "initial" else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+      result(self?.pending)
+      self?.pending = nil
+    }
 
     FlutterMethodChannel(name: "media", binaryMessenger: messenger).setMethodCallHandler {
       call, result in
@@ -201,5 +217,21 @@ import UserNotifications
       }
 
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  override func application(
+    _ app: UIApplication,
+    open url: URL,
+    options: [UIApplication.OpenURLOptionsKey: Any] = [:]
+  ) -> Bool {
+    guard url.scheme == "zephyron" else {
+      return super.application(app, open: url, options: options)
+    }
+    if let links = links {
+      links.invokeMethod("open", arguments: url.absoluteString)
+    } else {
+      pending = url.absoluteString
+    }
+    return true
   }
 }

@@ -112,6 +112,10 @@ where they are. Everyone deserves the right to privacy.
 **People**
 - Requests from strangers stay separate until you accept them.
 - Trustees see your profile; blocked addresses are silently dropped.
+- Add someone by scanning their code with your phone's camera: the zephyron://
+  link it holds opens Zephyron with their address filled in.
+- Long-press the app icon to add a trustee, show your code, lock the vault or
+  start a panic wipe.
 - Safety codes let you confirm, in person or over another channel, that you
   are talking to the right key.
 - Profile photos with a cropper, and a banner image or GIF.
