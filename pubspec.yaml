@@ -39,7 +39,7 @@ dependencies:
   record: ^7.1.2
   base32: ^2.2.0
   bip39: ^1.0.6
-  crypto: ^3.0.7
+  crypto: ^3.0.8
   cryptography: ^2.9.0
   ed25519_edwards: ^0.3.2
   flutter_secure_storage: ^11.0.0
