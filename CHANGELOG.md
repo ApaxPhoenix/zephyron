@@ -16,13 +16,13 @@ with a hyphen, like `0.3.0-beta.2`, are pre-releases.
 - Scanned zephyron:// codes open the app instead of failing as an unknown protocol
 - The Windows installers no longer carry WiX's debug data
 
-## [0.3.0-beta.2] - 2026-09-27
+## [0.3.0-beta.2] - 2026-10-04
 
 ### Added
 - Packages for Android, iOS, macOS, and Windows and Linux on x64 and ARM64, built and released by GitHub Actions with checksums
 - `VERSION` and hand-written notes for each release
 
-## [0.3.0-beta.1] - 2026-09-06
+## [0.3.0-beta.1] - 2026-09-13
 
 ### Added
 - A locked phone stays reachable and keeps what arrives sealed until the next unlock
@@ -36,7 +36,7 @@ with a hyphen, like `0.3.0-beta.2`, are pre-releases.
 - The app reopens on the unlock page when it already has an identity
 - Picked photos and files are deleted as soon as they are read
 
-## [0.2.0] - 2026-06-28
+## [0.2.0] - 2026-07-26
 
 ### Added
 - Voice calls with a trustee, and group calls
@@ -46,12 +46,12 @@ with a hyphen, like `0.3.0-beta.2`, are pre-releases.
 ### Fixed
 - Unlocks are watched across every identity together
 
-## [0.2.0-beta.2] - 2026-06-07
+## [0.2.0-beta.2] - 2026-06-28
 
 ### Added
 - Trustees and mailbox phones hold sealed messages for people who are offline
 
-## [0.2.0-beta.1] - 2026-04-26
+## [0.2.0-beta.1] - 2026-06-07
 
 ### Added
 - Peer-to-peer communities with text, podcast and live voice channels
@@ -60,14 +60,14 @@ with a hyphen, like `0.3.0-beta.2`, are pre-releases.
 - Post-quantum sessions with ML-KEM-768 on Android
 - Traffic padded to fixed sizes
 
-## [0.1.0] - 2026-03-08
+## [0.1.0] - 2026-04-05
 
 ### Added
 - End-to-end encryption with the Double Ratchet
 - A panic wipe and rate-limited unlocks
 - Screenshots blocked, a photo cropper and freeRASP checks in release builds
 
-## [0.1.0-beta.2] - 2026-01-30
+## [0.1.0-beta.2] - 2026-02-22
 
 ### Added
 - The courier, carrying messages between trustees over onion services
@@ -75,7 +75,7 @@ with a hyphen, like `0.3.0-beta.2`, are pre-releases.
 - Identity stores bound to the phone's secure hardware
 - A disappearing message timer and a duress passphrase
 
-## [0.1.0-beta.1] - 2025-11-30
+## [0.1.0-beta.1] - 2025-12-14
 
 ### Added
 - Tor inside the app, with obfs4 bridges
@@ -85,7 +85,7 @@ with a hyphen, like `0.3.0-beta.2`, are pre-releases.
 ### Fixed
 - Tor starts on every launch
 
-## [0.1.0-alpha.2] - 2025-10-12
+## [0.1.0-alpha.2] - 2025-10-26
 
 ### Added
 - The chats list and peers page
@@ -95,7 +95,7 @@ with a hyphen, like `0.3.0-beta.2`, are pre-releases.
 ### Removed
 - The zstd experiment
 
-## [0.1.0-alpha.1] - 2025-08-21
+## [0.1.0-alpha.1] - 2025-08-24
 
 ### Added
 - The app's shell on Android, iOS, macOS, Linux, Windows and the web
