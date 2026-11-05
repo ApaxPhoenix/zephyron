@@ -1,5 +1,7 @@
 import AVFoundation
 import Flutter
+import IPtProxy
+import Tor
 import UIKit
 import UserNotifications
 
@@ -11,6 +13,8 @@ import UserNotifications
   var explorer: Explorer?
   var playback: Playback?
   var links: FlutterMethodChannel?
+  var thread: Thread?
+  var transport: IPtProxyController?
   // A zephyron:// link the app was opened with, until Dart asks for it.
   var pending: String?
 
@@ -35,6 +39,44 @@ import UserNotifications
       }
       result(self?.pending)
       self?.pending = nil
+    }
+
+    // Tor runs on a thread of its own inside the app, with the command line
+    // Dart builds. obfs4 for bridges runs inside the app too, since iOS
+    // starts no programs, and Tor reaches it at the port it reports.
+    FlutterMethodChannel(name: "tor", binaryMessenger: messenger).setMethodCallHandler {
+      [weak self] call, result in
+      switch call.method {
+      case "start":
+        // Tor runs once per process; a second thread would stop the app.
+        if self?.thread == nil, let orders = call.arguments as? [String] {
+          let thread = TorThread(arguments: orders)
+          thread.start()
+          self?.thread = thread
+        }
+        result(nil)
+      case "transport":
+        if self?.transport == nil {
+          guard let folder = call.arguments as? String,
+            (try? FileManager.default.createDirectory(
+              atPath: folder, withIntermediateDirectories: true)) != nil,
+            let transport = IPtProxyNewController(folder, false, false, "ERROR", nil)
+          else {
+            result(FlutterError(code: "transport", message: "obfs4 has no state folder", details: nil))
+            return
+          }
+          do {
+            try transport.start(IPtProxyObfs4, proxy: nil)
+          } catch {
+            result(FlutterError(code: "transport", message: error.localizedDescription, details: nil))
+            return
+          }
+          self?.transport = transport
+        }
+        result(self?.transport?.port(IPtProxyObfs4))
+      default:
+        result(FlutterMethodNotImplemented)
+      }
     }
 
     FlutterMethodChannel(name: "media", binaryMessenger: messenger).setMethodCallHandler {
