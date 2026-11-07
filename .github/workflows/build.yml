@@ -77,7 +77,7 @@ jobs:
       - run: flutter pub get
 
       - name: Verify formatting
-        run: dart format --output=none --set-exit-if-changed lib test
+        run: dart format --output=none --set-exit-if-changed lib test integration_test
 
       - name: Analyze
         run: flutter analyze
@@ -91,6 +91,46 @@ jobs:
           name: coverage
           path: coverage/lcov.info
           retention-days: 14
+
+  # Tor runs inside the iOS app, so this boots it on a simulator, publishes
+  # an onion service and reaches it through Tor, the way one phone reaches
+  # another. A release waits for it like any other job.
+  simulator:
+    name: Tor on iOS
+    needs: [ secrets, quality ]
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Cache Flutter
+        uses: actions/cache@v6
+        with:
+          path: |
+            ${{ runner.temp }}/flutter
+            ~/.pub-cache
+          key: flutter-${{ env.FLUTTER_VERSION }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: flutter-${{ env.FLUTTER_VERSION }}-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Set up Flutter
+        run: |
+          if [ ! -x "$RUNNER_TEMP/flutter/bin/flutter" ]; then
+            git clone --depth 1 --branch "$FLUTTER_VERSION" https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          fi
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/flutter/bin/flutter" --version
+
+      - run: flutter pub get
+
+      - name: Boot an iPhone simulator
+        run: |
+          device=$(xcrun simctl list devices available --json |
+            jq -r '[.devices[][] | select(.name | startswith("iPhone"))][0].udid')
+          xcrun simctl boot "$device"
+          echo "DEVICE=$device" >> "$GITHUB_ENV"
+
+      - name: Reach an onion service through Tor
+        run: flutter test integration_test/tor_test.dart -d "$DEVICE"
 
   build:
     name: ${{ matrix.name }}
