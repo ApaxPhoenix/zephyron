@@ -298,38 +298,125 @@ class Tor {
       );
     }
 
-    if (binary == null) {
+    if (Platform.isAndroid || Platform.isLinux || Platform.isMacOS) {
+      grant(path!, 448);
+    }
+
+    // obfs4 for bridges. Android runs it as a program of its own that Tor
+    // starts; iOS starts no programs, so there it runs inside the app and
+    // Tor reaches it over SOCKS at the port it reports.
+    String? plugin;
+    if (Platform.isIOS) {
       try {
-        final bundle = await const MethodChannel(
-          'security',
-        ).invokeMethod<String>('packages');
-
-        if (bundle != null && bundle.isNotEmpty) {
-          final source = File('$bundle/libobfs4proxy.so');
-          final target = File('$path/libobfs4proxy.so');
-
-          if (source.existsSync()) {
-            if (!target.existsSync() ||
-                target.lengthSync() != source.lengthSync()) {
-              await source.copy(target.path);
-              developer.log(
-                'Copied transport proxy binary to local working directory',
-                name: 'Tor.boot',
-                level: 800,
-              );
-            }
-            binary = target.path;
-          }
+        final opened = await const MethodChannel(
+          'tor',
+        ).invokeMethod<int>('transport', '$path/transport');
+        if (opened != null && opened > 0) {
+          plugin = 'obfs4 socks5 127.0.0.1:$opened';
         }
       } catch (error) {
         developer.log(
-          'Failed to locate transport proxy binary from platform environment',
+          'Failed to start the obfs4 transport inside the app',
           name: 'Tor.boot',
-          level: 500,
+          level: 900,
           error: error,
           stackTrace: StackTrace.current,
         );
       }
+    } else {
+      if (binary == null) {
+        try {
+          final bundle = await const MethodChannel(
+            'security',
+          ).invokeMethod<String>('packages');
+
+          if (bundle != null && bundle.isNotEmpty) {
+            final source = File('$bundle/libobfs4proxy.so');
+            final target = File('$path/libobfs4proxy.so');
+
+            if (source.existsSync()) {
+              if (!target.existsSync() ||
+                  target.lengthSync() != source.lengthSync()) {
+                await source.copy(target.path);
+                developer.log(
+                  'Copied transport proxy binary to local working directory',
+                  name: 'Tor.boot',
+                  level: 800,
+                );
+              }
+              binary = target.path;
+            }
+          }
+        } catch (error) {
+          developer.log(
+            'Failed to locate transport proxy binary from platform environment',
+            name: 'Tor.boot',
+            level: 500,
+            error: error,
+            stackTrace: StackTrace.current,
+          );
+        }
+      }
+      if (binary != null && binary!.isNotEmpty && File(binary!).existsSync()) {
+        if (Platform.isAndroid || Platform.isLinux || Platform.isMacOS) {
+          grant(binary!, 448);
+        }
+        plugin = 'obfs4 exec $binary';
+      }
+    }
+
+    final orders = <String>[
+      '--DataDirectory',
+      path!,
+      '--SocksPort',
+      '$host:$port ExtendedErrors',
+      '--HTTPTunnelPort',
+      '$host:$tunnel',
+      // A Unix socket's path can be 104 bytes at most on iOS, and an app's
+      // container alone takes most of that, so iOS takes a loopback port and
+      // Tor writes down which.
+      if (Platform.isIOS) ...[
+        '--ControlPort',
+        'auto',
+        '--ControlPortWriteToFile',
+        '$path/control',
+      ] else ...[
+        '--ControlPort',
+        'unix:$path/control.sock',
+        '--ControlSocketsGroupWritable',
+        '0',
+      ],
+      '--CookieAuthentication',
+      '1',
+      '--CookieAuthFile',
+      '$path/cookie',
+      '--AvoidDiskWrites',
+      '1',
+      '--SafeLogging',
+      '1',
+      '--HardwareAccel',
+      '1',
+      '--HiddenServiceStatistics',
+      '0',
+      if (plugin != null) ...['--ClientTransportPlugin', plugin],
+      if (bridge != null && bridge!.isNotEmpty) ...[
+        '--UseBridges',
+        '1',
+        '--Bridge',
+        bridge!,
+      ],
+      ...flags,
+    ];
+
+    // On iOS, Tor.framework's own thread runs Tor inside the app.
+    if (Platform.isIOS) {
+      await const MethodChannel('tor').invokeMethod<void>('start', orders);
+      developer.log(
+        'Started the Tor thread inside the app',
+        name: 'Tor.boot',
+        level: 800,
+      );
+      return;
     }
 
     final receiver = ReceivePort();
@@ -358,17 +445,7 @@ class Tor {
       }
     });
 
-    final data = [
-      receiver.sendPort,
-      path!,
-      binary ?? '',
-      bridge ?? '',
-      host,
-      port,
-      flags,
-    ];
-
-    worker = await Isolate.spawn(spawn, data);
+    worker = await Isolate.spawn(spawn, [receiver.sendPort, orders]);
 
     return signal.future.timeout(
       const Duration(seconds: 5),
@@ -380,14 +457,6 @@ class Tor {
 
   static void spawn(List<dynamic> arguments) {
     final sender = arguments[0] as SendPort;
-    final node = Tor(
-      path: arguments[1] as String,
-      binary: arguments[2] as String,
-      bridge: arguments[3] as String,
-      host: arguments[4] as String,
-      port: arguments[5] as int,
-      flags: arguments[6] as List<String>,
-    );
 
     developer.log(
       'Executing native process sequence inside spawned isolate',
@@ -396,7 +465,7 @@ class Tor {
     );
 
     sender.send('ready');
-    final code = node.run();
+    final code = Tor().run(arguments[1] as List<String>);
     if (code != 0) {
       developer.log(
         'Native process exited with non-zero status code',
@@ -407,7 +476,7 @@ class Tor {
     }
   }
 
-  int run() {
+  int run(List<String> orders) {
     developer.log(
       'Configuring security privileges and dynamic parameters',
       name: 'Tor.run',
@@ -433,10 +502,6 @@ class Tor {
       }
     }
 
-    if (Platform.isAndroid || Platform.isLinux || Platform.isMacOS) {
-      grant(path!, 448);
-    }
-
     try {
       state = allocate();
     } catch (error) {
@@ -449,60 +514,20 @@ class Tor {
       );
     }
 
-    bool proxy = false;
-    if (binary != null && binary!.isNotEmpty && File(binary!).existsSync()) {
-      if (Platform.isAndroid || Platform.isLinux || Platform.isMacOS) {
-        grant(binary!, 448);
-      }
-      proxy = true;
-    }
-
-    final orders = <String>[
-      'tor',
-      '--DataDirectory',
-      path!,
-      '--SocksPort',
-      '$host:$port ExtendedErrors',
-      '--HTTPTunnelPort',
-      '$host:$tunnel',
-      '--ControlPort',
-      'unix:$path/control.sock',
-      '--ControlSocketsGroupWritable',
-      '0',
-      '--CookieAuthentication',
-      '1',
-      '--CookieAuthFile',
-      '$path/cookie',
-      '--AvoidDiskWrites',
-      '1',
-      '--SafeLogging',
-      '1',
-      '--HardwareAccel',
-      '1',
-      '--HiddenServiceStatistics',
-      '0',
-      if (proxy) ...['--ClientTransportPlugin', 'obfs4 exec $binary'],
-      if (bridge != null && bridge!.isNotEmpty) ...[
-        '--UseBridges',
-        '1',
-        '--Bridge',
-        bridge!,
-      ],
-      ...flags,
-    ];
-
-    final array = calloc<Pointer<Utf8>>(orders.length);
+    // Tor reads its own name first, as from a command line.
+    final line = ['tor', ...orders];
+    final array = calloc<Pointer<Utf8>>(line.length);
     final list = <Pointer<Utf8>>[];
 
-    for (var index = 0; index < orders.length; index++) {
-      final pointer = orders[index].toNativeUtf8();
+    for (var index = 0; index < line.length; index++) {
+      final pointer = line[index].toNativeUtf8();
       array[index] = pointer;
       list.add(pointer);
     }
 
     int code = -1;
     try {
-      if (state != nullptr && configure(state, orders.length, array) == 0) {
+      if (state != nullptr && configure(state, line.length, array) == 0) {
         code = launch(state);
       } else {
         developer.log(
@@ -713,7 +738,11 @@ class Sentinel {
       grant(location!, 448);
     }
 
-    final file = File('$location/control.sock');
+    // Android talks to Tor over a Unix socket; iOS over the loopback port Tor
+    // writes into this file.
+    final file = File(
+      Platform.isIOS ? '$location/control' : '$location/control.sock',
+    );
 
     // Tor runs once per process: a second tor_run_main aborts the app. A
     // process that started it already, as when Android keeps the app alive
@@ -755,20 +784,37 @@ class Sentinel {
       await owner.writeAsString('$pid');
     }
 
+    // iOS can't watch a folder, so there the file is looked for until it's
+    // there.
     if (!await file.exists()) {
-      final horizon = folder.watch(events: FileSystemEvent.create);
-      final arrival = horizon.firstWhere((event) => event.path == file.path);
-      await arrival;
+      if (FileSystemEntity.isWatchSupported) {
+        final horizon = folder.watch(events: FileSystemEvent.create);
+        final arrival = horizon.firstWhere((event) => event.path == file.path);
+        await arrival;
+      } else {
+        while (!await file.exists()) {
+          await Future.delayed(const Duration(milliseconds: 200));
+        }
+      }
     }
 
     if (link == null) {
       var round = 0;
       while (link == null) {
         try {
-          link = await Socket.connect(
-            InternetAddress(file.path, type: InternetAddressType.unix),
-            0,
-          );
+          link = Platform.isIOS
+              ? await Socket.connect(
+                  InternetAddress.loopbackIPv4,
+                  int.parse(
+                    RegExp(
+                      r':(\d+)',
+                    ).firstMatch(await file.readAsString())!.group(1)!,
+                  ),
+                )
+              : await Socket.connect(
+                  InternetAddress(file.path, type: InternetAddressType.unix),
+                  0,
+                );
         } catch (error) {
           round += 1;
           if (round >= 10) {
