@@ -288,12 +288,19 @@ jobs:
           cp build/app/outputs/bundle/release/app-release.aab "bin/zephyron-$VERSION-android.aab"
 
       # Without an Apple signing identity this is an unsigned archive, for
-      # sideloading or re-signing with your own certificate.
+      # sideloading or re-signing with your own certificate. When Xcode
+      # fails, Flutter only says to pick a signing team, so a failed build
+      # runs again verbosely to show Xcode's own error.
       - name: Package for iOS
         if: matrix.platform == 'ios'
         run: |
           flutter build ios --release --no-codesign \
-            --build-name "$NAME" --build-number "$NUMBER" $DEFINES
+            --build-name "$NAME" --build-number "$NUMBER" $DEFINES || {
+            flutter build ios --release --no-codesign --verbose \
+              --build-name "$NAME" --build-number "$NUMBER" $DEFINES 2>&1 |
+              grep -i -E -B3 -A12 'error:|failed|bad state' | tail -200
+            exit 1
+          }
           mkdir -p "$RUNNER_TEMP/ipa/Payload"
           cp -R build/ios/iphoneos/Runner.app "$RUNNER_TEMP/ipa/Payload/"
           (cd "$RUNNER_TEMP/ipa" && zip -qry "$GITHUB_WORKSPACE/bin/zephyron-$VERSION-ios-unsigned.ipa" Payload)
