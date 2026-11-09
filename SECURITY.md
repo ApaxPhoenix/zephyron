@@ -64,8 +64,9 @@ to withstand and where that protection stops.
 ## Threat model
 
 This section says what Zephyron is built to protect, who it protects it
-from, and where that protection stops. It describes the Android app, the only
-platform where Tor runs today. Zephyron has not had an independent audit yet.
+from, and where that protection stops. It describes the Android and iOS
+apps, the platforms where Tor runs today, and says where iOS differs.
+Zephyron has not had an independent audit yet.
 
 ### What it protects
 
@@ -142,6 +143,11 @@ messages" notification keeps Android from stopping the app, and with it Tor.
   only believes it on a connection it dialed itself, where Tor has already
   proven who is on the other end.
 * Panic wipes and erased identities take the held frames with them.
+
+iOS has no such service: it suspends an app soon after it leaves the screen,
+and Tor with it. An iPhone is reachable only while Zephyron is open, and what
+is sent to it meanwhile waits on the sender's phone or with a trustee who
+holds it.
 
 ### Notifications
 
@@ -228,11 +234,18 @@ entirely.
   list, and picking, playing and sharing media is its own code. It builds
   native libraries such as liboqs from pinned source with scripts in this
   repository. Even so, a compromised dependency or toolchain could
-  compromise the app.
+  compromise the app. On iOS, Tor and obfs4 come prebuilt from the Guardian
+  Project's Tor.framework and IPtProxy, pinned to one version each; Tor's
+  download is checked against the checksum its podspec names.
 * **Tor inside the app.** Tor runs inside the app's own process, and only
   once per process. When Android keeps the process alive after the app's
   screen closes, the app finds the Tor already running there by the process
-  id kept beside its files, rather than starting a second one.
+  id kept beside its files, rather than starting a second one. On iOS,
+  Tor.framework runs Tor on a thread of its own, and obfs4 runs inside the
+  app too, since iOS starts no other programs. The app reaches Tor's control
+  port over loopback there, since an iOS app's folder is too deep for a Unix
+  socket's path; other apps can reach that port, but not without the cookie
+  in Zephyron's own folder.
 
 ### Releases
 

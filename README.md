@@ -158,8 +158,10 @@ fall out of date. If something is wrong, please open an issue.
 
 **Next**
 - Mesh messaging over USB and serial radios, for when there's no internet
-- Tor on iOS, macOS, Windows and Linux (the apps build there today, but Tor
-  currently only runs on Android)
+- Tor on macOS, Windows and Linux (the apps build there today, but Tor
+  currently runs only on Android and iOS)
+- Reaching an iPhone while Zephyron is closed (iOS stops the app, and Tor
+  with it, soon after it leaves the screen)
 - Post-quantum sessions on iOS (they fall back to classical encryption there
   until liboqs is built for it)
 - Signed iOS and macOS builds (Android releases are signed; the Apple
@@ -178,7 +180,7 @@ fall out of date. If something is wrong, please open an issue.
 | Platform | Status |
 | --- | --- |
 | Android | Works. This is where development happens. |
-| iOS | Builds, Tor not supported yet. |
+| iOS | Works, in beta. Tor runs inside the app; an iPhone is reachable while Zephyron is open. |
 | macOS, Windows, Linux | Build for x64 and ARM64, Tor not supported yet. |
 
 Every release on the [Releases](https://github.com/ApaxPhoenix/zephyron/releases)
@@ -203,7 +205,8 @@ doesn't yet, and [CHANGELOG.md](CHANGELOG.md) lists them all.
 ## Building from source
 
 You need [Flutter](https://docs.flutter.dev/get-started/install) 3.44.2 or
-newer, the Android SDK and Java 17 or newer.
+newer, the Android SDK and Java 17 or newer. For iOS you also need a Mac with
+Xcode 26 and CocoaPods; Tor and obfs4 come in through `ios/Podfile`.
 
 ```bash
 git clone https://github.com/ApaxPhoenix/zephyron.git
