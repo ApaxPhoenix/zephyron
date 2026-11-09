@@ -5,6 +5,15 @@ works and what doesn't yet, are in [`releases/`](releases) and on the
 [Releases](https://github.com/ApaxPhoenix/zephyron/releases) page. Versions
 with a hyphen, like `0.3.0-beta.2`, are pre-releases.
 
+## [0.4.0-beta.1] - 2026-11-10
+
+### Added
+- Tor inside the iOS app, with obfs4 bridges
+- A Build test that reaches an onion service through Tor on an iOS simulator
+
+### Changed
+- The iOS app needs iOS 15 or later
+
 ## [0.3.0] - 2026-11-02
 
 ### Added
@@ -101,6 +110,7 @@ with a hyphen, like `0.3.0-beta.2`, are pre-releases.
 - The app's shell on Android, iOS, macOS, Linux, Windows and the web
 - The network map with an offline download
 
+[0.4.0-beta.1]: https://github.com/ApaxPhoenix/zephyron/compare/v0.3.0...v0.4.0-beta.1
 [0.3.0]: https://github.com/ApaxPhoenix/zephyron/compare/v0.3.0-beta.2...v0.3.0
 [0.3.0-beta.2]: https://github.com/ApaxPhoenix/zephyron/compare/v0.3.0-beta.1...v0.3.0-beta.2
 [0.3.0-beta.1]: https://github.com/ApaxPhoenix/zephyron/compare/v0.2.0...v0.3.0-beta.1
