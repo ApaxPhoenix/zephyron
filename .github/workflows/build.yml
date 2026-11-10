@@ -77,7 +77,7 @@ jobs:
       - run: flutter pub get
 
       - name: Verify formatting
-        run: dart format --output=none --set-exit-if-changed lib test integration_test
+        run: dart format --output=none --set-exit-if-changed lib test
 
       - name: Analyze
         run: flutter analyze
@@ -130,7 +130,7 @@ jobs:
           echo "DEVICE=$device" >> "$GITHUB_ENV"
 
       - name: Reach an onion service through Tor
-        run: flutter test integration_test/tor_test.dart -d "$DEVICE"
+        run: flutter drive --driver test/driver.dart --target test/onion.dart -d "$DEVICE"
 
   build:
     name: ${{ matrix.name }}

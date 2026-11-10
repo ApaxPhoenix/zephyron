@@ -9,6 +9,10 @@ import 'package:zephyron/wrappers/tor.dart';
 /// Runs on a phone or a simulator, where Tor really runs: it boots Tor,
 /// publishes an onion service and reaches it through Tor, the way one
 /// trustee's phone reaches another's.
+///
+/// The name has no `_test` so `flutter test` leaves it alone on the computer.
+/// Run it on a device with:
+/// `flutter drive --driver test/driver.dart --target test/onion.dart -d <device>`
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
