@@ -1,0 +1,3 @@
+# The Podfile is CocoaPods' Ruby, not app code: kept out of GitHub's
+# language count so CodeQL does not look for Ruby to scan.
+ios/Podfile linguist-detectable=false
