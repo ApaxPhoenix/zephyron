@@ -49,7 +49,7 @@ jobs:
           fi
 
   quality:
-    name: Format, analyze and test
+    name: Format and analyze
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -71,9 +71,6 @@ jobs:
           echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/flutter/bin/flutter" --version
 
-      - name: Install SQLite for the database tests
-        run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
-
       - run: flutter pub get
 
       - name: Verify formatting
@@ -82,21 +79,12 @@ jobs:
       - name: Analyze
         run: flutter analyze
 
-      - name: Test
-        run: flutter test --coverage
-
-      - name: Keep the coverage
-        uses: actions/upload-artifact@v7
-        with:
-          name: coverage
-          path: coverage/lcov.info
-          retention-days: 14
-
-  # Tor runs inside the iOS app, so this boots it on a simulator, publishes
-  # an onion service and reaches it through Tor, the way one phone reaches
-  # another. A release waits for it like any other job.
-  simulator:
-    name: Tor on iOS
+  # Every Flutter test: the unit and widget tests on the runner, then
+  # test/onion.dart on an iPhone simulator, where Tor runs inside the app
+  # and reaches an onion service the way one phone reaches another. A
+  # release waits for it like any other job.
+  tests:
+    name: Flutter tests
     needs: [ secrets, quality ]
     runs-on: macos-15
     timeout-minutes: 60
@@ -121,6 +109,16 @@ jobs:
           "$RUNNER_TEMP/flutter/bin/flutter" --version
 
       - run: flutter pub get
+
+      - name: Test
+        run: flutter test --coverage
+
+      - name: Keep the coverage
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage
+          path: coverage/lcov.info
+          retention-days: 14
 
       - name: Boot an iPhone simulator
         run: |
