@@ -36,7 +36,7 @@ dependencies:
   image: ^4.12.0
   maplibre_gl: ^0.27.1
   quick_actions: ^1.1.1
-  record: ^7.1.2
+  record: ^7.2.0
   base32: ^2.2.0
   bip39: ^1.0.6
   crypto: ^3.0.7
