@@ -43,7 +43,7 @@ dependencies:
   cryptography: ^2.9.0
   ed25519_edwards: ^0.3.2
   flutter_secure_storage: ^11.0.0
-  freerasp: ^8.2.2
+  freerasp: ^9.0.0
   ffi: ^2.1.4
   path: ^1.9.1
   path_provider: ^2.1.5
